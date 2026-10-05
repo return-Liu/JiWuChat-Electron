@@ -19,9 +19,9 @@
     "electron:dev": "cross-env NODE_ENV=development nodemon --watch electron --ext js,json --exec 'electron .'",
     "electron:dev:full": "concurrently \"npm run dev\" \"npm run electron:dev\"",
     "generate:dist": "npm run wallpapers && nuxt generate && node scripts/copy-dist.js",
-    "electron:build": "npm run generate:dist && electron-builder && node scripts/clean-release.js",
+    "electron:build": "npm run generate:dist && electron-builder --publish never && node scripts/clean-release.js",
     "electron:build:prod": "cross-env NODE_ENV=production npm run electron:build",
-    "electron:pack": "npm run generate:dist && electron-builder --dir && node scripts/clean-release.js",
+    "electron:pack": "npm run generate:dist && electron-builder --publish never --dir && node scripts/clean-release.js",
     "electron:pack:prod": "cross-env NODE_ENV=production npm run electron:pack",
     "clean:release": "node scripts/clean-release.js",
     "clean": "rimraf dist .nuxt node_modules/.cache release"
