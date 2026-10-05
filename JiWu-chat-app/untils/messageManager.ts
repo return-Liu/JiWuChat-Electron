@@ -156,7 +156,9 @@ export const refreshGroups = async (
         groupOwnerId: groupData.owner ? String(groupData.owner.id) : "",
         owner: groupData.owner,
         admin: groupData.admin || [],
-        memberCount: groupData.memberCount || 0,
+        // 优先用后端返回的 memberCount，缺失时回退到 members 数组长度，
+        // 保证「人数」这个轻量字段永远有正确值（供缓存保留、头部/列表显示）
+        memberCount: groupData.memberCount ?? groupData.members?.length ?? 0,
         allowMemberInvite: groupData.allowMemberInvite ?? true,
         groupMembers:
           groupData.members?.map((m: any) => ({

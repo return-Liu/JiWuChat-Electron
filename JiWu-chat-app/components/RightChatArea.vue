@@ -558,8 +558,7 @@ const openChatHistoryModal = () => {
   // 桌面端：以独立窗口（自定义标题栏 + 内容）打开聊天记录
   if (isElectron()) {
     const contact = activeContact.value;
-    const title =
-      contact.remark || contact.name || contact.username || "聊天记录";
+    const title = contact.remark || contact.name || contact.username || "聊天记录";
     const query = new URLSearchParams({
       contactId: String(contact.id),
       currentUserId: String(props.currentUserId || ""),
@@ -961,17 +960,30 @@ const currentColorPalette = computed<ColorPalette>(() => {
 
 // 计算属性 - 聊天区域样式（背景和主题色变量）
 const chatAreaStyle = computed(() => ({
-  background: siderColorStore.chatBgGradient,
+  // 个性装扮（动态背景）时全透明，透出底层视频/图片
+  background: hasDynamicBackground.value ? "transparent" : siderColorStore.chatBgGradient,
   "--primary-color": currentColorPalette.value.color,
   "--primary-hover": currentColorPalette.value.hover,
   "--primary-light": currentColorPalette.value.light,
 }));
 
+// 个性装扮：动态背景（视频/图片）——背景层在页面外层，这里仅需透明
+const hasDynamicBackground = computed(() => siderColorStore.hasDynamicBackground);
+
 // 计算属性 - 聊天头部样式（渐变背景和边框）
-const chatHeaderStyle = computed(() => ({
-  background: `linear-gradient(135deg, ${siderColorStore.currentColorPalette?.chatBgStart || "#f5f7fa"} 0%, ${siderColorStore.currentColorPalette?.chatBgMiddle || "#e5e9f2"} 50%, ${siderColorStore.currentColorPalette?.chatBgEnd || "#d0d8e8"} 100%)`,
-  borderBottom: `1px solid ${currentColorPalette.value.light}80`,
-}));
+const chatHeaderStyle = computed(() => {
+  // 个性装扮（动态背景）时头部透明，透出底层视频/图片
+  if (hasDynamicBackground.value) {
+    return {
+      background: "transparent",
+      borderBottom: `1px solid ${siderColorStore.panelDividerColor}`,
+    };
+  }
+  return {
+    background: `linear-gradient(135deg, ${siderColorStore.currentColorPalette?.chatBgStart || "#f5f7fa"} 0%, ${siderColorStore.currentColorPalette?.chatBgMiddle || "#e5e9f2"} 50%, ${siderColorStore.currentColorPalette?.chatBgEnd || "#d0d8e8"} 100%)`,
+    borderBottom: `1px solid ${currentColorPalette.value.light}80`,
+  };
+});
 
 // 计算属性 - 输入区域样式
 const inputAreaStyle = computed(() => ({

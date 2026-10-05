@@ -5,65 +5,49 @@
 /* 阿里妈妈数黑体 @font-face 声明 */
 @font-face {
   font-family: "AlimamaShuHeiTi";
-  src:
-    url("./font/alimama-shuheiti/AlimamaShuHeiTi-Bold.woff2") format("woff2"),
-    url("./font/alimama-shuheiti/AlimamaShuHeiTi-Bold.woff") format("woff");
+  src: url("./font/alimama-shuheiti/AlimamaShuHeiTi-Bold.woff2") format("woff2");
 }
 
 /* 阿里妈妈东方大楷 @font-face 声明 */
 @font-face {
   font-family: "Alimama Dongfang Dakai";
-  src:
-    url("./font/alimama-dongfang-dakai/AlimamaDongfangDakai-Regular.woff2") format("woff2"),
-    url("./font/alimama-dongfang-dakai/AlimamaDongfangDakai-Regular.woff") format("woff");
+  src: url("./font/alimama-dongfang-dakai/AlimamaDongFangDaKai-Regular.woff2") format("woff2");
 }
 
 /* 阿里巴巴普惠体3.0 @font-face 声明 */
 @font-face {
   font-family: "Alibaba PuHuiTi";
-  src:
-    url("./font/AlibabaPuHuiTi/AlibabaPuHuiTi-3-115-Black.woff2") format("woff2"),
-    url("./font/AlibabaPuHuiTi/AlibabaPuHuiTi-3-115-Black.woff") format("woff");
+  src: url("./font/AlibabaPuHuiTi/AlibabaPuHuiTi-3-115-Black.woff2") format("woff2");
 }
 
 /* 钉钉进步字体 @font-face 声明 */
 @font-face {
   font-family: "DingTalk JiJin";
-  src:
-    url("./font/DingTalk-JinBuTi/DingTalk-JinBuTi.woff2") format("woff2"),
-    url("./font/DingTalk-JinBuTi/DingTalk-JinBuTi.woff") format("woff");
+  src: url("./font/DingTalk-JinBuTi/DingTalk-JinBuTi.woff2") format("woff2");
 }
 
 /* 阿里妈妈刀隶体 @font-face 声明 */
 @font-face {
   font-family: "Alimama DiaoLiTi";
-  src:
-    url("./font/AlimamaDaoLiTi/AlimamaDaoLiTi.woff2") format("woff2"),
-    url("./font/AlimamaDaoLiTi/AlimamaDaoLiTi.woff") format("woff");
+  src: url("./font/AlimamaDaoLiTi/AlimamaDaoLiTi.woff2") format("woff2");
 }
 
 /* 得意黑 @font-face 声明 */
 @font-face {
   font-family: "SmileySans-Oblique";
-  src:
-    url("./font/SmileySans-Oblique/SmileySans-Oblique.woff2") format("woff2"),
-    url("./font/SmileySans-Oblique/SmileySans-Oblique.woff") format("woff");
+  src: url("./font/SmileySans-Oblique/SmileySans-Oblique.woff2") format("woff2");
 }
 
 /* 淘宝买菜体 @font-face 声明 */
 @font-face {
   font-family: "TaobaoMaiCaiTi";
-  src:
-    url("./font/TaoBaoMaiCaiTi-Regular/TaoBaoMaiCaiTi-Regular.woff2") format("woff2"),
-    url("./font/TaoBaoMaiCaiTi-Regular/TaoBaoMaiCaiTi-Regular.woff") format("woff");
+  src: url("./font/TaoBaoMaiCaiTi-Regular/TaoBaoMaiCaiTi-Regular.woff2") format("woff2");
 }
 
 /* 阿里妈妈灵动体 @font-face 声明 */
 @font-face {
   font-family: "AlimamaAgileVF-Thin";
-  src:
-    url("./font/AlimamaAgileVF-Thin/AlimamaAgileVF-Thin.woff2") format("woff2"),
-    url("./font/AlimamaAgileVF-Thin/AlimamaAgileVF-Thin.woff") format("woff");
+  src: url("./font/AlimamaAgileVF-Thin/AlimamaAgileVF-Thin.woff2") format("woff2");
 }
 
 /* 字玩哥特黑白无常 @font-face 声明 */

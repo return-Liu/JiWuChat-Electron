@@ -1,8 +1,88 @@
-const { app, BrowserWindow, ipcMain, globalShortcut, screen, nativeImage } = require("electron");
+const {
+  app,
+  BrowserWindow,
+  ipcMain,
+  globalShortcut,
+  screen,
+  nativeImage,
+  protocol,
+  net,
+  Tray,
+  Menu,
+} = require("electron");
 const path = require("path");
+const { pathToFileURL } = require("url");
 const isDev = process.env.NODE_ENV === "development";
 const fs = require("fs");
 const { initWindowManager, openWindow } = require("./windowManager");
+
+// ============= 应用身份标识（必须在创建任何窗口之前设置）=============
+// Windows 任务栏图标 / 右键菜单（JumpList）依赖 AppUserModelID 与快捷方式匹配。
+// 若设置过晚或缺失，任务栏会回退显示 electron.exe 的默认图标。
+// 该 ID 必须与 electron-builder 的 build.appId 完全一致（com.jiwu.chat）。
+app.setAppUserModelId("com.jiwu.chat");
+// 设置应用名（影响部分系统 UI 显示，如任务管理器、通知）
+app.setName("极物聊天");
+
+// ============= 自定义协议（生产环境）=============
+// Electron 通过 file:// 加载页面时，Vue Router 的 history 模式无法工作
+// （file:// 下没有 origin，路径解析异常，导致 404 / 白屏）。
+// 因此生产环境改用自定义协议 app://，把请求映射到 dist 目录，
+// 使 history 路由能像在 http 服务器下一样正常工作。
+const APP_SCHEME = "app";
+const APP_ORIGIN = `${APP_SCHEME}://-`;
+
+// 必须在 app ready 之前注册为特权协议，才能支持 fetch、CORS、Service Worker 等能力
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: APP_SCHEME,
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+      stream: true,
+    },
+  },
+]);
+
+/**
+ * 注册 app:// 协议处理器：将请求路径映射到 dist 目录下的静态文件。
+ * 例如 app://-/login -> <appPath>/dist/login/index.html（不存在则回退 index.html）
+ */
+function registerAppProtocol() {
+  const distDir = path.join(app.getAppPath(), "dist");
+
+  protocol.handle(APP_SCHEME, (request) => {
+    const url = new URL(request.url);
+    // url.pathname 形如 "/login" 或 "/_nuxt/xxx.js"
+    let pathname = decodeURIComponent(url.pathname);
+    if (pathname === "/" || pathname === "") pathname = "/index.html";
+
+    let filePath = path.join(distDir, pathname);
+
+    // 目录 -> 尝试 index.html
+    if (fs.existsSync(filePath) && fs.statSync(filePath).isDirectory()) {
+      filePath = path.join(filePath, "index.html");
+    }
+
+    // 文件不存在 -> 回退到 index.html（SPA fallback，交给前端路由处理）
+    if (!fs.existsSync(filePath)) {
+      filePath = path.join(distDir, "index.html");
+    }
+
+    return net.fetch(pathToFileURL(filePath).href);
+  });
+}
+
+/**
+ * 构建生产环境页面 URL（使用自定义协议，兼容 history 路由）。
+ * @param {string} route 形如 "/login" 的路径
+ */
+function buildAppUrl(route) {
+  const normalized = route.startsWith("/") ? route : `/${route}`;
+  return `${APP_ORIGIN}${normalized}`;
+}
 
 // 开发环境下不在此处启用 electron-reload：
 // 1. Nuxt dev server（npm run dev）已负责前端代码的 HMR 热更新；
@@ -55,16 +135,20 @@ const MESSAGE_MIN_WINDOW_SIZE = {
 };
 
 // ============= 图标设置函数 =============
+// Windows 下优先使用 .ico（含多尺寸），任务栏/右键菜单/标题栏显示效果最佳；
+// 其他平台回退到 .png。
 function getIconPath() {
   let iconPath = null;
 
   if (isDev) {
     const possiblePaths = [
-      path.join(__dirname, "public", "jiwuchat-elctron.png"),
+      path.join(__dirname, "..", "build", "icon", "logo.ico"),
+      path.join(__dirname, "..", "build", "icon", "logo.png"),
+      path.join(process.cwd(), "build", "icon", "logo.ico"),
+      path.join(process.cwd(), "build", "icon", "logo.png"),
+      path.join(__dirname, "..", "public", "logo.png"),
+      path.join(process.cwd(), "public", "logo.png"),
       path.join(__dirname, "..", "public", "jiwuchat-elctron.png"),
-      path.join(process.cwd(), "public", "jiwuchat-elctron.png"),
-      path.resolve(__dirname, "public", "jiwuchat-elctron.png"),
-      path.resolve(__dirname, "..", "public", "jiwuchat-elctron.png"),
     ];
 
     for (const p of possiblePaths) {
@@ -74,10 +158,14 @@ function getIconPath() {
       }
     }
   } else {
+    // 生产环境：extraResources 已将 build/icon 复制到 resources/icons
     const possiblePaths = [
+      path.join(process.resourcesPath, "icons", "logo.ico"),
+      path.join(process.resourcesPath, "icons", "logo.png"),
+      path.join(process.resourcesPath, "app.asar", "build", "icon", "logo.ico"),
+      path.join(process.resourcesPath, "app.asar", "public", "logo.png"),
+      path.join(app.getAppPath(), "public", "logo.png"),
       path.join(process.resourcesPath, "app.asar", "public", "jiwuchat-elctron.png"),
-      path.join(process.resourcesPath, "public", "jiwuchat-elctron.png"),
-      path.join(app.getAppPath(), "public", "jiwuchat-elctron.png"),
     ];
 
     for (const p of possiblePaths) {
@@ -109,6 +197,7 @@ function setAppIcon(window) {
       window.setIcon(icon);
     }
 
+    // AppUserModelID 已在模块顶层设置（创建窗口前），此处仅兜底确保生效
     if (process.platform === "win32") {
       app.setAppUserModelId("com.jiwu.chat");
     } else if (process.platform === "darwin") {
@@ -121,6 +210,113 @@ function setAppIcon(window) {
     console.error("Failed to set icon:", error);
     return false;
   }
+}
+
+// ============= 系统托盘 =============
+let tray = null;
+// 标记是否真正退出应用（区分「关闭窗口」与「退出程序」）
+let isQuitting = false;
+
+/**
+ * 获取托盘图标（优先使用 .ico / 小尺寸 png）。
+ * 托盘图标建议使用 16x16 / 32x32 的小图，避免过大显示异常。
+ */
+function getTrayIcon() {
+  const candidates = isDev
+    ? [
+        path.join(__dirname, "..", "build", "icon", "logo.ico"),
+        path.join(__dirname, "..", "build", "icon", "logo.png"),
+        path.join(process.cwd(), "build", "icon", "logo.ico"),
+        path.join(process.cwd(), "build", "icon", "logo.png"),
+        path.join(__dirname, "..", "public", "logo.png"),
+      ]
+    : [
+        path.join(process.resourcesPath, "icons", "logo.ico"),
+        path.join(process.resourcesPath, "icons", "logo.png"),
+        path.join(process.resourcesPath, "app.asar", "build", "icon", "logo.ico"),
+        path.join(process.resourcesPath, "app.asar", "public", "logo.png"),
+      ];
+
+  for (const p of candidates) {
+    if (fs.existsSync(p)) {
+      const img = nativeImage.createFromPath(p);
+      if (!img.isEmpty()) {
+        // Windows 托盘建议使用 16x16，避免图标过大
+        return process.platform === "win32" ? img.resize({ width: 16, height: 16 }) : img;
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * 显示并聚焦主窗口（若已最小化则还原，若已隐藏则显示）。
+ */
+function showMainWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    createWindow();
+    return;
+  }
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  if (!mainWindow.isVisible()) mainWindow.show();
+  mainWindow.focus();
+}
+
+/**
+ * 切换主窗口显示/隐藏（点击托盘图标时调用）。
+ */
+function toggleMainWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    createWindow();
+    return;
+  }
+  if (mainWindow.isVisible() && !mainWindow.isMinimized()) {
+    mainWindow.hide();
+  } else {
+    showMainWindow();
+  }
+}
+
+/**
+ * 创建系统托盘图标与菜单。
+ */
+function createTray() {
+  if (tray) return;
+
+  const icon = getTrayIcon();
+  if (!icon) {
+    console.warn("[托盘] 未找到可用的托盘图标，跳过托盘创建");
+    return;
+  }
+
+  tray = new Tray(icon);
+  tray.setToolTip("极物聊天");
+
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: "重载",
+      click: () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.reload();
+        }
+      },
+    },
+    { type: "separator" },
+    {
+      label: "退出",
+      click: () => {
+        isQuitting = true;
+        app.quit();
+      },
+    },
+  ]);
+
+  tray.setContextMenu(contextMenu);
+
+  // 点击托盘图标：切换主窗口显示/隐藏（Windows/Linux）
+  tray.on("click", () => toggleMainWindow());
+
+  console.log("[托盘] 系统托盘已创建");
 }
 
 function createWindow() {
@@ -144,6 +340,7 @@ function createWindow() {
     show: false,
     autoHideMenuBar: true,
     roundedCorners: true,
+    icon: getIconPath() || undefined,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -158,9 +355,8 @@ function createWindow() {
     mainWindow.loadURL("http://localhost:3000/login");
     mainWindow.webContents.openDevTools();
   } else {
-    // Nuxt3 静态生成使用 hash 路由，初始加载 login 页面
-    const indexPath = path.join(app.getAppPath(), "dist", "index.html");
-    mainWindow.loadURL(`file://${indexPath}#/login`);
+    // 生产环境使用自定义协议 app://，兼容 history 路由（file:// 下会 404/白屏）
+    mainWindow.loadURL(buildAppUrl("/login"));
   }
 
   // 监听主窗口最大化/还原事件，通知渲染进程
@@ -173,6 +369,15 @@ function createWindow() {
 
   mainWindow.once("ready-to-show", () => {
     mainWindow.show();
+  });
+
+  // 点击关闭按钮时：隐藏到托盘（而非退出应用）。
+  // 仅当用户从托盘菜单选择「退出极物聊天」时（isQuitting=true）才真正关闭。
+  mainWindow.on("close", (event) => {
+    if (!isQuitting) {
+      event.preventDefault();
+      mainWindow.hide();
+    }
   });
 
   mainWindow.on("closed", () => {
@@ -374,6 +579,7 @@ function createHiddenWindow(pageName) {
       show: false,
       autoHideMenuBar: true,
       roundedCorners: true,
+      icon: getIconPath() || undefined,
       // 关键：背景色与 AuxiliaryWindowLoader 组件背景一致，消除白屏闪烁
       backgroundColor: "#f5f7fa",
       webPreferences: {
@@ -496,8 +702,8 @@ function buildWindowUrl(fullPath) {
   if (isDev) {
     return `http://localhost:3000${normalizedPath}`;
   } else {
-    const indexPath = path.join(app.getAppPath(), "dist", "index.html");
-    return `file://${indexPath}#${normalizedPath}`;
+    // 生产环境使用自定义协议，兼容 history 路由
+    return buildAppUrl(normalizedPath);
   }
 }
 
@@ -594,6 +800,7 @@ ipcMain.handle("open-auxiliary-window", async (event, pageName) => {
           show: false,
           autoHideMenuBar: true,
           roundedCorners: true,
+          icon: getIconPath() || undefined,
           // 关键：背景色与 AuxiliaryWindowLoader 一致，消除白屏
           backgroundColor: "#f5f7fa",
           webPreferences: {
@@ -745,6 +952,7 @@ ipcMain.handle("open-oauth-window", async (event, authUrl) => {
     show: true,
     autoHideMenuBar: true,
     backgroundColor: "#ffffff",
+    icon: getIconPath() || undefined,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -811,8 +1019,16 @@ function handleOAuthCallback(url) {
 }
 
 app.whenReady().then(() => {
+  // 生产环境注册自定义协议处理器（映射到 dist 目录）
+  if (!isDev) {
+    registerAppProtocol();
+  }
+
   // 初始化统一窗口管理器（注册 app-open-window 等 IPC）
   initWindowManager({ ipcMain });
+
+  // 创建系统托盘
+  createTray();
 
   createWindow();
 
@@ -849,6 +1065,7 @@ app.whenReady().then(() => {
       autoHideMenuBar: true,
       roundedCorners: true,
       backgroundColor: "#f5f7fa",
+      icon: getIconPath() || undefined,
       webPreferences: {
         preload: path.join(__dirname, "preload.js"),
         contextIsolation: true,
@@ -861,8 +1078,7 @@ app.whenReady().then(() => {
     if (isDev) {
       experienceWin.loadURL("http://localhost:3000/login");
     } else {
-      const indexPath = path.join(app.getAppPath(), "dist", "index.html");
-      experienceWin.loadURL(`file://${indexPath}#/login`);
+      experienceWin.loadURL(buildAppUrl("/login"));
     }
   });
 
@@ -873,8 +1089,23 @@ app.whenReady().then(() => {
   });
 });
 
+// 用户从系统/任务管理器请求退出时，标记为真正退出
+app.on("before-quit", () => {
+  isQuitting = true;
+});
+
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
+  // 有托盘时常驻后台：仅当用户明确退出（isQuitting）时才退出应用。
+  // macOS 上按平台惯例常驻，不退出。
+  if (isQuitting && process.platform !== "darwin") {
     app.quit();
+  }
+});
+
+// 应用退出前销毁托盘，避免残留图标
+app.on("will-quit", () => {
+  if (tray && !tray.isDestroyed()) {
+    tray.destroy();
+    tray = null;
   }
 });

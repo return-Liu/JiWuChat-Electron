@@ -32,32 +32,6 @@
                       <span class="menu-text">创建群聊</span>
                     </div>
                   </a-menu-item>
-                  <a-menu-item key="viewApplications">
-                    <div class="menu-item">
-                      <i class="iconfont icon-a-9 menu-icon menu-icon-fixed"></i>
-                      <span class="menu-text">群聊申请记录</span>
-                      <a-badge
-                        v-if="pendingGroupApplicationCount > 0"
-                        :value="pendingGroupApplicationCount"
-                        :max="99"
-                        class="menu-badge"
-                      />
-                    </div>
-                  </a-menu-item>
-                  <a-menu-item key="viewInviteStats">
-                    <div class="menu-item">
-                      <i class="iconfont icon-tongji menu-icon-fixed"></i>
-                      <span class="menu-text">邀请统计</span>
-                    </div>
-                  </a-menu-item>
-                  <a-menu-item v-if="isCurrentGroupOwner" key="manageGroupApplications">
-                    <div class="menu-item">
-                      <i
-                        class="iconfont icon-biaoqiankuozhan_guanli-159 menu-icon menu-icon-fixed"
-                      ></i>
-                      <span class="menu-text">管理申请</span>
-                    </div>
-                  </a-menu-item>
                 </template>
                 <template v-else-if="contentType === 'friend'">
                   <a-menu-item key="addFriend">
@@ -70,36 +44,6 @@
                     <div class="menu-item">
                       <i class="iconfont icon-tianjiaqunliao menu-icon menu-icon-fixed"></i>
                       <span class="menu-text">添加群聊</span>
-                    </div>
-                  </a-menu-item>
-                  <a-menu-item key="viewReceivedFriendApplications">
-                    <div class="menu-item">
-                      <i class="iconfont icon-haoyoushenqing menu-icon menu-icon-fixed"></i>
-                      <span class="menu-text">收到的好友申请</span>
-                      <a-badge
-                        v-if="pendingFriendApplicationCount > 0"
-                        :value="pendingFriendApplicationCount"
-                        :max="99"
-                        class="menu-badge"
-                      />
-                    </div>
-                  </a-menu-item>
-                  <a-menu-item key="viewSentFriendApplications">
-                    <div class="menu-item">
-                      <i class="iconfont icon-apply menu-icon menu-icon-fixed"></i>
-                      <span class="menu-text">我发起的申请</span>
-                      <a-badge
-                        v-if="friendRequestCounts.sentPending > 0"
-                        :value="friendRequestCounts.sentPending"
-                        :max="99"
-                        class="menu-badge"
-                      />
-                    </div>
-                  </a-menu-item>
-                  <a-menu-item key="viewApplications">
-                    <div class="menu-item">
-                      <i class="iconfont icon-a-9 menu-icon menu-icon-fixed"></i>
-                      <span class="menu-text">群聊申请记录</span>
                     </div>
                   </a-menu-item>
                 </template>
@@ -123,6 +67,15 @@
         </div>
       </div>
 
+      <!-- 同步状态提示：位于搜索框与第一个联系人之间 -->
+      <div v-if="syncLabel" class="contact-sync-status" :class="syncState">
+        <span v-if="syncState === 'syncing'" class="sync-loading-bar"></span>
+        <span class="sync-text">{{ syncLabel }}</span>
+        <button v-if="syncState === 'failed'" class="sync-retry" type="button" @click="emit('syncRetry')">
+          重试
+        </button>
+      </div>
+
       <ContactList
         :content-type="contentType"
         :contacts="props.contacts"
@@ -134,6 +87,8 @@
         :unread-message-count="totalUnreadCount"
         @contact-select="handleContactClick"
         @close-drawer="emit('closeDrawer')"
+        @friend-notice-click="emit('friendNoticeClick')"
+        @group-notice-click="emit('groupNoticeClick')"
       />
 
       <CreateGroupModal
@@ -171,18 +126,6 @@
         @success="handleJoinGroupSuccess"
       />
 
-      <ApplicationListModal
-        :visible="showApplicationListModal"
-        @update:visible="showApplicationListModal = $event"
-      />
-
-      <ManageApplicationsModal
-        :visible="showManageApplicationsModal"
-        @update:visible="showManageApplicationsModal = $event"
-        :group-id="selectedGroupId"
-        @success="handleManageApplicationsSuccess"
-      />
-
       <AddFriendModal
         :visible="showAddFriendModal"
         @update:visible="showAddFriendModal = $event"
@@ -190,22 +133,6 @@
         @success="handleAddFriendSuccess"
       />
 
-      <ReceivedFriendApplicationsModal
-        :visible="showReceivedFriendApplicationsModal"
-        @update:visible="showReceivedFriendApplicationsModal = $event"
-        @success="handleFriendRequestSuccess"
-      />
-
-      <SentFriendApplicationsModal
-        :visible="showSentFriendApplicationsModal"
-        @update:visible="showSentFriendApplicationsModal = $event"
-        @success="handleFriendRequestSuccess"
-      />
-
-      <InviteStats
-        :visible="showInviteStatsModal"
-        @update:visible="showInviteStatsModal = $event"
-      />
     </div>
   </div>
 </template>
@@ -306,6 +233,9 @@ interface Props {
   pendingGroupApplicationCount?: number;
   // 🔥 新增：待处理好友申请数量
   pendingFriendApplicationCount?: number;
+  // 同步状态提示（搜索框与联系人列表之间）
+  syncState?: "idle" | "syncing" | "synced" | "failed";
+  syncLabel?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -318,6 +248,8 @@ const props = withDefaults(defineProps<Props>(), {
   unreadMessageCount: 0,
   pendingGroupApplicationCount: 0,
   pendingFriendApplicationCount: 0,
+  syncState: "idle",
+  syncLabel: "",
 });
 const emit = defineEmits<{
   contactSelect: [id: string];
@@ -330,16 +262,16 @@ const emit = defineEmits<{
   refreshGroupApplicationCount: [];
   // 🔥 新增：刷新好友申请数量
   refreshFriendApplicationCount: [];
+  // 好友通知 / 群通知入口（转发自 ContactList，交由父组件在右栏展示）
+  friendNoticeClick: [];
+  groupNoticeClick: [];
+  // 同步失败重试
+  syncRetry: [];
 }>();
 
 const userStore = useUserStore();
 const siderColorStore = useSiderColor();
 const searchQuery = ref("");
-const showApplicationListModal = ref(false);
-const applications = ref<Application[]>([]);
-const applicationFilterStatus = ref<string>("");
-const showManageApplicationsModal = ref(false);
-const selectedGroupId = ref<number | null>(null);
 const isSubmitting = ref(false);
 
 const showCreateGroupModal = ref(false);
@@ -349,11 +281,6 @@ const tempCreatedGroupId = ref<number | undefined>(undefined);
 
 // 选中的好友 ID 列表（用于创建群聊时作为初始成员）
 const selectedFriendIdsForCreate = ref<number[]>([]);
-
-const showReceivedFriendApplicationsModal = ref(false);
-const showSentFriendApplicationsModal = ref(false);
-
-const showInviteStatsModal = ref(false);
 
 const activeTab = ref("friend");
 const friendCategoryExpanded = ref(false);
@@ -371,12 +298,6 @@ const groupFormData = ref<GroupFormData>({
 
 const creatingGroup = ref(false);
 
-const friendRequestCounts = ref({
-  pending: 0,
-  sentPending: 0,
-  total: 0,
-});
-
 const loadingStage = ref(0);
 const isInitialized = ref(false);
 
@@ -389,16 +310,6 @@ const totalUnreadCount = computed(() => {
   }, 0);
 });
 
-// 🔥 新增：使用父组件传递的待处理群聊申请数量
-const pendingGroupApplicationCount = computed(() => {
-  return props.pendingGroupApplicationCount || 0;
-});
-
-// 🔥 新增：使用父组件传递的待处理好友申请数量
-const pendingFriendApplicationCount = computed(() => {
-  return props.pendingFriendApplicationCount || 0;
-});
-
 const currentColorPalette = computed(() => {
   return siderColorStore.currentColorPalette;
 });
@@ -406,13 +317,24 @@ const currentColorPalette = computed(() => {
 // ✅ 直接使用 Store 配置，移除复杂的条件判断
 const middleAreaStyle = computed(() => {
   const palette = currentColorPalette.value;
+  // 个性装扮（动态背景）时：主色改用从壁纸吸取的颜色，搜索框/按钮改为半透明，文字转白
+  const isDynamic = siderColorStore.hasDynamicBackground;
 
   return {
-    "--primary-color": palette.color,
+    "--primary-color": isDynamic ? siderColorStore.dynamicAccent : palette.color,
     "--primary-hover-color": palette.hover,
     "--primary-active-color": palette.active,
     "--primary-light-color": palette.light,
     "--primary-text-color": palette.text,
+
+    // 搜索框 / 加号按钮：动态主题下改为半透明 + 白色图标文字，避免在壁纸上出现浅色块
+    "--search-bg": isDynamic ? "rgba(0, 0, 0, 0.28)" : "#f5f5f5",
+    "--search-text-color": isDynamic ? "#ffffff" : "#333333",
+    "--search-placeholder-color": isDynamic ? "rgba(255, 255, 255, 0.7)" : "#999999",
+    "--search-icon-color": isDynamic ? "rgba(255, 255, 255, 0.85)" : "#999999",
+    "--search-icon-hover-color": isDynamic ? "#ffffff" : "#666666",
+    "--action-btn-bg": isDynamic ? "rgba(0, 0, 0, 0.28)" : "#f5f5f5",
+    "--action-btn-color": isDynamic ? "rgba(255, 255, 255, 0.9)" : "#666666",
 
     // 直接使用 Store 中的联系人列表项颜色配置
     "--bg-hover": siderColorStore.contactItemHoverBg,
@@ -432,6 +354,10 @@ const middleAreaStyle = computed(() => {
     "--chat-bg-start": siderColorStore.chatBgStartColor,
     "--chat-bg-middle": siderColorStore.chatBgMiddleColor || siderColorStore.chatBgStartColor,
     "--chat-bg-end": siderColorStore.chatBgEndColor,
+    // 个性装扮（动态背景）时，联系人列表全透明，透出底层视频/图片
+    "--content-bg": siderColorStore.hasDynamicBackground
+      ? "transparent"
+      : siderColorStore.chatBgGradient,
     background: "transparent",
   };
 });
@@ -439,7 +365,10 @@ const middleAreaStyle = computed(() => {
 // 搜索区域的主题渐变背景样式
 const searchBarStyle = computed(() => {
   return {
-    background: siderColorStore.chatBgGradient,
+    // 个性装扮（动态背景）时全透明，透出底层视频/图片
+    background: siderColorStore.hasDynamicBackground
+      ? "transparent"
+      : siderColorStore.chatBgGradient,
   };
 });
 
@@ -463,10 +392,6 @@ watch(
 );
 
 const currentActiveContactId = computed(() => props.activeContactId || "");
-const isCurrentGroupOwner = computed((): boolean => {
-  const contact = props.contacts?.find((c) => c.id === currentActiveContactId.value);
-  return Boolean(contact?.isGroup) && contact!.groupOwnerId === String(userStore.userInfo?.id);
-});
 const isDefaultTopContact = (contactId: string): boolean => {
   return (
     props.contacts.length > 0 &&
@@ -494,18 +419,8 @@ const handleMenuClick = ({ key }: { key: string }) => {
     openCreateGroupModal();
   } else if (key === "joinGroup") {
     openJoinGroupModal();
-  } else if (key === "viewApplications") {
-    openApplicationListModal();
-  } else if (key === "manageGroupApplications") {
-    openManageApplicationsModal();
   } else if (key === "addFriend") {
     openAddFriendModal();
-  } else if (key === "viewReceivedFriendApplications") {
-    showReceivedFriendApplicationsModal.value = true;
-  } else if (key === "viewSentFriendApplications") {
-    showSentFriendApplicationsModal.value = true;
-  } else if (key === "viewInviteStats") {
-    showInviteStatsModal.value = true;
   }
 };
 
@@ -521,29 +436,6 @@ const handleJoinGroupSuccess = () => {
   emit("refreshContacts");
 };
 
-const openApplicationListModal = async () => {
-  showApplicationListModal.value = true;
-};
-
-const closeApplicationListModal = () => {
-  showApplicationListModal.value = false;
-};
-
-const getStatusText = (status: string) => {
-  switch (status) {
-    case "pending":
-      return "待审核";
-    case "approved":
-    case "accepted":
-      return "已通过";
-    case "rejected":
-      return "已拒绝";
-    case "blocked":
-      return "已屏蔽";
-    default:
-      return status;
-  }
-};
 import {
   handleSendMessage,
   getChatHistory,
@@ -596,7 +488,6 @@ const loadContactsData = async () => {
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     loadingStage.value = 4;
-    loadFriendRequestCounts();
     isInitialized.value = true;
     loadingStage.value = 5;
   } catch (error) {
@@ -637,38 +528,6 @@ watch(
   },
   { deep: true },
 );
-
-const openManageApplicationsModal = async () => {
-  const contact = props.contacts.find((c) => c.id === currentActiveContactId.value);
-  if (!contact || !contact.isGroup) {
-    message.error("请选择一个群聊");
-    return;
-  }
-  let pureGroupId;
-  const contactIdStr = String(contact.id);
-  if (contactIdStr.startsWith("group_")) {
-    pureGroupId = parseInt(contactIdStr.replace("group_", ""));
-  } else {
-    pureGroupId = parseInt(contactIdStr);
-  }
-  if (isNaN(pureGroupId)) {
-    message.error("无效的群聊 ID");
-    return;
-  }
-  selectedGroupId.value = pureGroupId;
-  showManageApplicationsModal.value = true;
-};
-
-const closeManageApplicationsModal = () => {
-  showManageApplicationsModal.value = false;
-  selectedGroupId.value = null;
-};
-
-const handleManageApplicationsSuccess = () => {
-  emit("refreshContacts");
-  // 🔥 新增：通知父组件刷新群聊申请数量
-  emit("refreshGroupApplicationCount");
-};
 
 const openCreateGroupModal = () => {
   // 重置选中的好友
@@ -796,136 +655,70 @@ const handleAddFriendSuccess = () => {
   }
 };
 
-const handleFriendRequestSuccess = () => {
-  if (props.contentType === "friend") {
-    emit("refreshContacts");
-  }
-  loadFriendRequestCounts();
-  // 🔥 新增：通知父组件刷新好友申请数量
-  emit("refreshFriendApplicationCount");
-};
-
 const handleAddMembersSuccess = () => {
   emit("refreshContacts");
   showAddMembersAfterCreateModal.value = false;
   tempCreatedGroupId.value = undefined;
 };
 
-const showFriendApplicationsModal = ref(false);
-const friendApplications = ref<FriendRequest[]>([]);
-const friendApplicationFilterStatus = ref<string>("");
-const friendApplicationsLoading = ref(false);
-const isViewingOwnRequests = ref(false);
-
-import { getFriendRequests, handleFriendRequest } from "../untils/friendManager";
-import type { FriendRequest } from "../untils/friendManager";
-
-const openFriendApplicationsModal = async (viewOwnRequests = false) => {
-  isViewingOwnRequests.value = viewOwnRequests;
-  showFriendApplicationsModal.value = true;
-  await loadFriendApplications();
-};
-
-const closeFriendApplicationsModal = () => {
-  showFriendApplicationsModal.value = false;
-  friendApplications.value = [];
-  friendApplicationFilterStatus.value = "";
-  isViewingOwnRequests.value = false;
-};
-
-const loadFriendApplications = async () => {
-  friendApplicationsLoading.value = true;
-  try {
-    const status = friendApplicationFilterStatus.value || undefined;
-    const params: any = {};
-    if (status) params.status = status;
-    if (isViewingOwnRequests.value) params.all = true;
-    friendApplications.value = await getFriendRequests(params);
-    await loadFriendRequestCounts();
-  } catch (error: any) {
-    message.error(error.message || "加载好友申请记录失败");
-  } finally {
-    friendApplicationsLoading.value = false;
-  }
-};
-
-const loadFriendRequestCounts = async () => {
-  try {
-    const receivedResponse = await request.get("/friends/requests", {
-      params: { all: true },
-    });
-    const receivedRequests = receivedResponse.data.data?.requests || [];
-    const pendingReceived = receivedRequests.filter(
-      (req: any) => req.requestType === "received" && req.status === "pending",
-    ).length;
-
-    const sentResponse = await request.get("/friends/requests", {
-      params: { all: true },
-    });
-    const sentRequests = sentResponse.data.data?.requests || [];
-    const pendingSent = sentRequests.filter(
-      (req: any) => req.requestType === "sent" && req.status === "pending",
-    ).length;
-
-    friendRequestCounts.value = {
-      pending: pendingReceived,
-      sentPending: pendingSent,
-      total: pendingReceived + pendingSent,
-    };
-  } catch (error) {
-    friendRequestCounts.value = { pending: 0, sentPending: 0, total: 0 };
-  }
-};
-
-const acceptFriendApplication = async (requestId: number) => {
-  try {
-    await handleFriendRequest(requestId, "accept");
-    await loadFriendApplications();
-    await loadFriendRequestCounts();
-  } catch (error: any) {
-    message.error(error.message || "接受好友申请失败");
-  }
-};
-
-const rejectFriendApplication = async (requestId: number) => {
-  try {
-    await handleFriendRequest(requestId, "reject");
-    await loadFriendApplications();
-    await loadFriendRequestCounts();
-  } catch (error: any) {
-    message.error(error.message || "拒绝好友申请失败");
-  }
-};
-
-const friendPendingCount = computed(() => {
-  return friendApplications.value.filter((app) => app.status === "pending").length;
-});
-const friendAcceptedCount = computed(() => {
-  return friendApplications.value.filter((app) => app.status === "accepted").length;
-});
-const friendRejectedCount = computed(() => {
-  return friendApplications.value.filter((app) => app.status === "rejected").length;
-});
-
-const filteredFriendApplications = computed(() => {
-  const filterType = isViewingOwnRequests.value ? "sent" : "received";
-  return friendApplications.value.filter((app) => app.requestType === filterType);
-});
-
-const filteredFriendPendingCount = computed(() => {
-  return filteredFriendApplications.value.filter((a) => a.status === "pending").length;
-});
-const filteredFriendAcceptedCount = computed(() => {
-  return filteredFriendApplications.value.filter((a) => a.status === "accepted").length;
-});
-const filteredFriendRejectedCount = computed(() => {
-  return filteredFriendApplications.value.filter((a) => a.status === "rejected").length;
-});
 const handleSearchInput = () => {};
 </script>
 
 <style lang="scss" scoped>
 @use "../assets/scss/middleuser.scss";
+
+// 同步状态提示：无背景，纯文字 + 左侧加载条，悬浮在列表上方、层级高
+.contact-sync-status {
+  position: absolute;
+  top: 68px; // 搜索框下方，浮在第一个联系人上方
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 999; // 高于联系人列表，确保悬浮可见
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+  color: var(--text-secondary, #64748b);
+  user-select: none;
+
+  // 圆形加载条：文字左侧的旋转圆点
+  .sync-loading-bar {
+    width: 12px;
+    height: 12px;
+    border: 2px solid var(--border-color, rgba(0, 0, 0, 0.15));
+    border-top-color: var(--purple-color, #8b5cf6);
+    border-radius: 50%;
+    animation: sync-spin 0.8s linear infinite;
+  }
+
+  &.failed {
+    color: var(--error-color, #ef4444);
+  }
+
+  .sync-retry {
+    padding: 0 8px;
+    font-size: 12px;
+    color: var(--purple-color, #8b5cf6);
+    background: transparent;
+    border: 1px solid var(--purple-color, #8b5cf6);
+    border-radius: 10px;
+    cursor: pointer;
+
+    &:hover {
+      color: #fff;
+      background: var(--purple-color, #8b5cf6);
+    }
+  }
+}
+
+@keyframes sync-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 
 // 修复菜单图标对齐问题
 :deep(.menu-item) {

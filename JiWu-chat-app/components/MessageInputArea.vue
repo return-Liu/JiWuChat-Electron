@@ -1,6 +1,7 @@
 ﻿<template>
   <div
     class="message-input-area"
+    :class="{ 'has-dynamic-bg': siderColorStore.hasDynamicBackground }"
     :style="{
       ...inputAreaStyle,
       '--theme-primary-rgb': hexToRgb(currentColorPalette.color),
@@ -366,8 +367,9 @@ const handlePaste = (event: ClipboardEvent) => {
 // 移除 inputAreaStyle 中的背景色
 const inputAreaStyle = computed(() => {
   return {
+    // 输入框背景透明，透出底层视频/图片
     background: "transparent",
-    borderTop: `1px solid ${siderColorStore.dividerLineColorValue}`,
+    borderTop: `1px solid ${siderColorStore.panelDividerColor}`,
   };
 });
 
@@ -857,6 +859,16 @@ defineExpose({
 .tool-icon {
   font-size: 20px;
   color: #5f5f5f;
+}
+
+/* 动态主题（个性装扮）下图标用壁纸吸色渲染，跟随壁纸主色而非固定白色 */
+.message-input-area.has-dynamic-bg .tool-icon {
+  color: v-bind("siderColorStore.dynamicAccentIcon");
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45));
+}
+
+.message-input-area.has-dynamic-bg .input-tool-btn:hover {
+  background-color: v-bind("siderColorStore.dynamicAccentBg");
 }
 
 .message-input-wrapper {

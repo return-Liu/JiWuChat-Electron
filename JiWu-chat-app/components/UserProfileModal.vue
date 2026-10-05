@@ -176,6 +176,13 @@
                 >
                   举报用户
                 </a-button>
+                <a-button
+                  v-if="userData?.uid"
+                  @click="handleShare"
+                  class="action-btn share-btn"
+                >
+                  分享
+                </a-button>
               </div>
             </div>
           </div>
@@ -187,6 +194,14 @@
           :contact="reportContactInfo"
           @update:visible="reportModalVisible = $event"
           @submit="handleReportSubmit"
+        />
+
+        <SelectFriendModal
+          v-if="userData?.uid"
+          :visible="shareModalVisible"
+          share-type="user"
+          :target-id="userData.uid"
+          @update:visible="shareModalVisible = $event"
         />
       </div>
     </Transition>
@@ -205,6 +220,7 @@ import { prepareTemporaryChat } from "../untils/messageManager";
 // 类型定义
 interface UserInfo {
   id: number;
+  uid?: string;
   username: string;
   nickname: string;
   avatar: string;
@@ -263,6 +279,7 @@ const addingFriend = ref(false);
 const isFriend = ref(false);
 const reportModalVisible = ref(false);
 const reportContactInfo = ref<Contact | null>(null);
+const shareModalVisible = ref(false);
 
 // 计算属性
 const isCurrentUser = computed(() => {
@@ -488,6 +505,11 @@ const handleReport = () => {
 
 const handleReportSubmit = async (data: any) => {
   reportModalVisible.value = false;
+};
+
+const handleShare = () => {
+  if (!userData.value?.uid) return;
+  shareModalVisible.value = true;
 };
 
 // 监听

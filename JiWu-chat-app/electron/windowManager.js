@@ -1,5 +1,7 @@
 const { BrowserWindow } = require("electron");
 const path = require("path");
+const { pathToFileURL } = require("url");
+const fs = require("fs");
 
 /**
  * 统一窗口管理器（主进程）
@@ -12,6 +14,33 @@ const path = require("path");
  *
  * 所有低频页面均以独立 BrowserWindow 形式打开，由本管理器统一注册管理。
  */
+
+/**
+ * 获取窗口图标路径（与 main.js 的 getIconPath 保持一致）。
+ * Windows 下优先使用 .ico（含多尺寸），任务栏/右键菜单显示效果最佳。
+ */
+const getIconPath = () => {
+  const isDev = process.env.NODE_ENV === "development";
+  const candidates = isDev
+    ? [
+        path.join(__dirname, "..", "build", "icon", "logo.ico"),
+        path.join(__dirname, "..", "build", "icon", "logo.png"),
+        path.join(process.cwd(), "build", "icon", "logo.ico"),
+        path.join(process.cwd(), "build", "icon", "logo.png"),
+        path.join(__dirname, "..", "public", "logo.png"),
+      ]
+    : [
+        path.join(process.resourcesPath, "icons", "logo.ico"),
+        path.join(process.resourcesPath, "icons", "logo.png"),
+        path.join(process.resourcesPath, "app.asar", "build", "icon", "logo.ico"),
+        path.join(process.resourcesPath, "app.asar", "public", "logo.png"),
+      ];
+
+  for (const p of candidates) {
+    if (fs.existsSync(p)) return p;
+  }
+  return undefined;
+};
 
 const windowRegistry = new Map(); // id -> record
 const routeIndex = new Map(); // `${route}:${type}` -> id
@@ -30,8 +59,9 @@ const buildWindowUrl = ({ route, isDev }) => {
   if (isDev) {
     return `http://localhost:3000${safeRoute}`;
   }
-  const indexPath = path.join(process.cwd(), "dist", "index.html");
-  return `file://${indexPath}#${safeRoute}`;
+  // 生产环境使用自定义协议 app://，兼容 history 路由
+  // （file:// 协议下 history 路由无法工作，会导致 404 / 白屏）。
+  return `app://-${safeRoute}`;
 };
 
 const getDefaultSize = ({ type }) => {
@@ -123,6 +153,7 @@ const openWindow = async ({
     show: false,
     autoHideMenuBar: true,
     backgroundColor: "#f5f7fa",
+    icon: getIconPath(),
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,

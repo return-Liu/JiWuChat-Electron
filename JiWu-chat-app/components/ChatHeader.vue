@@ -1,5 +1,8 @@
 <template>
-  <div class="chat-header-container">
+  <div
+    class="chat-header-container"
+    :class="{ 'has-dynamic-bg': siderColorStore.hasDynamicBackground }"
+  >
     <div v-if="showUpdateEntry" class="update-entry" @click="openUpdateModal">
       <div class="update-entry-left">
         <i class="iconfont icon-pilianggengxin"></i>
@@ -16,7 +19,7 @@
         <div class="chat-header-name">
           <span class="name-text">{{ activeContact.name }}</span>
           <span v-if="activeContact.isGroup" class="member-count">
-            ({{ activeContact.groupMembers?.length || 0 }})
+            ({{ activeContact.memberCount || activeContact.groupMembers?.length || 0 }})
           </span>
           <span
             v-if="!activeContact.isGroup && shouldShowContactOnlineStatus"
@@ -41,7 +44,7 @@
             !hideMenuButton && !activeContact.isGroup && !isCurrentUser && activeContact.isFriend
           "
           class="chat-header-audio-call-btn"
-          :style="{ color: currentColorPalette.text }"
+          :style="{ color: headerIconColor }"
           title="语音通话"
           @click="handleAudioCall"
         >
@@ -52,7 +55,7 @@
             !hideMenuButton && !activeContact.isGroup && !isCurrentUser && activeContact.isFriend
           "
           class="chat-header-video-call-btn"
-          :style="{ color: currentColorPalette.text }"
+          :style="{ color: headerIconColor }"
           title="视频通话"
           @click="handleVideoCall"
         >
@@ -63,7 +66,7 @@
             !hideMenuButton && !activeContact.isGroup && !isCurrentUser && !activeContact.isFriend
           "
           class="chat-header-add-friend-btn"
-          :style="{ color: currentColorPalette.text }"
+          :style="{ color: headerIconColor }"
           title="添加好友"
           @click="handleAddFriend"
         >
@@ -72,7 +75,7 @@
         <div
           v-else-if="!hideMenuButton && !activeContact.isGroup && !isCurrentUser"
           class="chat-header-create-group-btn"
-          :style="{ color: currentColorPalette.text }"
+          :style="{ color: headerIconColor }"
           title="发起群聊"
           @click="openCreateGroupModal"
         >
@@ -84,7 +87,7 @@
           v-if="!hideMenuButton"
           class="chat-header-menu-btn"
           @click="toggleDrawer"
-          :style="{ color: currentColorPalette.text }"
+          :style="{ color: headerIconColor }"
           title="菜单"
         >
           <i class="iconfont icon-more icon"></i>
@@ -219,6 +222,16 @@ const props = withDefaults(defineProps<Props>(), {
 });
 const emit = defineEmits<Emits>();
 
+/**
+ * 头部图标颜色：个性装扮（动态背景）时跟随壁纸吸色，
+ * 否则沿用主题文字色（浅色主题深色图标、深色主题浅色图标）。
+ */
+const headerIconColor = computed(() =>
+  siderColorStore.hasDynamicBackground
+    ? siderColorStore.dynamicAccentIcon
+    : props.currentColorPalette.text,
+);
+
 const isCurrentUser = computed(() => {
   return props.activeContact.id == userStore.user?.id;
 });
@@ -249,15 +262,16 @@ const isContactOnline = computed(() => {
 
   const currentUserId = userStore.user?.id;
 
+  // 自己：用当前用户状态
   if (props.activeContact.id === currentUserId) {
     return userStore.user?.status === 0;
   }
 
-  if (props.activeContact.isOnline !== undefined) {
-    return props.activeContact.isOnline === true;
-  }
-
-  return props.activeContact.status === 0;
+  // 综合判断：isOnline 或 status 任一表示在线即在线
+  // （避免 isOnline 为 undefined/false 但实际在线时误判为离线）
+  const byIsOnline = props.activeContact.isOnline === true;
+  const byStatus = props.activeContact.status === 0;
+  return byIsOnline || byStatus;
 });
 
 const toggleDrawer = () => {
@@ -474,7 +488,7 @@ onBeforeUnmount(() => {
 .chat-header-container {
   position: relative;
   --text-primary: v-bind("siderColorStore.currentColorPalette.textPrimary");
-  border-bottom: 1px solid v-bind("siderColorStore.dividerLineColorValue");
+  border-right: 1px solid v-bind("siderColorStore.panelDividerColor");
 }
 .update-entry {
   display: flex;
@@ -490,6 +504,58 @@ onBeforeUnmount(() => {
 
 .update-entry:hover {
   background: #e5f0ff;
+}
+
+/* 个性装扮（动态背景）时，更新入口用固定半透明深色背景（不吸取主色） */
+.chat-header-container.has-dynamic-bg .update-entry {
+  background: rgba(0, 0, 0, 0.28);
+  border-bottom-color: v-bind("siderColorStore.panelDividerColor");
+}
+.chat-header-container.has-dynamic-bg .update-entry:hover {
+  background: rgba(0, 0, 0, 0.4);
+}
+.chat-header-container.has-dynamic-bg .update-entry-text {
+  color: #fff;
+  text-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.75),
+    0 0 8px rgba(0, 0, 0, 0.5);
+}
+/* 更新内容入口：动态主题下图标 / 版本号 / 箭头用吸色主色，避免纯白过亮 */
+.chat-header-container.has-dynamic-bg .update-entry-left .iconfont,
+.chat-header-container.has-dynamic-bg .update-version,
+.chat-header-container.has-dynamic-bg .update-entry-right .iconfont {
+  color: v-bind("siderColorStore.dynamicAccentIcon");
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+}
+.chat-header-container.has-dynamic-bg .update-entry-right {
+  color: #fff;
+}
+
+/* 个性装扮（动态背景）时，头部文字加阴影，保证在视频背景上清晰可读 */
+.chat-header-container.has-dynamic-bg .chat-header-name,
+.chat-header-container.has-dynamic-bg .member-count,
+.chat-header-container.has-dynamic-bg .chat-header-subtitle,
+.chat-header-container.has-dynamic-bg .typing-status-text {
+  color: #fff;
+  text-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.75),
+    0 0 8px rgba(0, 0, 0, 0.5);
+}
+.chat-header-container.has-dynamic-bg .online-status-text {
+  color: #d0ffd8;
+  text-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.75),
+    0 0 8px rgba(0, 0, 0, 0.5);
+}
+.chat-header-container.has-dynamic-bg .online-status-text.online {
+  color: #4ade80;
+}
+/* 头部操作图标：动态主题下用壁纸吸色渲染，跟随壁纸主色而非固定白色 */
+.chat-header-container.has-dynamic-bg .chat-header-actions .iconfont,
+.chat-header-container.has-dynamic-bg .chat-header-menu-btn,
+.chat-header-container.has-dynamic-bg .chat-header-actions .icon {
+  color: v-bind("siderColorStore.dynamicAccentIcon");
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45));
 }
 
 .update-entry-left {

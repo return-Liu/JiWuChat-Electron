@@ -74,15 +74,30 @@ request.interceptors.response.use(
     // 错误提示已移除，由调用方自行处理
     if (err.response) {
       switch (err.response.status) {
-        case 401:
+        case 401: {
           // 仅清除 Cookie 中的 token，不直接跳转
           // 由 auth 中间件或调用方统一处理登出逻辑，避免与 userStore 状态不一致
           Cookies.remove("token");
+          try {
+            localStorage.removeItem("token");
+          } catch {
+            /* ignore */
+          }
+
+          // 区分「单点登录被踢下线」与普通未登录
+          const bizMessage: string =
+            err.response.data?.data?.message || err.response.data?.message || "";
+          const isKicked = bizMessage.includes("其他设备登录");
+          if (isKicked) {
+            message.warning("账号已在其他设备登录，当前会话已失效");
+          }
+
           // 如果不在登录页，跳转到登录页
           if (typeof window !== "undefined" && !window.location.href.includes("/login")) {
             window.location.href = "/login";
           }
           break;
+        }
       }
     }
     return Promise.reject(err);

@@ -862,7 +862,7 @@ const playHangupSound = () => {
 const playRingtone = () => {
   try {
     if (ringtoneAudio) ringtoneAudio.pause();
-    ringtoneAudio = new Audio("Ringtone/来电铃声.wav");
+    ringtoneAudio = new Audio("Ringtone/来电铃声.mp3");
     ringtoneAudio.loop = true;
     ringtoneAudio.volume = 0.7;
     ringtoneAudio.play().catch(() => {});

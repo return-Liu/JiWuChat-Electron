@@ -9,6 +9,12 @@
       </div>
 
       <div class="electron-field">
+        <svg class="electron-field-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path
+            d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm0 2c-4 0-7 2-7 4.5V20h14v-1.5C19 16 16 14 12 14Z"
+            fill="currentColor"
+          />
+        </svg>
         <input
           v-model="registerForm.nickname"
           type="text"
@@ -19,6 +25,12 @@
       </div>
 
       <div class="electron-field">
+        <svg class="electron-field-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path
+            d="M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Zm1.4 2L12 11.2 18.6 7H5.4ZM19 8.5l-6.4 4.1a1 1 0 0 1-1.2 0L5 8.5V17h14V8.5Z"
+            fill="currentColor"
+          />
+        </svg>
         <input
           v-model="registerForm.email"
           type="email"
@@ -31,6 +43,12 @@
       </div>
 
       <div v-if="isEmailValid && registerForm.email.trim() !== ''" class="electron-field">
+        <svg class="electron-field-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path
+            d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2Z"
+            fill="currentColor"
+          />
+        </svg>
         <input
           v-model="registerForm.verificationCode"
           type="text"
@@ -49,23 +67,71 @@
       </div>
 
       <div class="electron-field">
+        <svg class="electron-field-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path
+            d="M7 10V8a5 5 0 0 1 10 0v2h1a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h1Zm2 0h6V8a3 3 0 0 0-6 0v2Z"
+            fill="currentColor"
+          />
+        </svg>
         <input
           v-model="registerForm.password"
-          type="password"
+          :type="showPassword ? 'text' : 'password'"
           class="electron-input"
           placeholder="请输入密码（8位以上，含字母和数字）"
           @keyup.enter="handleRegister"
         />
+        <span
+          class="electron-field-eye"
+          :class="{ active: showPassword }"
+          @click="showPassword = !showPassword"
+        >
+          <svg v-if="!showPassword" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path
+              d="M12 5c-5 0-9 4.5-10 7 1 2.5 5 7 10 7s9-4.5 10-7c-1-2.5-5-7-10-7Zm0 11a4 4 0 1 1 0-8 4 4 0 0 1 0 8Zm0-2a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"
+              fill="currentColor"
+            />
+          </svg>
+          <svg v-else viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path
+              d="M3 3l18 18-1.4 1.4-3.2-3.2A10.6 10.6 0 0 1 12 20c-5 0-9-4.5-10-7 .6-1.5 2.2-3.6 4.6-5L2 4.4 3 3Zm6.3 9.3 3.4 3.4a4 4 0 0 1-3.4-3.4ZM12 6c5 0 9 4.5 10 7-.5 1.3-1.7 3-3.5 4.3l-2-2A4 4 0 0 0 10 8.6L8.2 7.3A10.7 10.7 0 0 1 12 6Z"
+              fill="currentColor"
+            />
+          </svg>
+        </span>
       </div>
 
       <div class="electron-field">
+        <svg class="electron-field-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path
+            d="M7 10V8a5 5 0 0 1 10 0v2h1a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h1Zm2 0h6V8a3 3 0 0 0-6 0v2Z"
+            fill="currentColor"
+          />
+        </svg>
         <input
           v-model="registerForm.confirmPassword"
-          type="password"
+          :type="showConfirmPassword ? 'text' : 'password'"
           class="electron-input"
           placeholder="请确认密码"
           @keyup.enter="handleRegister"
         />
+        <span
+          class="electron-field-eye"
+          :class="{ active: showConfirmPassword }"
+          @click="showConfirmPassword = !showConfirmPassword"
+        >
+          <svg v-if="!showConfirmPassword" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path
+              d="M12 5c-5 0-9 4.5-10 7 1 2.5 5 7 10 7s9-4.5 10-7c-1-2.5-5-7-10-7Zm0 11a4 4 0 1 1 0-8 4 4 0 0 1 0 8Zm0-2a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"
+              fill="currentColor"
+            />
+          </svg>
+          <svg v-else viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path
+              d="M3 3l18 18-1.4 1.4-3.2-3.2A10.6 10.6 0 0 1 12 20c-5 0-9-4.5-10-7 .6-1.5 2.2-3.6 4.6-5L2 4.4 3 3Zm6.3 9.3 3.4 3.4a4 4 0 0 1-3.4-3.4ZM12 6c5 0 9 4.5 10 7-.5 1.3-1.7 3-3.5 4.3l-2-2A4 4 0 0 0 10 8.6L8.2 7.3A10.7 10.7 0 0 1 12 6Z"
+              fill="currentColor"
+            />
+          </svg>
+        </span>
       </div>
 
       <button class="electron-register-btn" :disabled="loading" @click="handleRegister">
@@ -262,6 +328,9 @@ const {
 });
 
 const loading = ref(false);
+// 密码可见性切换
+const showPassword = ref(false);
+const showConfirmPassword = ref(false);
 
 // 服务协议勾选
 const agreedToTerms = ref(false);
@@ -430,7 +499,7 @@ onUnmounted(() => {
 </script>
 
 <style scoped lang="scss">
-/* ===== 桌面端：极物聊天品牌注册 ===== */
+/* ===== 桌面端：极物聊天品牌注册 · 简洁无渐变 ===== */
 .electron-register {
   --brand-900: #4c1d95;
   --brand-700: #6d28d9;
@@ -438,19 +507,24 @@ onUnmounted(() => {
   --brand-400: #a78bfa;
   --brand-100: #ede9fe;
   --brand-50: #f5f3ff;
-  --ink-900: #2e1065;
-  --ink-700: #3b2f63;
-  --ink-500: #6b5b95;
-  --ink-300: #a99ccb;
+
+  /* 文字统一使用黑色系 */
+  --ink-900: #000000;
+  --ink-700: #1a1a1a;
+  --ink-500: #333333;
+  --ink-300: #999999;
 
   width: 100%;
-  height: 100vh;
+  max-width: 360px;
+  margin: 0 auto;
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 22px 34px 18px;
+  justify-content: center;
+  padding: 0;
   box-sizing: border-box;
-  background: #f5f3ff; /* 纯色背景，替代原渐变 */
+  background: #ffffff; /* 纯白背景，无渐变 */
   overflow-y: auto;
 }
 
@@ -458,15 +532,16 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
 
   .electron-logo {
-    width: 48px;
-    height: 48px;
+    width: 56px;
+    height: 56px;
     object-fit: contain;
-    border-radius: 12px;
-    margin-bottom: 10px;
-    box-shadow: 0 6px 18px rgba(109, 40, 217, 0.16);
+    border-radius: 14px;
+    margin-bottom: 12px;
+    background: #f5f5f5; /* 扁平占位 */
+    box-shadow: 0 4px 14px rgba(139, 92, 246, 0.18);
   }
 
   .electron-title {
@@ -481,30 +556,51 @@ onUnmounted(() => {
     font-size: 12px;
     color: var(--ink-500);
     margin: 0;
+    letter-spacing: 1px;
+    font-weight: 400;
+    text-align: center;
   }
 }
 
+/* 扁平输入框，无渐变，无阴影 */
 .electron-field {
   width: 100%;
-  height: 42px;
+  height: 46px;
   display: flex;
   align-items: center;
-  border: 1px solid #e4dcf7;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.85);
+  gap: 10px;
+  border: 1px solid #e0e0e0;
+  border-radius: 10px;
+  background: #fafafa;
   margin-bottom: 12px;
-  padding: 0 16px;
+  padding: 0 14px;
   box-sizing: border-box;
-  transition: all 0.2s ease;
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease,
+    box-shadow 0.2s ease;
 
   &:hover {
-    border-color: var(--brand-400);
+    border-color: #c4b5fd;
+    background: #ffffff;
   }
 
   &:focus-within {
-    border-color: var(--brand-700);
+    border-color: var(--brand-500);
     background: #ffffff;
-    box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.12);
+    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.14);
+  }
+
+  .electron-field-icon {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    color: #b8b8b8;
+    transition: color 0.2s ease;
+  }
+
+  &:focus-within .electron-field-icon {
+    color: var(--brand-500);
   }
 
   .electron-input {
@@ -515,11 +611,35 @@ onUnmounted(() => {
     background: transparent;
     font-size: 14px;
     color: var(--ink-700);
-    text-align: center;
+    text-align: left;
+    min-width: 0;
 
     &::placeholder {
       color: var(--ink-300);
-      text-align: center;
+      text-align: left;
+      font-weight: 400;
+    }
+  }
+
+  .electron-field-eye {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #b8b8b8;
+    cursor: pointer;
+    transition: color 0.2s ease;
+
+    svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    &:hover,
+    &.active {
+      color: var(--brand-500);
     }
   }
 
@@ -531,6 +651,7 @@ onUnmounted(() => {
     white-space: nowrap;
     flex-shrink: 0;
     transition: color 0.2s ease;
+    user-select: none;
 
     &:hover:not(.disabled) {
       color: var(--brand-900);
@@ -543,34 +664,42 @@ onUnmounted(() => {
   }
 }
 
+/* 纯色按钮，无渐变，无阴影 */
 .electron-register-btn {
   width: 100%;
-  height: 42px;
+  height: 46px;
   border: none;
-  border-radius: 12px;
-  background: linear-gradient(135deg, var(--brand-500) 0%, #6366f1 100%);
+  border-radius: 10px;
+  background: var(--brand-500); /* 纯色，无渐变 */
   color: #ffffff;
   font-size: 15px;
   font-weight: 600;
   cursor: pointer;
-  margin-top: 4px;
+  margin-top: 8px;
   letter-spacing: 2px;
-  box-shadow: 0 6px 18px rgba(109, 40, 217, 0.28);
-  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.28);
+  transition:
+    background 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.1s ease,
+    opacity 0.2s ease;
 
   &:hover:not(:disabled) {
-    box-shadow: 0 8px 24px rgba(109, 40, 217, 0.38);
-    transform: translateY(-1px);
+    background: var(--brand-700); /* 纯色加深，无渐变 */
+    box-shadow: 0 6px 16px rgba(109, 40, 217, 0.34);
   }
 
   &:active:not(:disabled) {
-    box-shadow: 0 4px 12px rgba(109, 40, 217, 0.3);
-    transform: translateY(0);
+    background: var(--brand-900);
+    transform: translateY(1px);
+    box-shadow: 0 2px 8px rgba(76, 29, 149, 0.3);
   }
 
   &:disabled {
-    opacity: 0.6;
+    opacity: 0.5;
     cursor: not-allowed;
+    background: var(--brand-400);
+    box-shadow: none;
   }
 }
 
@@ -579,7 +708,7 @@ onUnmounted(() => {
   display: flex;
   align-items: flex-start;
   gap: 6px;
-  margin-top: 12px;
+  margin-top: 14px;
   font-size: 12px;
   color: var(--ink-500);
   cursor: pointer;
@@ -599,11 +728,12 @@ onUnmounted(() => {
   }
 
   .electron-agreement-link {
-    color: var(--brand-700);
+    color: #000000;
     cursor: pointer;
+    text-decoration: none;
 
     &:hover {
-      color: var(--brand-900);
+      color: #000000;
       text-decoration: underline;
     }
   }
@@ -612,16 +742,18 @@ onUnmounted(() => {
 .electron-links {
   display: flex;
   align-items: center;
-  margin-top: 12px;
+  margin-top: 16px;
 
   .electron-link {
     font-size: 13px;
-    color: var(--brand-700);
+    color: #000000;
     cursor: pointer;
     transition: color 0.2s ease;
+    text-decoration: none;
 
     &:hover {
-      color: var(--brand-900);
+      color: #000000;
+      text-decoration: underline;
     }
   }
 }

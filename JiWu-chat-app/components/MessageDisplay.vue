@@ -1,5 +1,9 @@
 ﻿<template>
-  <div class="chat-session-section" :style="chatSectionStyle">
+  <div
+    class="chat-session-section"
+    :class="{ 'has-dynamic-bg': siderColorStore.hasDynamicBackground }"
+    :style="chatSectionStyle"
+  >
     <!-- 连接状态提示栏 -->
     <div v-if="connectionStatus !== 'connected'" class="connection-status-bar">
       <div class="status-indicator" :class="connectionStatus"></div>
@@ -145,9 +149,12 @@
                   </span>
                 </div>
 
+                <!-- 名片分享卡片 -->
+                <ShareCard v-if="isShareCard(message)" :message="message" />
+
                 <!-- 系统消息卡片 -->
                 <SystemMessageCard
-                  v-if="isSystemMessage(message)"
+                  v-else-if="isSystemMessage(message)"
                   :message="message"
                   :current-user-id="currentUserId"
                   @open-detail="handleOpenSystemMessageDetail"
@@ -436,6 +443,14 @@ const isSystemMessage = (message: ChatMessage): boolean => {
   return SYSTEM_MESSAGE_TYPES.includes(message.messageType);
 };
 
+// 判断是否为名片分享消息
+const isShareCard = (message: ChatMessage): boolean => {
+  return (
+    message?.messageType === "share_user_card" ||
+    message?.messageType === "share_group_card"
+  );
+};
+
 // ============================================================
 // Props 和 Emits
 // ============================================================
@@ -505,8 +520,9 @@ const formatCallDuration = (duration: number): string => {
 const chatSectionStyle = computed(() => {
   const palette = siderColorStore.currentColorPalette;
   return {
-    background:
-      palette.chatBgGradient || `linear-gradient(180deg, ${palette.light} 0%, transparent 100%)`,
+    background: siderColorStore.hasDynamicBackground
+      ? "transparent"
+      : palette.chatBgGradient || `linear-gradient(180deg, ${palette.light} 0%, transparent 100%)`,
     "--theme-primary": palette.textPrimary || palette.color,
     "--theme-active": palette.active,
     "--theme-hover": palette.hover,
@@ -534,8 +550,13 @@ const chatSectionStyle = computed(() => {
     "--primary-light": siderColorStore.primaryLightColor,
     "--scrollbar-track": siderColorStore.scrollbarTrackColor,
     "--scrollbar-thumb": siderColorStore.scrollbarThumbColor,
-    "--divider-line-color": siderColorStore.dividerLineColorValue,
-    "--divider-text-color": siderColorStore.dividerTextColorValue,
+    // 分割线：动态主题下用从壁纸吸取的主色加深版，和联系人列表选中态一致且更醒目
+    "--divider-line-color":
+      (siderColorStore.hasDynamicBackground && siderColorStore.dynamicAccentDeep) ||
+      siderColorStore.dividerLineColorValue,
+    "--divider-text-color":
+      (siderColorStore.hasDynamicBackground && siderColorStore.dynamicAccentDeep) ||
+      siderColorStore.dividerTextColorValue,
   };
 });
 
@@ -549,8 +570,51 @@ const currentColorPalette = computed(() => {
 
 const isSelfChat = computed(() => props.isSelfChat);
 
+/** 颜色 → rgb 数组（支持 #rgb / #rrggbb / rgb() / rgba()） */
+const toRgb = (color: string): [number, number, number] => {
+  const c = (color || "").trim();
+  if (c.startsWith("#")) {
+    const hex = c.slice(1);
+    if (hex.length === 3) {
+      return [
+        parseInt(hex[0] + hex[0], 16),
+        parseInt(hex[1] + hex[1], 16),
+        parseInt(hex[2] + hex[2], 16),
+      ];
+    }
+    if (hex.length >= 6) {
+      return [
+        parseInt(hex.slice(0, 2), 16),
+        parseInt(hex.slice(2, 4), 16),
+        parseInt(hex.slice(4, 6), 16),
+      ];
+    }
+    return [139, 92, 246];
+  }
+  const m = c.match(/rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/i);
+  if (m) {
+    return [parseFloat(m[1]), parseFloat(m[2]), parseFloat(m[3])];
+  }
+  return [139, 92, 246];
+};
+
+/** 相对亮度 0~255 */
+const rgbLuminance = (rgb: [number, number, number]): number =>
+  0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2];
+
 /**
- * 获取消息气泡样式（无阴影）
+ * 根据气泡底色自动选择文字颜色：浅底→接近纯黑，深底→纯白。
+ * 修复「主题色偏浅（如默认 #DCDCDC）时，自己的气泡白字几乎看不见」的问题。
+ */
+const readableTextOn = (bg: string): string => {
+  return rgbLuminance(toRgb(bg)) > 150 ? "#0A0A0A" : "#FFFFFF";
+};
+
+/**
+ * 获取消息气泡样式（无阴影）。
+ * 区分左右：自己的气泡（右侧）用主色，对方的气泡（左侧）用浅色底。
+ * ✅ 文字色按底色亮度自动取深/浅，保证任何主题下都清晰可读。
+ * 动态主题下左右统一毛玻璃：不加实色背景，用 backdrop-filter 让壁纸透出并模糊。
  */
 const getBubbleStyle = (message: ChatMessage) => {
   const palette = currentColorPalette.value;
@@ -565,15 +629,26 @@ const getBubbleStyle = (message: ChatMessage) => {
     return style;
   }
 
-  const bg = siderColorStore.bubbleBg || palette.bubbleBg || palette.bgPrimary || "#FFFFFF";
-  const text = siderColorStore.bubbleTextColor || palette.textPrimary || palette.text || "#1A1A1A";
-  const border =
-    siderColorStore.bubbleBorder || `1px solid ${palette.borderLight || "rgba(0,0,0,0.08)"}`;
+  const isMe = isSelfChat.value || message.isMe;
+  const isDynamic = siderColorStore.hasDynamicBackground;
 
-  style.backgroundColor = bg;
-  style.color = text;
-  style.border = border;
-  // ✅ 不设置 boxShadow
+  if (isDynamic) {
+    // 毛玻璃气泡：左右统一 blur，不加实色背景，白字 + 文字阴影保证可读
+    style.backgroundColor = "transparent";
+    style.backdropFilter = "blur(8px)";
+    style.WebkitBackdropFilter = "blur(8px)";
+    style.color = "#ffffff";
+    style.border = "1px solid rgba(255, 255, 255, 0.22)";
+  } else {
+    const accent = palette.color || "#8b5cf6";
+    const bg = siderColorStore.bubbleBg || palette.bubbleBg || palette.bgPrimary || "#FFFFFF";
+    const border =
+      siderColorStore.bubbleBorder || `1px solid ${palette.borderLight || "rgba(0,0,0,0.08)"}`;
+    style.backgroundColor = isMe ? accent : bg;
+    // ✅ 浅底用深色字、深底用白字，彻底避免文字发灰看不清
+    style.color = readableTextOn(style.backgroundColor);
+    style.border = border;
+  }
 
   return style;
 };
@@ -1629,8 +1704,8 @@ defineExpose({ messagesContainerRef, scrollToBottom, resetInfiniteScroll });
 .message-bubble {
   position: relative !important;
   display: inline-block !important;
-  padding: 8px 12px !important;
-  border-radius: 12px !important;
+  padding: 4px 8px !important;
+  border-radius: 10px !important;
   width: auto !important;
   min-width: 20px !important;
   max-width: 100% !important;
@@ -1654,7 +1729,7 @@ defineExpose({ messagesContainerRef, scrollToBottom, resetInfiniteScroll });
 .message-bubble.my-bubble,
 .message-bubble.other-bubble {
   background: var(--message-bubble-bg, #ffffff);
-  color: var(--message-bubble-text, #111111);
+  color: var(--message-bubble-text, #0a0a0a);
   border: var(--message-bubble-border, 1px solid rgba(0, 0, 0, 0.06));
   box-shadow: none;
 }
@@ -1817,14 +1892,39 @@ defineExpose({ messagesContainerRef, scrollToBottom, resetInfiniteScroll });
   word-wrap: break-word !important;
   white-space: pre-wrap !important;
   line-height: 1.5 !important;
-  font-size: 13px !important;
+  font-size: 13.5px !important;
+  /* 加粗一档，让笔画更实、不再发灰发虚 */
+  font-weight: 500 !important;
+  color: inherit !important;
   max-width: 100% !important;
   display: inline !important;
 }
 
+/* 个性装扮（动态背景）时，气泡文字加阴影保证在视频上清晰可读 */
+.chat-session-section.has-dynamic-bg .message-bubble .text-message-content,
+.chat-session-section.has-dynamic-bg .message-bubble .system-message-content,
+.chat-session-section.has-dynamic-bg .message-bubble .call-status-text,
+.chat-session-section.has-dynamic-bg .message-bubble .call-redial-inline {
+  color: #fff;
+  text-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.75),
+    0 0 8px rgba(0, 0, 0, 0.5);
+}
+.chat-session-section.has-dynamic-bg .message-bubble .call-type-icon {
+  color: #fff;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
+}
+/* 发送者昵称 / 时间戳也加阴影 */
+.chat-session-section.has-dynamic-bg .message-sender-name .sender-nickname,
+.chat-session-section.has-dynamic-bg .message-timestamp {
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75);
+}
+
 .emoji-only-message {
-  font-size: 22px;
-  line-height: 1;
+  /* 需要 !important，否则会被 .text-message-content 的基础字号覆盖 */
+  font-size: 22px !important;
+  line-height: 1.25 !important;
 }
 
 .system-message-content {
@@ -2014,7 +2114,7 @@ mark.highlight {
 }
 
 .sending-message .message-bubble {
-  opacity: 0.8;
+  opacity: 0.92;
 }
 
 .failed-message .message-bubble {

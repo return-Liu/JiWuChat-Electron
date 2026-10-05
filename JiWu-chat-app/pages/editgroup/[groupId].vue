@@ -1,5 +1,31 @@
 ﻿<template>
-  <div class="group-edit-page">
+  <div
+    class="group-edit-page"
+    :class="{ 'has-dynamic-bg': hasDynamicBackground }"
+    :style="dynamicThemeStyle"
+  >
+    <!-- 个性装扮：动态背景层（视频 / 图片壁纸，铺满整个编辑窗口） -->
+    <div v-if="hasDynamicBackground" class="group-dynamic-bg">
+      <video
+        v-if="chatBgType === 'video' && chatBgVideo"
+        ref="chatBgVideoRef"
+        class="group-dynamic-bg-media"
+        :src="encodeURI(chatBgVideo)"
+        muted
+        loop
+        autoplay
+        playsinline
+        preload="auto"
+      ></video>
+      <img
+        v-else-if="chatBgType === 'image' && chatBgImage"
+        class="group-dynamic-bg-media"
+        :src="chatBgImage"
+        alt=""
+      />
+      <div class="group-dynamic-bg-overlay" :style="{ background: chatBgOverlay }"></div>
+    </div>
+
     <!-- 加载骨架 -->
     <div v-if="loading" class="loading-container">
       <div class="skeleton-avatar"></div>
@@ -246,6 +272,21 @@ import { useUserStore } from "../../stores/user";
 import request from "../../untils/request";
 import { message, Modal } from "ant-design-vue";
 import { useOverlayClose } from "../../composables/useOverlayClose";
+import { useDynamicBackground } from "../../composables/useDynamicBackground";
+import { useDynamicThemeVars } from "../../composables/useDynamicThemeVars";
+
+// 个性装扮：动态背景（视频 / 图片壁纸）+ 从壁纸吸取主色
+const {
+  hasDynamicBackground,
+  chatBgType,
+  chatBgVideo,
+  chatBgImage,
+  chatBgOverlay,
+  chatBgVideoRef,
+} = useDynamicBackground();
+
+// 表单密集：动态主题下用半透明深底，保证白字在壁纸上依然清晰
+const { dynamicThemeStyle } = useDynamicThemeVars("dark");
 
 const route = useRoute();
 const { closeOrBack } = useOverlayClose();
@@ -458,15 +499,53 @@ onUnmounted(() => {
 
 .group-edit-page {
   min-height: 100vh;
-  background: #f5f7fa;
+  position: relative;
+  background: var(--bg-secondary, #f5f7fa);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   overflow-y: auto; /* 关键：允许滚动 */
 }
 
+/*
+ * 个性装扮：动态背景层（不允许交互，内容层浮在其上）
+ * 用 fixed 铺满整个窗口：页面滚动时壁纸始终铺满，不会滚到底部就露出空白
+ */
+.group-dynamic-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  transform: translateZ(0);
+}
+
+.group-dynamic-bg-media {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  user-select: none;
+}
+
+.group-dynamic-bg-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
 .edit-content {
   min-height: 100vh;
-  background: #f5f7fa;
+  background: var(--bg-secondary, #f5f7fa);
   overflow-y: auto; /* 确保内容可滚动 */
+  position: relative;
+  z-index: 1;
+}
+
+.loading-container,
+.no-permission {
+  position: relative;
+  z-index: 1;
 }
 
 /* 页面头部 */
@@ -475,8 +554,8 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
-  background: #fff;
-  border-bottom: 1px solid #f0f0f0;
+  background: var(--card-bg, #fff);
+  border-bottom: 1px solid var(--border-color, #f0f0f0);
   position: sticky;
   top: 0;
   z-index: 10;
@@ -494,19 +573,19 @@ onUnmounted(() => {
   justify-content: center;
 
   &:hover {
-    background: #f5f7fa;
+    background: var(--bg-secondary, #f5f7fa);
   }
 }
 
 .page-title {
   font-size: 17px;
   font-weight: 600;
-  color: #1f1f1f;
+  color: var(--text-primary, #1f1f1f);
 }
 
 .group-id {
   font-size: 13px;
-  color: #999;
+  color: var(--text-tertiary, #999);
 }
 
 /* 上下布局主体 */
@@ -521,7 +600,7 @@ onUnmounted(() => {
 
 /* 加载骨架 */
 .loading-container {
-  background: #fff;
+  background: var(--card-bg, #fff);
   border-radius: 16px;
   padding: 32px 20px;
   max-width: 600px;
@@ -562,11 +641,11 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f5f7fa;
+  background: var(--bg-secondary, #f5f7fa);
 }
 
 .no-perm-card {
-  background: #fff;
+  background: var(--card-bg, #fff);
   border-radius: 16px;
   padding: 40px 32px;
   text-align: center;
@@ -576,13 +655,13 @@ onUnmounted(() => {
   h2 {
     font-size: 20px;
     font-weight: 600;
-    color: #1f1f1f;
+    color: var(--text-primary, #1f1f1f);
     margin-bottom: 8px;
   }
 
   p {
     font-size: 14px;
-    color: #999;
+    color: var(--text-tertiary, #999);
     margin-bottom: 24px;
   }
 }
@@ -595,21 +674,21 @@ onUnmounted(() => {
 
   .info-label {
     font-size: 14px;
-    color: #999;
+    color: var(--text-tertiary, #999);
   }
 
   .info-tag {
-    background: #f0f2f5;
+    background: var(--bg-tertiary, #f0f2f5);
     padding: 2px 12px;
     border-radius: 12px;
     font-size: 13px;
-    color: #165dff;
+    color: var(--color-brand, #165dff);
     font-weight: 500;
   }
 
   .info-value {
     font-size: 14px;
-    color: #1f1f1f;
+    color: var(--text-primary, #1f1f1f);
     font-weight: 500;
   }
 }
@@ -618,7 +697,7 @@ onUnmounted(() => {
   margin-top: 24px;
   width: 100%;
   padding: 12px;
-  background: #165dff;
+  background: var(--color-brand, #165dff);
   border: none;
   border-radius: 12px;
   font-size: 15px;
@@ -627,7 +706,7 @@ onUnmounted(() => {
   cursor: pointer;
 
   &:hover {
-    background: #0e4fd9;
+    background: var(--color-brand-hover, #0e4fd9);
   }
 }
 
@@ -673,27 +752,27 @@ onUnmounted(() => {
 
 /* 上传进度 */
 .upload-progress-container {
-  background: #fff;
+  background: var(--card-bg, #fff);
   border-radius: 12px;
   padding: 12px 16px;
 }
 
 .progress-label {
   font-size: 13px;
-  color: #666;
+  color: var(--text-secondary, #666);
   margin-bottom: 6px;
 }
 
 .progress-bar {
   height: 4px;
-  background: #f0f0f0;
+  background: var(--border-color, #f0f0f0);
   border-radius: 4px;
   overflow: hidden;
 }
 
 .progress-fill {
   height: 100%;
-  background: #165dff;
+  background: var(--color-brand, #165dff);
   border-radius: 4px;
   transition: width 0.3s;
 }
@@ -701,7 +780,7 @@ onUnmounted(() => {
 /* 卡片通用 */
 .info-card,
 .settings-card {
-  background: #fff;
+  background: var(--card-bg, #fff);
   border-radius: 16px;
   padding: 0 16px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
@@ -710,15 +789,15 @@ onUnmounted(() => {
 .card-title {
   font-size: 15px;
   font-weight: 600;
-  color: #1f1f1f;
+  color: var(--text-primary, #1f1f1f);
   padding: 16px 0;
-  border-bottom: 1px solid #f5f7fa;
+  border-bottom: 1px solid var(--border-color, #f5f7fa);
 }
 
 /* 表单项 */
 .form-item {
   padding: 14px 0;
-  border-bottom: 1px solid #f5f7fa;
+  border-bottom: 1px solid var(--border-color, #f5f7fa);
 
   &:last-child {
     border-bottom: none;
@@ -729,7 +808,7 @@ onUnmounted(() => {
   display: block;
   font-size: 13px;
   font-weight: 500;
-  color: #666;
+  color: var(--text-secondary, #666);
   margin-bottom: 4px;
 }
 
@@ -745,7 +824,7 @@ onUnmounted(() => {
   border: none;
   background: transparent;
   outline: none;
-  color: #1f1f1f;
+  color: var(--text-primary, #1f1f1f);
   font-family: inherit;
 
   &::placeholder {
@@ -759,7 +838,7 @@ onUnmounted(() => {
 
 .form-text {
   font-size: 15px;
-  color: #1f1f1f;
+  color: var(--text-primary, #1f1f1f);
 }
 
 .form-select {
@@ -770,7 +849,7 @@ onUnmounted(() => {
   background: transparent;
   outline: none;
   cursor: pointer;
-  color: #1f1f1f;
+  color: var(--text-primary, #1f1f1f);
   appearance: none;
 
   option {
@@ -792,7 +871,7 @@ onUnmounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 14px 0;
-  border-bottom: 1px solid #f5f7fa;
+  border-bottom: 1px solid var(--border-color, #f5f7fa);
 
   &:last-child {
     border-bottom: none;
@@ -807,26 +886,26 @@ onUnmounted(() => {
 
 .setting-label {
   font-size: 15px;
-  color: #1f1f1f;
+  color: var(--text-primary, #1f1f1f);
 }
 
 .setting-desc {
   font-size: 12px;
-  color: #999;
+  color: var(--text-tertiary, #999);
 }
 
 .setting-select {
   padding: 6px 12px;
   font-size: 14px;
-  border: 1px solid #e8ecf0;
+  border: 1px solid var(--border-color, #e8ecf0);
   border-radius: 8px;
-  background: #fff;
+  background: var(--card-bg, #fff);
   outline: none;
   cursor: pointer;
-  color: #1f1f1f;
+  color: var(--text-primary, #1f1f1f);
 
   &:focus {
-    border-color: #165dff;
+    border-color: var(--color-brand, #165dff);
   }
 }
 
@@ -834,7 +913,7 @@ onUnmounted(() => {
 .switch {
   width: 44px;
   height: 24px;
-  background: #e8ecf0;
+  background: var(--border-color, #e8ecf0);
   border-radius: 24px;
   cursor: pointer;
   position: relative;
@@ -844,7 +923,7 @@ onUnmounted(() => {
   -webkit-user-select: none;
 
   &.active {
-    background: #165dff;
+    background: var(--color-brand, #165dff);
   }
 
   .switch-handle {
@@ -886,30 +965,87 @@ onUnmounted(() => {
 }
 
 .btn-cancel {
-  background: #f5f7fa;
-  color: #666;
+  background: var(--bg-secondary, #f5f7fa);
+  color: var(--text-secondary, #666);
 
   &:hover {
-    background: #e8ecf0;
+    background: var(--bg-hover, #e8ecf0);
   }
 }
 
 .btn-save {
-  background: #165dff;
+  background: var(--color-brand, #165dff);
   color: #fff;
 
   &:hover:not(:disabled) {
-    background: #0e4fd9;
+    background: var(--color-brand-hover, #0e4fd9);
   }
 
   &:disabled {
-    background: #a0c0ff;
+    background: var(--color-brand-light, #a0c0ff);
     cursor: not-allowed;
   }
 }
 
 .bottom-spacer {
   height: 20px;
+}
+
+/* ===== 个性装扮（动态主题）：保证内容在壁纸上依然清晰可读 ===== */
+.group-edit-page.has-dynamic-bg {
+  .page-header,
+  .loading-container,
+  .no-perm-card,
+  .upload-progress-container,
+  .info-card,
+  .settings-card {
+    background: var(--card-bg);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
+  }
+
+  .no-permission {
+    background: transparent;
+  }
+
+  .form-input,
+  .form-textarea,
+  .form-select,
+  .setting-select {
+    color: var(--text-primary);
+
+    &::placeholder {
+      color: rgba(255, 255, 255, 0.55);
+    }
+  }
+
+  .form-select option,
+  .setting-select option {
+    background: rgba(28, 28, 32, 0.96);
+    color: #fff;
+  }
+
+  .input-count {
+    color: rgba(255, 255, 255, 0.6);
+  }
+
+  .switch {
+    background: rgba(255, 255, 255, 0.28);
+  }
+
+  .progress-bar {
+    background: rgba(255, 255, 255, 0.25);
+  }
+
+  .info-tag {
+    background: var(--color-brand-light);
+    color: #fff;
+  }
+
+  .avatar-overlay {
+    background: rgba(0, 0, 0, 0.6);
+  }
 }
 
 /* 未保存提示 */

@@ -4,11 +4,13 @@
     <div class="user-avatar-wrapper">
       <a-avatar :size="40" :src="userAvatar" class="user-avatar" @click.stop="toggleUserInfo" />
 
-      <!-- 用户信息弹窗 - 淡雅双色渐变背景 -->
+      <!-- 用户信息弹窗 - 淡雅双色渐变背景（固定定位跟随头像，避免被页面内容遮住） -->
       <div
         v-if="showUserInfo && userStore.user"
+        ref="popupRef"
         class="user-info-popup"
         :class="{ 'popup-visible': showUserInfo && userStore.user }"
+        :style="popupPosStyle"
         @click.stop
       >
         <!-- 淡雅双色渐变背景 -->
@@ -229,7 +231,7 @@
         >
           <div class="dropdown-item" @click.stop="handleCommand('supercolorpalette')">
             <i class="iconfont icon-pifu item-icon"></i>
-            <span class="item-text">超级调色盘</span>
+            <span class="item-text">个性装扮</span>
           </div>
 
           <div class="dropdown-item" @click.stop="handleCommand('manageInfo')">
@@ -260,7 +262,7 @@ import { useSiderColor } from "../stores/siderColor";
 import request from "../untils/request";
 import { message } from "ant-design-vue";
 import { LoadingOutlined } from "@ant-design/icons-vue";
-
+const siderColorStore = useSiderColor();
 const SkeletonLoading = {
   template: `
     <div class="skeleton-loading">
@@ -285,7 +287,7 @@ const SkeletonLoading = {
 };
 
 interface Props {
-  currentArea: "message" | "friend" | "user" | "space";
+  currentArea: "message" | "friend" | "user" | "space" | "settings";
 }
 
 const props = defineProps<Props>();
@@ -304,8 +306,6 @@ watch(
     themeStore.previewThemeMode,
     themeStore.currentThemeType,
     themeStore.currentPaletteIndex,
-    themeStore.systemBaseType,
-    themeStore.systemBaseIndex,
     themeStore.currentSystemVariant,
   ],
   () => {
@@ -318,6 +318,30 @@ watch(
 const showUserInfo = ref(false);
 const isLoadingUserInfo = ref(false);
 const popupDelay = ref(0.15);
+
+// 悬浮卡片挂在 body 上，用固定定位自己算坐标，避免被页面内容的层级 / overflow 遮住
+const popupRef = ref<HTMLElement | null>(null);
+const popupPos = ref({ top: 0, left: 0 });
+const popupPosStyle = computed(() => ({
+  top: `${popupPos.value.top}px`,
+  left: `${popupPos.value.left}px`,
+}));
+
+const syncPopupPosition = async () => {
+  await nextTick();
+  const avatarEl = document.querySelector(".user-avatar");
+  if (!avatarEl) return;
+  const rect = avatarEl.getBoundingClientRect();
+  const popupHeight = popupRef.value?.offsetHeight || 0;
+  const maxTop = Math.max(12, window.innerHeight - popupHeight - 12);
+  const top = Math.min(Math.max(12, rect.top), maxTop);
+  popupPos.value = { top, left: rect.right + 10 };
+};
+
+// 窗口尺寸变化 / 滚动时跟随头像重新定位
+const handleViewportChange = () => {
+  if (showUserInfo.value) syncPopupPosition();
+};
 
 const showCustomMenu = ref(false);
 const toggleCustomMenu = () => {
@@ -352,6 +376,16 @@ const sidebarStyles = computed(() => {
   const _ = forceUpdate.value;
   try {
     const styles = themeStore.getSidebarStyles();
+    // 个性装扮（动态背景）时，侧边栏全透明，直接透出底层视频/图片
+    if (themeStore.hasDynamicBackground) {
+      return {
+        ...styles,
+        backgroundColor: "transparent",
+        backgroundImage: "none",
+        // 分割线改用面板分割线颜色（壁纸主色加深版），与联系人列表/聊天头部/输入框保持一致
+        borderRight: `1px solid ${themeStore.panelDividerColor}`,
+      };
+    }
     const bgValue = styles.backgroundColor;
     if (typeof bgValue === "string" && bgValue.includes("gradient")) {
       return {
@@ -374,14 +408,31 @@ const userNickname = computed(() => userStore.userNickname);
 const toggleUserInfo = () => {
   showUserInfo.value = !showUserInfo.value;
   if (showUserInfo.value) {
+    // 提示：每个页面的头像都能打开名片，避免用户以为只有消息页可以点
+    message.info({
+      content: "名片已打开，改昵称、头像、签名都在这儿，再点一次头像就能收起",
+      duration: 2.5,
+    });
     isLoadingUserInfo.value = true;
+    syncPopupPosition();
     setTimeout(() => {
       isLoadingUserInfo.value = false;
+      syncPopupPosition();
     }, 200);
   } else {
+    // 主动收起名片时给一句回应（点空白 / 跳转其他页面收起时不需要）
+    message.info({
+      content: "名片已收起，想改资料的时候再点一下头像就好",
+      duration: 2,
+    });
     isLoadingUserInfo.value = false;
   }
 };
+
+// 打开 / 关闭悬浮卡片时同步定位（内容高度变化后重新计算）
+watch(showUserInfo, (open) => {
+  if (open) syncPopupPosition();
+});
 
 const closeUserInfo = () => {
   showUserInfo.value = false;
@@ -689,10 +740,14 @@ const getGenderText = (gender: number | undefined) => {
 
 onUnmounted(() => {
   document.removeEventListener("click", handleClickOutside);
+  window.removeEventListener("resize", handleViewportChange);
+  window.removeEventListener("scroll", handleViewportChange, true);
 });
 
 onMounted(async () => {
   document.addEventListener("click", handleClickOutside);
+  window.addEventListener("resize", handleViewportChange);
+  window.addEventListener("scroll", handleViewportChange, true);
   themeStore.initTheme();
 
   if (!userStore.user || !userStore.user.avatar) {
@@ -752,7 +807,7 @@ $popup-delay: var(--popup-delay, 0.15s);
   position: relative;
   height: 100%;
   transition: all $transition-duration ease;
-  border-right: 1px solid var(--border-color);
+  border-right: 1px solid v-bind("siderColorStore.panelDividerColor");
   .space-between-btns {
     margin-bottom: 80px;
     width: 100%;
@@ -770,15 +825,14 @@ $popup-delay: var(--popup-delay, 0.15s);
       }
     }
 
+    // 固定定位 + 高层级，跟随头像计算坐标，避免被页面内容 / overflow 遮挡
     .user-info-popup {
-      position: absolute;
-      left: calc(100% + 10px);
-      top: 0;
+      position: fixed;
       width: $popup-width;
       border-radius: 16px;
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
       padding: 24px;
-      z-index: 9999;
+      z-index: 10001;
       border: 1px solid rgba(255, 255, 255, 0.3);
       overflow: hidden;
       color: var(--text-primary);

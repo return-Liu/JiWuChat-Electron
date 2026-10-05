@@ -1,5 +1,20 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
+// 从 package.json 读取版本号，作为唯一版本来源，避免各处硬编码
+const pkg = JSON.parse(
+  readFileSync(fileURLToPath(new URL("./package.json", import.meta.url)), "utf-8"),
+) as { version: string };
+
 // Nuxt 3 应用的基本配置文件
 export default defineNuxtConfig({
+  // 运行时配置：向前端暴露应用版本号（来源：package.json）
+  runtimeConfig: {
+    public: {
+      appVersion: pkg.version,
+    },
+  },
+
   // 引入全局样式文件
   css: [
     "~/assets/globals.css", // 全局基础样式
@@ -9,9 +24,11 @@ export default defineNuxtConfig({
 
   // 在页面渲染前设置主题，防止暗色模式下的白屏闪烁
   app: {
-    // 使用相对路径，确保 Electron 桌面端通过 file:// 协议加载时资源能正确解析
-    baseURL: "./",
+    // 使用根路径绝对路径：Electron 生产环境通过自定义协议 app:// 加载，
+    // 绝对路径可确保任意路由层级（如 /settings/account）下资源都能正确解析。
+    baseURL: "/",
     head: {
+      title: "极物聊天",
       script: [
         {
           innerHTML: `
@@ -75,8 +92,8 @@ export default defineNuxtConfig({
 
   // Vite 配置优化
   vite: {
-    // 使用相对路径，确保 file:// 协议下资源能正确加载
-    base: "./",
+    // 使用根路径绝对路径：Electron 生产环境通过自定义协议 app:// 加载
+    base: "/",
     server: {
       // 文件监听配置：忽略 node_modules 和 dist 减少不必要的重启
       watch: {

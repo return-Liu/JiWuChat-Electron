@@ -205,6 +205,10 @@ export const useNotificationStore = defineStore("notification", () => {
       contentText = "[语音]";
     } else if (msg.messageType === "group_invite_pending") {
       contentText = "[群聊邀请]";
+    } else if (msg.messageType === "share_user_card") {
+      contentText = "[好友名片]";
+    } else if (msg.messageType === "share_group_card") {
+      contentText = "[群名片]";
     } else {
       contentText = "[新消息]";
     }

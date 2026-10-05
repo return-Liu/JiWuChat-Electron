@@ -37,7 +37,8 @@
   flex: 1;
   display: flex;
   align-items: center;
-  background: #f5f5f5;
+  // 个性装扮（动态背景）时由 MiddleArea 下发半透明深色，其余情况保持浅灰胶囊
+  background: var(--search-bg, #f5f5f5);
   border-radius: 8px;
   padding: 0 12px;
   height: 36px;
@@ -45,7 +46,7 @@
 }
 
 .search-icon {
-  color: #999;
+  color: var(--search-icon-color, #999);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -61,11 +62,11 @@
   border: none;
   background: transparent;
   font-size: 14px;
-  color: #333;
+  color: var(--search-text-color, #333);
   outline: none;
 
   &::placeholder {
-    color: #999;
+    color: var(--search-placeholder-color, #999);
   }
 }
 
@@ -73,13 +74,13 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #999;
+  color: var(--search-icon-color, #999);
   cursor: pointer;
   transition: color 0.2s ease;
   position: relative;
 
   &:hover {
-    color: #666;
+    color: var(--search-icon-hover-color, #666);
 
     &::after {
       content: "清除";
@@ -126,11 +127,11 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f5f5f5;
+  background: var(--action-btn-bg, #f5f5f5);
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.3s ease;
-  color: #666;
+  color: var(--action-btn-color, #666);
 
   &:hover {
     background: var(--primary-color);
@@ -187,7 +188,9 @@
   flex: 1;
   overflow-y: auto;
   position: relative;
-  background: var(--chat-bg-gradient);
+  background: var(--content-bg, var(--chat-bg-gradient));
+  /* 独立合成层，避免视频循环时半透明层重新合成导致闪动 */
+  transform: translateZ(0);
 }
 
 // 好友标签页内容

@@ -4,7 +4,7 @@
  * View Transition API 实现圆形裁剪切换动画
  */
 import { useDark } from "@vueuse/core";
-import { nextTick, ref } from "vue";
+import { getCurrentScope, nextTick, onScopeDispose, ref } from "vue";
 import {
     broadcastThemeSettings,
     onThemeSettingsChanged,
@@ -27,6 +27,28 @@ const supportsVT = () => {
 
 let latestTransitionId = 0;
 
+/**
+ * 主题模式：模块级共享。
+ * 同一窗口内可能同时存在多个 useTheme() 实例（布局、侧边栏、设置外观页、个性装扮页），
+ * 之前各实例各自维护一份 ref，导致某个组件切换主题后其它组件状态不同步
+ * （例：个性装扮页确认切到日间模式，外观页仍高亮夜间模式）。
+ */
+const themeMode = ref<'light' | 'dark' | 'system'>(
+    (typeof window !== "undefined" && (localStorage.getItem(THEME_MODE_KEY) as any)) || "light"
+);
+
+/** 同窗口内的实例互相通知：主题模式变化后让所有实例重新应用 */
+const themeSyncHandlers = new Set<() => void>();
+const notifyThemeChanged = () => {
+    themeSyncHandlers.forEach((handler) => {
+        try {
+            handler();
+        } catch (error) {
+            console.error("[主题] 同步失败:", error);
+        }
+    });
+};
+
 export function useTheme() {
     const isDark = useDark({
         storageKey: THEME_STORAGE_KEY,
@@ -42,10 +64,6 @@ export function useTheme() {
     } catch {
         // siderColor store 未初始化时忽略（例如在非组件上下文）
     }
-
-    const themeMode = ref<'light' | 'dark' | 'system'>(
-        (typeof window !== "undefined" && (localStorage.getItem(THEME_MODE_KEY) as any)) || "light"
-    );
 
     let isAnimating = false;
     let systemMediaQuery: MediaQueryList | null = null;
@@ -69,6 +87,14 @@ export function useTheme() {
         }
     };
 
+    // 注册同窗口同步回调，组件作用域销毁时自动注销
+    themeSyncHandlers.add(applyTheme);
+    if (getCurrentScope()) {
+        onScopeDispose(() => {
+            themeSyncHandlers.delete(applyTheme);
+        });
+    }
+
     const setThemeMode = (mode: 'light' | 'dark' | 'system') => {
         if (themeMode.value === mode) return;
         themeMode.value = mode;
@@ -76,6 +102,8 @@ export function useTheme() {
             localStorage.setItem(THEME_MODE_KEY, mode);
         }
         applyTheme();
+        // 同窗口内的其它 useTheme() 实例立即同步
+        notifyThemeChanged();
         // 跨窗口同步：通知其它窗口（主窗口/Web）立即应用新主题
         console.log("[主题] setThemeMode 广播:", mode);
         broadcastThemeSettings({ type: "mode", mode });
@@ -161,6 +189,7 @@ export function useTheme() {
                         localStorage.setItem(THEME_MODE_KEY, settings.mode);
                     }
                     applyTheme();
+                    notifyThemeChanged();
                 }
             });
 
@@ -176,6 +205,7 @@ export function useTheme() {
                         themeMode.value = saved;
                     }
                     applyTheme();
+                    notifyThemeChanged();
                 }
             });
         }

@@ -98,7 +98,9 @@ const props = defineProps<{
  * ------------------------------------------------------------------------ */
 const showPlatformList = ref<boolean>(false);
 
-const VERSION = "v1.0.0";
+// 版本号来自 package.json（经 nuxt.config.ts 的 runtimeConfig 注入），无需手动维护
+const runtimeConfig = useRuntimeConfig();
+const VERSION = `v${runtimeConfig.public.appVersion}`;
 const GITHUB_REPO_URL = "https://github.com/return-Liu/JiWuChat-Electron";
 
 /** 根据文件名生成 GitHub Release 下载链接 */
@@ -106,13 +108,20 @@ function buildDownloadUrl(filename: string): string {
   return `${GITHUB_REPO_URL}/releases/download/${VERSION}/${filename}`;
 }
 
+/** 根据版本号生成安装包文件名 */
+function buildFileName(suffix: string): string {
+  const version = runtimeConfig.public.appVersion;
+  return `JiwuChat_${version}${suffix}-setup.exe`;
+}
+
 /** 默认下载目标：Windows 64 位安装器（体积更小，下载更快） */
+const defaultFileName = buildFileName("_x64");
 const currentDownload: DownloadPlatform = {
   key: "default",
   label: "Windows",
-  filename: "JiwuChat_1.0.0_x64-setup.exe",
-  tooltip: buildDownloadUrl("JiwuChat_1.0.0_x64-setup.exe"),
-  downloadUrl: buildDownloadUrl("JiwuChat_1.0.0_x64-setup.exe"),
+  filename: defaultFileName,
+  tooltip: buildDownloadUrl(defaultFileName),
+  downloadUrl: buildDownloadUrl(defaultFileName),
   arch: "x64",
 };
 
@@ -121,17 +130,17 @@ const otherPlatforms: DownloadPlatform[] = [
   {
     key: "default",
     label: "Windows",
-    filename: "JiwuChat_1.0.0-setup.exe",
-    tooltip: buildDownloadUrl("JiwuChat_1.0.0-setup.exe"),
-    downloadUrl: buildDownloadUrl("JiwuChat_1.0.0-setup.exe"),
+    filename: buildFileName(""),
+    tooltip: buildDownloadUrl(buildFileName("")),
+    downloadUrl: buildDownloadUrl(buildFileName("")),
     arch: "x64",
   },
   {
     key: "ia32",
     label: "Windows",
-    filename: "JiwuChat_1.0.0_ia32-setup.exe",
-    tooltip: buildDownloadUrl("JiwuChat_1.0.0_ia32-setup.exe"),
-    downloadUrl: buildDownloadUrl("JiwuChat_1.0.0_ia32-setup.exe"),
+    filename: buildFileName("_ia32"),
+    tooltip: buildDownloadUrl(buildFileName("_ia32")),
+    downloadUrl: buildDownloadUrl(buildFileName("_ia32")),
     arch: "ia32",
   },
 ];
@@ -163,9 +172,7 @@ function openWebLogin(): void {
  * ======================================================================== */
 @font-face {
   font-family: "Alibaba PuHuiTi";
-  src:
-    url("./font/AlibabaPuHuiTi/AlibabaPuHuiTi-3-115-Black.woff2") format("woff2"),
-    url("./font/AlibabaPuHuiTi/AlibabaPuHuiTi-3-115-Black.woff") format("woff");
+  src: url("./font/AlibabaPuHuiTi/AlibabaPuHuiTi-3-115-Black.woff2") format("woff2");
   font-weight: 900;
   font-style: normal;
   font-display: swap;
@@ -173,9 +180,7 @@ function openWebLogin(): void {
 
 @font-face {
   font-family: "Alibaba PuHuiTi";
-  src:
-    url("./font/AlibabaPuHuiTi/AlibabaPuHuiTi-3-85-Bold.woff2") format("woff2"),
-    url("./font/AlibabaPuHuiTi/AlibabaPuHuiTi-3-85-Bold.woff") format("woff");
+  src: url("./font/AlibabaPuHuiTi/AlibabaPuHuiTi-3-85-Bold.woff2") format("woff2");
   font-weight: 700;
   font-style: normal;
   font-display: swap;
@@ -183,9 +188,7 @@ function openWebLogin(): void {
 
 @font-face {
   font-family: "Alibaba PuHuiTi";
-  src:
-    url("./font/AlibabaPuHuiTi/AlibabaPuHuiTi-3-55-Regular.woff2") format("woff2"),
-    url("./font/AlibabaPuHuiTi/AlibabaPuHuiTi-3-55-Regular.woff") format("woff");
+  src: url("./font/AlibabaPuHuiTi/AlibabaPuHuiTi-3-55-Regular.woff2") format("woff2");
   font-weight: 400;
   font-style: normal;
   font-display: swap;

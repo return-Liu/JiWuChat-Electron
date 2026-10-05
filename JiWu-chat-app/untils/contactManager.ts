@@ -624,6 +624,12 @@ export const formatMessageContent = (
       }
       break;
     }
+    case "share_user_card":
+      displayText = "[好友名片]";
+      break;
+    case "share_group_card":
+      displayText = "[群名片]";
+      break;
     default:
       displayText = normalizeFallbackText(content) || "[消息]";
   }
@@ -1944,7 +1950,8 @@ export const getChatHistory = async (
       | undefined;
 
     if (contact) {
-      const existIds = new Set(contact.messages.map((m: any) => m.id));
+      // 兼容缓存/异常数据：messages 缺失时按空数组处理，避免整段历史加载失败
+      const existIds = new Set((contact.messages || []).map((m: any) => m.id));
       const memberNicknameMap = new Map<string, string>();
 
       const isGroup = targetId.startsWith("group_");

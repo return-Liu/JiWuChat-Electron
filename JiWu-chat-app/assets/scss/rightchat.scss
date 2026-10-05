@@ -119,8 +119,9 @@ $spacing-xl: 20px;
   flex-direction: column;
   height: 100%;
   position: relative;
-  transition: background 0.3s ease;
   overflow: hidden;
+  /* 独立合成层，避免视频循环时半透明层重新合成导致闪动；不使用 background transition */
+  transform: translateZ(0);
 
   // 动态背景层（图片 / 视频壁纸）
   .chat-dynamic-bg {
@@ -135,7 +136,7 @@ $spacing-xl: 20px;
       inset: 0;
       width: 100%;
       height: 100%;
-      object-fit: contain;
+      object-fit: cover;
       object-position: center;
       user-select: none;
     }

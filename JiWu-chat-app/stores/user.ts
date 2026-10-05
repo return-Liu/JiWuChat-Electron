@@ -6,6 +6,8 @@ import { message } from "ant-design-vue";
 import { useRouter } from "vue-router";
 import { useUiSettings } from "./uiSettings";
 import { getSignalingService } from "../untils/signalingService";
+import { clearContactsCache, pruneOtherUsersCache } from "../untils/contactCache";
+import { pruneOtherUsersCache as pruneOtherFriendCaches } from "../untils/friendListCache";
 
 // 独立定义User接口，避免和响应式变量重名
 export interface UserInfo {
@@ -99,6 +101,12 @@ export const useUserStore = defineStore("user", () => {
         // 初始化信令服务
         initializeSignalingService(String(user.value.id));
       }
+    }
+
+    // 登录成功：自动清理其它账号遗留的本地缓存，避免旧数据长期占用配额
+    if (user.value?.id) {
+      pruneOtherUsersCache(String(user.value.id));
+      pruneOtherFriendCaches(String(user.value.id));
     }
   };
 
@@ -290,6 +298,9 @@ export const useUserStore = defineStore("user", () => {
    * 登出
    */
   const logout = async () => {
+    // 登出即清空本地联系人缓存，避免切换账号后读到上一个账号的数据
+    clearContactsCache();
+
     try {
       const response = await request.post("auth/logout");
       Cookies.remove("token");

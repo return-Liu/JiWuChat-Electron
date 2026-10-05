@@ -1,5 +1,9 @@
 <template>
-  <div class="group-system-message" @contextmenu.stop.prevent="handleCardRightClick">
+  <div
+    class="group-system-message"
+    :class="{ 'has-dynamic-bg': siderColorStore.hasDynamicBackground }"
+    @contextmenu.stop.prevent="handleCardRightClick"
+  >
     <div
       class="msg-card"
       :class="{
@@ -56,6 +60,7 @@
 import { ref, computed } from "vue";
 import { message } from "ant-design-vue";
 import type { ChatMessage } from "../types/chatTypes";
+import { useSiderColor } from "../stores/siderColor";
 
 import {
   isInviteExpired,
@@ -64,6 +69,8 @@ import {
   getSystemMessageSubtitle,
   getSystemMessageStatusText,
 } from "../untils/systemMessageUtils";
+
+const siderColorStore = useSiderColor();
 
 interface Props {
   message: ChatMessage;
@@ -207,6 +214,31 @@ function handleMultiSelectMessage(msg: ChatMessage) {
   overflow: hidden;
   cursor: pointer;
   transition: all 0.25s ease;
+}
+
+/* 个性装扮（动态背景）时，群聊卡片毛玻璃半透明深底（与消息气泡、通知面板一致） */
+.group-system-message.has-dynamic-bg .msg-card {
+  background: rgba(0, 0, 0, 0.34);
+  border-color: rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.group-system-message.has-dynamic-bg .msg-title {
+  color: #fff;
+  text-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.75),
+    0 0 8px rgba(0, 0, 0, 0.5);
+}
+.group-system-message.has-dynamic-bg .msg-subtitle,
+.group-system-message.has-dynamic-bg .status-text {
+  color: rgba(255, 255, 255, 0.85);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75);
+}
+.group-system-message.has-dynamic-bg .card-divider {
+  background: rgba(255, 255, 255, 0.25);
+}
+.group-system-message.has-dynamic-bg .card-avatar {
+  background: rgba(255, 255, 255, 0.15);
 }
 
 .msg-card.expired-card {

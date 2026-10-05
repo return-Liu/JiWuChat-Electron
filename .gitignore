@@ -1,9 +1,29 @@
 # Backend project (not published in this repo)
 JiWu-chat-node/
 
+# Dependencies
+node_modules/
+
+# Build outputs
+.nuxt/
+.output/
+dist/
+release/
+
+# Logs
+logs/
+*.log
+
 # Local editor / tooling configs
 .vscode/
 .claude/settings.local.json
+
+# Temp / debug artifacts
+vt.json
+vt-log.txt
+vgrid.json
+vitest*.json
+vitest-out2.txt
 
 # OS
 .DS_Store

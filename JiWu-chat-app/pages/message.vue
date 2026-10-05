@@ -1,18 +1,42 @@
 ﻿<template>
   <div class="page-wrapper">
-    <div class="qq-chat-container">
+    <div class="qq-chat-container" :class="{ 'has-dynamic-bg': hasDynamicBackground }">
+      <!-- 个性装扮：动态背景层（视频 / 图片壁纸，铺满整个聊天窗口） -->
+      <div v-if="hasDynamicBackground" class="chat-dynamic-bg">
+        <video
+          v-if="chatBgType === 'video' && chatBgVideo"
+          ref="chatBgVideoRef"
+          class="chat-dynamic-bg-media"
+          :src="encodeURI(chatBgVideo)"
+          :poster="chatBgPoster"
+          muted
+          loop
+          autoplay
+          playsinline
+          preload="auto"
+        ></video>
+        <img
+          v-else-if="chatBgType === 'image' && chatBgImage"
+          class="chat-dynamic-bg-media"
+          :src="chatBgImage"
+          alt=""
+        />
+        <div class="chat-dynamic-bg-overlay" :style="{ background: chatBgOverlay }"></div>
+      </div>
       <div class="qq-main">
         <!-- 侧边栏导航 -->
         <Sidebar :current-area="'message'" />
         <div class="message-content">
           <div class="chat-main-area">
-            <!-- 中间联系人/群聊列表区域 -->
+            <!-- 中间联系人/群聊列表区域（同步状态提示在其内部，搜索框与列表之间） -->
             <MiddleArea
               :content-type="'message'"
               :contacts="contacts"
               :active-contact-id="activeContactId"
               :pending-group-application-count="pendingGroupApplicationCount"
               :pending-friend-application-count="pendingFriendApplicationCount"
+              :sync-state="syncState"
+              :sync-label="syncLabel"
               no-content-tip="没有搜索到相关联系人/群聊"
               placeholder="搜索联系人/群聊"
               @contact-select="handleContactSelect"
@@ -21,6 +45,7 @@
               @refresh-contacts="handleRefreshContacts"
               @refresh-group-application-count="loadPendingGroupApplicationCount"
               @refresh-friend-application-count="loadPendingFriendApplicationCount"
+              @sync-retry="startSync"
               @close-drawer="closeContactDrawer"
             />
             <!-- 右侧聊天窗口区域 -->
@@ -63,9 +88,20 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick, inject, watch } from "vue";
+import {
+  ref,
+  computed,
+  onMounted,
+  onBeforeUnmount,
+  onUnmounted,
+  nextTick,
+  inject,
+  watch,
+} from "vue";
 import { useRouter } from "vue-router";
 import { useUserStore } from "../stores/user";
+import { useSiderColor } from "../stores/siderColor";
+import { extractColorFromVideo } from "../untils/colorExtractor";
 import request from "../untils/request";
 import { getFriends } from "../untils/friendManager";
 import { websocketService } from "../untils/websocket";
@@ -87,6 +123,7 @@ import {
   markMessagesAsRead,
 } from "../untils/contactManager";
 import { getTemporaryContacts } from "../untils/temporaryContactManager";
+import { readContactsCache, saveContactsCache, getContactsCacheMeta } from "../untils/contactCache";
 import { handleMoreActionCommand, type ChatAreaManagerOptions } from "../untils/chatAreaManager";
 import {
   refreshGroups as refreshGroupsUtil,
@@ -122,10 +159,67 @@ const hasInitialized = ref<boolean>(true);
 // 核心数据
 const router = useRouter();
 const userStore = useUserStore();
+const siderColorStore = useSiderColor();
+
+// 个性装扮：动态背景（视频 / 图片壁纸）
+const hasDynamicBackground = computed(() => siderColorStore.hasDynamicBackground);
+const chatBgType = computed(() => siderColorStore.chatBgType);
+const chatBgVideo = computed(() => siderColorStore.chatBgVideo);
+const chatBgImage = computed(() => siderColorStore.chatBgImage);
+const chatBgPoster = computed(() => siderColorStore.chatBgPoster || "");
+const chatBgOverlay = computed(() => siderColorStore.chatBgOverlay || "transparent");
+const chatBgVideoRef = ref<HTMLVideoElement | null>(null);
+
 const activeContactId = ref<string>("");
 const contacts = ref<Contact[]>([]);
 const currentUserId = ref<string>("");
 const rightChatAreaRef = ref();
+
+/**
+ * 从动态背景（视频/图片）吸取主色，写入 store，用于动态主题的选中态配色。
+ * 只取一次（固定值），不随视频画面变化。
+ */
+const extractDynamicAccent = () => {
+  const video = chatBgVideoRef.value;
+  if (!video || video.readyState < 2) return false;
+  const color = extractColorFromVideo(video);
+  if (color) {
+    siderColorStore.setDynamicAccentColor(color);
+    return true;
+  }
+  return false;
+};
+
+// 监听视频 ref：视频就绪后取色一次，之后固定不变
+watch(
+  chatBgVideoRef,
+  (video) => {
+    if (video) {
+      const doExtract = () => {
+        // 视频就绪后取色一次即可（固定值）
+        if (!extractDynamicAccent()) {
+          // 若首次未就绪，稍后重试一次
+          setTimeout(() => extractDynamicAccent(), 500);
+        }
+      };
+      if (video.readyState >= 2) {
+        doExtract();
+      } else {
+        video.addEventListener("loadeddata", doExtract, { once: true });
+      }
+    } else {
+      siderColorStore.setDynamicAccentColor("");
+    }
+  },
+  { immediate: true, flush: "post" },
+);
+
+// 动态背景关闭时清理
+watch(hasDynamicBackground, (has) => {
+  if (!has) {
+    siderColorStore.setDynamicAccentColor("");
+  }
+});
 
 // 通知组件引用
 const notificationComponentRef = ref();
@@ -260,14 +354,20 @@ const fetchFriendsList = async () => {
   return await fetchFriendsListUtil();
 };
 
-// 新建群后刷新列表
+// 新建群 / 邀请好友入群后刷新列表
 const handleGroupCreated = async () => {
   loading.value = true;
-  await refreshGroups();
-  if (contacts.value.length && !activeContactId.value) {
-    activeContactId.value = String(contacts.value[contacts.value.length - 1].id);
+  try {
+    // 必须走完整刷新（含最近消息）：只刷群列表不会拉取 lastMessage，
+    // 新群就会一直显示"没有消息"，必须手动刷新才出现。
+    await handleRefreshContacts();
+
+    if (contacts.value.length && !activeContactId.value) {
+      activeContactId.value = String(contacts.value[contacts.value.length - 1].id);
+    }
+  } finally {
+    loading.value = false;
   }
-  loading.value = false;
 };
 
 // 优化：并行加载所有联系人数据
@@ -304,6 +404,123 @@ const loadAllContactsParallel = async (userStore: any) => {
   return allContacts;
 };
 
+// 联系人刷新序号：并发刷新时只保留最后一次的结果，避免旧结果覆盖新数据
+let contactsRefreshSeq = 0;
+
+/**
+ * 缓存同步节流：消息到达 / 已读 / 局部更新都会改变 contacts，
+ * 这里合并写回，保证缓存始终是最新数据，下次进入页面无需重新请求。
+ */
+const CACHE_SYNC_DELAY = 2000;
+/** 距上次同步小于该时间就不再重复同步（5 分钟后再同步） */
+const SYNC_MIN_INTERVAL = 5 * 60 * 1000;
+
+/** 顶部同步状态：同步中 → 已同步 → 隐藏 */
+const syncState = ref<"idle" | "syncing" | "synced" | "failed">("idle");
+const syncLabel = computed(() => {
+  switch (syncState.value) {
+    case "syncing":
+      return "消息同步中…";
+    case "synced":
+      return "已同步";
+    case "failed":
+      return "消息同步失败";
+    default:
+      return "";
+  }
+});
+
+let syncIndicatorTimer: ReturnType<typeof setTimeout> | null = null;
+let syncHideTimer: ReturnType<typeof setTimeout> | null = null;
+
+const setSyncState = (state: "idle" | "syncing" | "synced" | "failed") => {
+  if (syncIndicatorTimer) {
+    clearTimeout(syncIndicatorTimer);
+    syncIndicatorTimer = null;
+  }
+  if (syncHideTimer) {
+    clearTimeout(syncHideTimer);
+    syncHideTimer = null;
+  }
+  syncState.value = state;
+  // 已同步：短暂显示后自动隐藏
+  if (state === "synced") {
+    syncHideTimer = setTimeout(() => setSyncState("idle"), 1500);
+  }
+};
+
+/**
+ * 新消息到达时触发同步提示：显示「消息同步中…」，停止后转「已同步」再隐藏。
+ * 连续有新消息就保持「同步中」。
+ */
+const markSyncing = () => {
+  setSyncState("syncing");
+  if (syncIndicatorTimer) clearTimeout(syncIndicatorTimer);
+  syncIndicatorTimer = setTimeout(() => {
+    syncIndicatorTimer = null;
+    setSyncState("synced");
+  }, 600);
+};
+
+let cacheSyncTimer: ReturnType<typeof setTimeout> | null = null;
+const scheduleCacheSync = () => {
+  if (cacheSyncTimer) return;
+  cacheSyncTimer = setTimeout(() => {
+    cacheSyncTimer = null;
+    saveContactsCache(currentUserId.value, contacts.value);
+  }, CACHE_SYNC_DELAY);
+};
+
+/**
+ * 后台刷新联系人（缓存秒开后补齐最新数据）
+ * 不显示整页 loading、不弹错误提示：失败时继续沿用缓存列表，状态由顶部文案告知。
+ * @returns 是否刷新成功
+ */
+const refreshContactsSilently = async (): Promise<boolean> => {
+  const seq = ++contactsRefreshSeq;
+
+  try {
+    const allContacts = await loadAllContactsParallel(userStore);
+    // 期间若已有更新的刷新（手动刷新 / 新的一次静默刷新），丢弃本次结果。
+    // 注意要返回 true 而不是裸 return：否则调用方拿到 undefined 会误判为「同步失败」
+    if (seq !== contactsRefreshSeq) return true;
+
+    restoreContactStatesUtil(allContacts, currentUserId.value);
+    await fetchAllRecentMessagesUtil(allContacts, currentUserId.value);
+
+    // 保留已加载的聊天记录：刷新只更新联系人元数据，不能把当前会话的历史消息冲掉
+    const loadedMessages = new Map<string, unknown>();
+    contacts.value.forEach((contact) => {
+      if (contact.messages?.length) loadedMessages.set(String(contact.id), contact.messages);
+    });
+    allContacts.forEach((contact) => {
+      const messages = loadedMessages.get(String(contact.id));
+      if (messages) contact.messages = messages as typeof contact.messages;
+    });
+
+    contacts.value = allContacts;
+    saveContactsCache(currentUserId.value, allContacts);
+    messageLoader?.setContacts(allContacts);
+    return true;
+  } catch (error) {
+    console.warn("[联系人] 后台刷新失败，继续使用缓存数据", error);
+    return false;
+  }
+};
+
+/** 进入页面后的同步：带节流，结果直接反映到顶部状态文案 */
+const startSync = async () => {
+  const meta = getContactsCacheMeta(currentUserId.value);
+  // 5 分钟内刚同步过就静默跳过，不打扰用户
+  if (meta && Date.now() - meta.ts < SYNC_MIN_INTERVAL) {
+    setSyncState("idle");
+    return;
+  }
+
+  setSyncState("syncing");
+  setSyncState((await refreshContactsSilently()) ? "synced" : "failed");
+};
+
 // 初始化 MessageLoader（纯 WebSocket 驱动，无需轮询）
 const initializeMessageLoader = () => {
   if (messageLoader) {
@@ -323,6 +540,8 @@ const initializeMessageLoader = () => {
   // 注册更新回调 - 当消息更新时自动刷新界面
   messageLoader.onUpdate((updatedContacts) => {
     contacts.value = updatedContacts;
+    // 有新消息到达 → 触发「消息同步中」提示（圆形加载）
+    markSyncing();
   });
 };
 
@@ -364,14 +583,26 @@ onMounted(async () => {
 
     // 初始化联系人列表 - 使用优化后的并行加载
     loading.value = true;
+    // 无论是否命中缓存，都先进入「同步中」状态，让顶部文案保持一致
+    setSyncState("syncing");
 
-    const allContacts = await loadAllContactsParallel(userStore);
+    // 本地缓存命中 → 先用缓存秒开列表，再由后台静默刷新补齐最新数据（stale-while-revalidate）
+    const cachedContacts = readContactsCache(currentUserId.value);
+    const openedFromCache = cachedContacts.length > 0;
 
-    restoreContactStatesUtil(allContacts, currentUserId.value);
+    if (openedFromCache) {
+      restoreContactStatesUtil(cachedContacts, currentUserId.value);
+      contacts.value = cachedContacts;
+    } else {
+      const allContacts = await loadAllContactsParallel(userStore);
 
-    await fetchAllRecentMessagesUtil(allContacts, currentUserId.value);
+      restoreContactStatesUtil(allContacts, currentUserId.value);
 
-    contacts.value = allContacts;
+      await fetchAllRecentMessagesUtil(allContacts, currentUserId.value);
+
+      contacts.value = allContacts;
+      saveContactsCache(currentUserId.value, allContacts);
+    }
 
     // 注册联系人到通话 Store，用于挂断时插入通话记录消息
     const callStore = useCallStore();
@@ -379,6 +610,9 @@ onMounted(async () => {
 
     // 初始化 MessageLoader（在 contacts 赋值之后）
     initializeMessageLoader();
+
+    // 列表已可交互即可结束整页 loading；聊天内容由 chatLoading 单独控制
+    loading.value = false;
 
     // 处理跳转过来的聊天对象
     const urlParams = new URLSearchParams(window.location.search);
@@ -411,16 +645,18 @@ onMounted(async () => {
       }
 
       chatLoading.value = true;
-      await getChatHistory(activeContactId.value, {
-        currentUserId: currentUserId.value,
-        contacts: contacts.value,
-        activeContactId,
-      });
+      try {
+        await getChatHistory(activeContactId.value, {
+          currentUserId: currentUserId.value,
+          contacts: contacts.value,
+          activeContactId,
+        });
 
-      // 滚动到最新消息
-      await scrollToLatestMessage();
-
-      chatLoading.value = false;
+        // 滚动到最新消息
+        await scrollToLatestMessage();
+      } finally {
+        chatLoading.value = false;
+      }
 
       await new Promise((r) => setTimeout(r, 100));
 
@@ -430,10 +666,15 @@ onMounted(async () => {
       await Promise.all([loadPendingGroupApplicationCount(), loadPendingFriendApplicationCount()]);
     }
 
-    loading.value = false;
-
     // 检查版本更新
     checkVersionUpdate();
+
+    // 缓存秒开后自动同步一次（30s 内同步过则跳过），状态由列表上方的文案显示
+    if (openedFromCache) {
+      void startSync();
+    } else {
+      setSyncState("synced");
+    }
   } catch (error) {
     message.error("页面加载失败");
     loading.value = false;
@@ -631,12 +872,13 @@ const handleFriendStatusChanged = (data: any) => {
   const { userId, status } = data;
   const isOnline = status === 0;
 
-  // 更新联系人列表中的在线状态
+  // 更新联系人列表中的在线状态（同时更新 isOnline 和 status，保证一致）
   const index = contacts.value.findIndex((c) => String(c.id) === String(userId));
   if (index !== -1) {
     contacts.value[index] = {
       ...contacts.value[index],
       isOnline,
+      status: status,
     };
   }
 
@@ -668,23 +910,28 @@ const handleContactSelect = async (contactId: string) => {
   activeContactId.value = contactId;
   chatLoading.value = true;
 
-  // 通知 MessageLoader 当前活跃联系人变更
-  if (messageLoader) {
-    messageLoader.setActiveContactId(contactId);
+  try {
+    // 通知 MessageLoader 当前活跃联系人变更
+    if (messageLoader) {
+      messageLoader.setActiveContactId(contactId);
+    }
+
+    await markMessagesAsRead(contactId, contacts.value);
+
+    await getChatHistory(activeContactId.value, {
+      currentUserId: currentUserId.value,
+      contacts: contacts.value,
+      activeContactId,
+    });
+
+    // 选择联系人后滚动到最新消息
+    await scrollToLatestMessage();
+  } catch (error) {
+    console.error("[联系人] 切换会话失败:", error);
+  } finally {
+    // 无论成功失败都要复位，否则 chatLoading 卡在 true 会让后续点击看起来"没反应"
+    chatLoading.value = false;
   }
-
-  await markMessagesAsRead(contactId, contacts.value);
-
-  await getChatHistory(activeContactId.value, {
-    currentUserId: currentUserId.value,
-    contacts: contacts.value,
-    activeContactId,
-  });
-
-  // 选择联系人后滚动到最新消息
-  await scrollToLatestMessage();
-
-  chatLoading.value = false;
 };
 
 // 关闭联系人抽屉
@@ -705,6 +952,9 @@ const handleUpdateContact = async (contact: Contact) => {
 // 刷新联系人列表（使用 MessageLoader 同步）
 const handleRefreshContacts = async () => {
   loading.value = true;
+  // 手动刷新优先于后台静默刷新：让进行中的静默刷新结果作废
+  contactsRefreshSeq++;
+  setSyncState("syncing");
 
   try {
     const [friends, groups, tempContacts] = await Promise.all([
@@ -747,6 +997,9 @@ const handleRefreshContacts = async () => {
     await fetchAllRecentMessagesUtil(mergedContacts, currentUserId.value);
 
     contacts.value = mergedContacts;
+    // 刷新结果写回本地缓存，保证下次进入页面拿到的是最新数据
+    saveContactsCache(currentUserId.value, mergedContacts);
+    setSyncState("synced");
 
     // 同步更新 MessageLoader
     if (messageLoader) {
@@ -754,6 +1007,7 @@ const handleRefreshContacts = async () => {
     }
   } catch (error) {
     message.error("刷新联系人失败");
+    setSyncState("failed");
   } finally {
     loading.value = false;
   }
@@ -770,14 +1024,27 @@ const loadPendingGroupApplicationCount = async () => {
   }
 };
 
-// 监听 contacts 数组变化
+// 监听 contacts 变化：合并写回本地缓存（消息到达、已读、局部更新都会触发）
 watch(
   () => contacts.value,
-  (newContacts, oldContacts) => {
-    // 仅用于响应式更新，不输出日志
+  () => {
+    scheduleCacheSync();
   },
   { deep: true },
 );
+
+// 页面卸载前把最新数据落盘，避免节流窗口内的改动丢失
+onBeforeUnmount(() => {
+  if (cacheSyncTimer) {
+    clearTimeout(cacheSyncTimer);
+    cacheSyncTimer = null;
+  }
+  if (syncIndicatorTimer) {
+    clearTimeout(syncIndicatorTimer);
+    syncIndicatorTimer = null;
+  }
+  saveContactsCache(currentUserId.value, contacts.value);
+});
 
 // 加载待处理好友申请数量
 const loadPendingFriendApplicationCount = async () => {
@@ -1074,6 +1341,44 @@ const handlePrivateCallOffer = (data: any) => {
   height: 100%;
   display: flex;
   flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
+
+/* 个性装扮：动态背景层（视频 / 图片壁纸） */
+.chat-dynamic-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  /* 独立合成层 + 硬件加速；不使用 contain: strict / will-change，避免视频循环时合成层重建导致闪动 */
+  transform: translateZ(0);
+}
+
+.chat-dynamic-bg-media {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  user-select: none;
+  /* 硬件加速解码 */
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+.chat-dynamic-bg-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+/* 动态背景时，主内容层浮在视频之上 */
+.qq-chat-container.has-dynamic-bg .qq-main {
+  position: relative;
+  z-index: 1;
 }
 
 .qq-main {

@@ -1,7 +1,8 @@
 {
   "name": "jiwu-chat",
-  "version": "1.0.1",
+  "version": "1.0.4",
   "description": "极物聊天即时通讯聊天软件-JiWu-Chat",
+  "author": "JiWuChat",
   "main": "electron/main.js",
   "scripts": {
     "build": "nuxt build",
@@ -9,6 +10,7 @@
     "generate": "nuxt generate",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
+    "wallpapers": "node scripts/generate-wallpapers.js",
     "lint": "eslint . --ext .vue,.ts,.js --fix",
     "format": "prettier --write \"**/*.{vue,ts,js,json,css,scss}\"",
     "test": "vitest run",
@@ -16,10 +18,12 @@
     "test:coverage": "vitest run --coverage",
     "electron:dev": "cross-env NODE_ENV=development nodemon --watch electron --ext js,json --exec 'electron .'",
     "electron:dev:full": "concurrently \"npm run dev\" \"npm run electron:dev\"",
-    "electron:build": "nuxt generate && electron-builder",
+    "generate:dist": "npm run wallpapers && nuxt generate && node scripts/copy-dist.js",
+    "electron:build": "npm run generate:dist && electron-builder && node scripts/clean-release.js",
     "electron:build:prod": "cross-env NODE_ENV=production npm run electron:build",
-    "electron:pack": "electron-builder --dir",
+    "electron:pack": "npm run generate:dist && electron-builder --dir && node scripts/clean-release.js",
     "electron:pack:prod": "cross-env NODE_ENV=production npm run electron:pack",
+    "clean:release": "node scripts/clean-release.js",
     "clean": "rimraf dist .nuxt node_modules/.cache release"
   },
   "dependencies": {
@@ -49,6 +53,8 @@
   },
   "devDependencies": {
     "@antfu/eslint-config": "^3.0.0",
+    "@breezystack/lamejs": "^1.2.7",
+    "@ffmpeg-installer/ffmpeg": "^1.1.0",
     "@nuxt/devtools": "latest",
     "@nuxtjs/i18n": "10.5.0",
     "@types/js-cookie": "^3.0.6",
@@ -75,7 +81,7 @@
   "build": {
     "appId": "com.jiwu.chat",
     "productName": "极物聊天",
-    "copyright": "Copyright © 2026 JiWu",
+    "copyright": "Copyright © 2026 JiWuChat",
     "directories": {
       "output": "release",
       "buildResources": "build"
@@ -87,6 +93,7 @@
       "!public/downloads/**",
       "!electron/**/*.test.js",
       "!electron/**/*.spec.js",
+      "!node_modules/**/*",
       "package.json"
     ],
     "extraResources": [
@@ -96,21 +103,17 @@
         "filter": [
           "**/*"
         ]
-      },
-      {
-        "from": "public",
-        "to": "public",
-        "filter": [
-          "**/*",
-          "!downloads/**"
-        ]
       }
     ],
     "asar": true,
     "asarUnpack": [
       "**/node_modules/**/*.node"
     ],
+    "afterPack": "scripts/after-pack.js",
     "compression": "maximum",
+    "electronLanguages": [
+      "zh-CN"
+    ],
     "win": {
       "target": [
         {
@@ -126,8 +129,8 @@
       "signingHashAlgorithms": [
         "sha256"
       ],
-      "signAndEditExecutable": false,
-      "publisherName": "JiWu",
+      "signAndEditExecutable": true,
+      "publisherName": "JiWuChat",
       "legalTrademarks": "极物聊天",
       "rfc3161TimeStampServer": "http://timestamp.digicert.com"
     },

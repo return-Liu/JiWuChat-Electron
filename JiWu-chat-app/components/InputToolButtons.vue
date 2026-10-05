@@ -1,5 +1,5 @@
 <template>
-  <div class="input-tools-left">
+  <div class="input-tools-left" :class="{ 'has-dynamic-bg': siderColorStore.hasDynamicBackground }">
     <!-- 表情包 -->
     <div class="tooltip-wrapper">
       <div
@@ -108,6 +108,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from "vue";
+import { useSiderColor } from "../stores/siderColor";
 
 interface Props {
   disabled?: boolean;
@@ -116,6 +117,8 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   disabled: false,
 });
+
+const siderColorStore = useSiderColor();
 
 defineEmits<{
   (e: "click"): void;
@@ -189,6 +192,16 @@ onUnmounted(() => {
   cursor: pointer;
   transition: all 0.2s ease;
   color: #5f5f5f;
+}
+
+/* 动态主题（个性装扮）下图标用壁纸吸色渲染，跟随壁纸主色而非固定白色 */
+.input-tools-left.has-dynamic-bg .input-tool-btn {
+  color: v-bind("siderColorStore.dynamicAccentIcon");
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45));
+}
+
+.input-tools-left.has-dynamic-bg .input-tool-btn:hover {
+  background-color: v-bind("siderColorStore.dynamicAccentBg");
 }
 
 .input-tool-btn:hover {

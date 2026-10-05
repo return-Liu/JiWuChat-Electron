@@ -1,5 +1,28 @@
 ﻿<template>
-  <div class="profile-page">
+  <div class="profile-page" :class="{ 'has-dynamic-bg': hasDynamicBackground }">
+    <!-- 个性装扮：动态背景层（视频 / 图片壁纸，铺满整个好友窗口） -->
+    <div v-if="hasDynamicBackground" class="chat-dynamic-bg">
+      <video
+        v-if="chatBgType === 'video' && chatBgVideo"
+        ref="chatBgVideoRef"
+        class="chat-dynamic-bg-media"
+        :src="encodeURI(chatBgVideo)"
+        :poster="chatBgPoster"
+        muted
+        loop
+        autoplay
+        playsinline
+        preload="auto"
+      ></video>
+      <img
+        v-else-if="chatBgType === 'image' && chatBgImage"
+        class="chat-dynamic-bg-media"
+        :src="chatBgImage"
+        alt=""
+      />
+      <div class="chat-dynamic-bg-overlay" :style="{ background: chatBgOverlay }"></div>
+    </div>
+
     <Sidebar :current-area="'friend'" />
 
     <div class="profile-layout">
@@ -12,10 +35,27 @@
         no-content-tip="无结果"
         @contact-select="handleContactSelect"
         @refresh-contacts="handleRefreshContacts"
+        @friend-notice-click="openFriendNotice"
+        @group-notice-click="openGroupNotice"
       />
 
+      <!-- 好友通知面板 -->
+      <div class="profile-detail" v-if="rightPanelMode === 'friendNotice'">
+        <FriendApplicationsPanel @close="closeNoticePanel" @refresh="handleNoticeRefresh" />
+      </div>
+
+      <!-- 群通知面板 -->
+      <div class="profile-detail" v-else-if="rightPanelMode === 'groupNotice'">
+        <GroupApplicationsPanel
+          :groups="groupsList"
+          :current-group-id="selectedContact?.isGroup ? selectedContact.originalId : ''"
+          @close="closeNoticePanel"
+          @refresh="handleNoticeRefresh"
+        />
+      </div>
+
       <!-- 右侧详情面板 -->
-      <div class="profile-detail" v-if="activeContactId">
+      <div class="profile-detail" v-else-if="activeContactId">
         <!-- 头部区域 -->
         <div class="detail-header">
           <div class="avatar-wrapper">
@@ -297,25 +337,60 @@ import { message, Modal } from "ant-design-vue";
 import { ExclamationCircleOutlined } from "@ant-design/icons-vue";
 import { createVNode } from "vue";
 import request from "../untils/request";
-import { handleEditRemark as editRemarkUtil } from "../untils/contactManager";
+import { handleEditRemark as editRemarkUtil, getTopStatusFromLocalStorage } from "../untils/contactManager";
 import { useUserStore } from "../stores/user";
 import { useSiderColor } from "../stores/siderColor";
 import { getFriends } from "../untils/friendManager";
+import { readFriendListCache, saveFriendListCache } from "../untils/friendListCache";
+import { clearContactsCache } from "../untils/contactCache";
+import { useDynamicBackground } from "../composables/useDynamicBackground";
 import UpdateModal from "./UpdateModal.vue";
 
 const router = useRouter();
 const userStore = useUserStore();
 const siderColorStore = useSiderColor();
 
-// 🔥 使用主题变量
-const theme = computed(() => siderColorStore.currentColor);
-const textPrimary = computed(() => siderColorStore.textPrimaryColor);
-const textSecondary = computed(() => siderColorStore.textSecondaryColor);
+// 个性装扮：动态背景（视频 / 图片壁纸）+ 从壁纸吸取主色
+const {
+  hasDynamicBackground,
+  chatBgType,
+  chatBgVideo,
+  chatBgImage,
+  chatBgPoster,
+  chatBgOverlay,
+  chatBgVideoRef,
+} = useDynamicBackground();
+
+// 是否处于动态主题（个性装扮）下：此时面板需透明、文字转白并加阴影
+const isDynamic = computed(() => hasDynamicBackground.value);
+
+// 🔥 使用主题变量（动态主题下自动覆盖为可在壁纸上阅读的配色）
+const theme = computed(() =>
+  isDynamic.value ? siderColorStore.dynamicAccent : siderColorStore.currentColor,
+);
+const textPrimary = computed(() =>
+  isDynamic.value ? "#ffffff" : siderColorStore.textPrimaryColor,
+);
+const textSecondary = computed(() =>
+  isDynamic.value ? "rgba(255, 255, 255, 0.85)" : siderColorStore.textSecondaryColor,
+);
 const bgPrimary = computed(() => siderColorStore.bgPrimaryColor);
-const bgStart = computed(() => siderColorStore.chatBgStartColor);
+// 页面底色：动态主题下透明，透出底层壁纸
+const pageBg = computed(() =>
+  isDynamic.value ? "transparent" : siderColorStore.chatBgStartColor,
+);
+// 块底色 / 悬浮底色：动态主题下用半透明白，保证在壁纸上可见
+const bgStart = computed(() =>
+  isDynamic.value ? "rgba(255, 255, 255, 0.18)" : siderColorStore.chatBgStartColor,
+);
 const bgEnd = computed(() => siderColorStore.chatBgEndColor);
-const borderColor = computed(() => siderColorStore.borderLightColor);
-const cardBg = computed(() => siderColorStore.bgPrimaryColor);
+const borderColor = computed(() =>
+  isDynamic.value ? "rgba(255, 255, 255, 0.4)" : siderColorStore.borderLightColor,
+);
+// 详情面板背景：动态主题下透明，透出底层壁纸
+const cardBg = computed(() =>
+  isDynamic.value ? "transparent" : siderColorStore.bgPrimaryColor,
+);
 const dangerColor = computed(() => siderColorStore.dangerColorValue);
 
 const defaultAvatar = "https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png";
@@ -351,6 +426,7 @@ interface Friend {
   maxMembers?: number;
   isPrivate?: boolean;
   requireApproval?: boolean;
+  isTop?: boolean;
 }
 
 const generatePrefixedId = (type: "friend" | "group", id: string) => `${type}_${id}`;
@@ -372,6 +448,8 @@ const currentEditInitialValue = ref("");
 const showAddMemberModal = ref(false);
 const showAllMembers = ref(false);
 const showUpdateModal = ref(false);
+// 右栏展示模式：空为联系人详情，friendNotice / groupNotice 为通知面板
+const rightPanelMode = ref<"" | "friendNotice" | "groupNotice">("");
 
 const selectedContact = computed(() =>
   allContacts.value.find((c) => c.id === activeContactId.value),
@@ -424,6 +502,7 @@ const formatCategory = (c: string) => {
 
 const handleContactSelect = async (id: string) => {
   activeContactId.value = id;
+  rightPanelMode.value = "";
   showAllMembers.value = false;
   showUpdateModal.value = false;
   const c = allContacts.value.find((x) => x.id === id);
@@ -434,11 +513,15 @@ const handleViewUpdates = () => {
   showUpdateModal.value = true;
 };
 
+/** 缓存 key 使用的用户标识 */
+const cacheUserId = computed(() => String(userStore.user?.id || ""));
+
 const updateAllContacts = () => {
   allContacts.value = [...friendsList.value, ...groupsList.value];
 };
 
-const fetchFriendsList = async () => {
+/** silent：后台静默刷新时不弹错误提示（已有缓存兜底） */
+const fetchFriendsList = async (silent = false) => {
   try {
     const data = await getFriends("accepted");
     const arr: Friend[] = [];
@@ -494,6 +577,9 @@ const fetchFriendsList = async () => {
           email: userObj.email || "",
           phone: userObj.phone || "",
           friendSince: friendObj.friendSince || "",
+          // 好友分组字段：后端若返回 category（如 robot），
+          // 这里透传给列表做真实分组；否则会归入「我的好友」
+          category: userObj.category || friendObj.category || "",
         });
       });
     }
@@ -502,14 +588,17 @@ const fetchFriendsList = async () => {
     updateAllContacts();
   } catch (error) {
     console.error("获取好友列表失败:", error);
-    message.error("获取好友列表失败");
+    if (!silent) message.error("获取好友列表失败");
   }
 };
 
-const fetchGroupsList = async () => {
+/** silent：后台静默刷新时不弹错误提示（已有缓存兜底） */
+const fetchGroupsList = async (silent = false) => {
   try {
     const { data } = await request.get("/group");
     const list: Friend[] = [];
+    // 读本地置顶状态（与消息页共享 contactTopStatus），用于「置顶群聊」分组
+    const topStatus = getTopStatusFromLocalStorage();
 
     if (data && data.groups && Array.isArray(data.groups)) {
       for (const g of data.groups) {
@@ -526,6 +615,7 @@ const fetchGroupsList = async () => {
           groupNumber: String(g.groupNumber || g.id || ""),
           memberCount: g.memberCount || 0,
           role: g.role || "member",
+          isTop: topStatus.get(`group_${g.id}`) || false,
           createTime: g.createTime || g.createdAt?.split("T")[0] || "",
           updatedAt: g.updatedAt || "",
           remark: g.remark || "",
@@ -544,7 +634,7 @@ const fetchGroupsList = async () => {
     updateAllContacts();
   } catch (error) {
     console.error("获取群列表失败:", error);
-    message.error("获取群列表失败");
+    if (!silent) message.error("获取群列表失败");
   }
 };
 
@@ -563,7 +653,28 @@ const handleAvatarError = (e: Event) => {
 
 const handleRefreshContacts = async () => {
   await Promise.all([fetchFriendsList(), fetchGroupsList()]);
+  saveFriendListCache(cacheUserId.value, friendsList.value, groupsList.value);
+  // 好友页刷新/变更后，清掉消息页的联系人缓存，让消息页下次进入拿到最新数据
+  // （比脏标记更简单：缓存被清空后，消息页自然走全量加载）
+  clearContactsCache(cacheUserId.value);
   message.success("已刷新联系人列表");
+};
+
+// ===== 通知面板：在右栏展示，替代原弹窗 =====
+const openFriendNotice = () => {
+  rightPanelMode.value = "friendNotice";
+};
+const openGroupNotice = () => {
+  rightPanelMode.value = "groupNotice";
+};
+const closeNoticePanel = () => {
+  rightPanelMode.value = "";
+};
+/** 通知面板内的操作（接受/拒绝/撤回/审核）成功后静默刷新联系人 */
+const handleNoticeRefresh = async () => {
+  await Promise.all([fetchFriendsList(true), fetchGroupsList(true)]);
+  saveFriendListCache(cacheUserId.value, friendsList.value, groupsList.value);
+  clearContactsCache(cacheUserId.value);
 };
 
 const handleAddMemberClick = () => {
@@ -722,16 +833,122 @@ const handleViewAllMembers = () => {
 };
 
 onMounted(async () => {
-  await Promise.all([fetchFriendsList(), fetchGroupsList()]);
+  // 命中缓存先用缓存渲染（切换页面不再空白），再静默刷新补齐
+  const cached = readFriendListCache(cacheUserId.value);
+
+  if (cached) {
+    friendsList.value = cached.friends as Friend[];
+    groupsList.value = cached.groups as Friend[];
+    updateAllContacts();
+    await Promise.all([fetchFriendsList(true), fetchGroupsList(true)]);
+  } else {
+    await Promise.all([fetchFriendsList(), fetchGroupsList()]);
+  }
+
+  saveFriendListCache(cacheUserId.value, friendsList.value, groupsList.value);
 });
 </script>
 
 <style scoped>
 .profile-page {
+  position: relative;
   height: 100vh;
   display: flex;
   overflow: hidden;
-  background: v-bind(bgStart);
+  background: v-bind(pageBg);
+}
+
+/* 个性装扮（动态背景）时，内容层浮在壁纸之上 */
+.profile-page.has-dynamic-bg > :not(.chat-dynamic-bg) {
+  position: relative;
+  z-index: 1;
+}
+
+/* 侧边栏悬浮卡片要始终盖在内容之上，否则会被同层内容遮住 */
+.profile-page.has-dynamic-bg .qq-sidebar {
+  z-index: 2;
+}
+
+/* ===== 动态背景层（视频 / 图片壁纸） ===== */
+.chat-dynamic-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  /* 独立合成层 + 硬件加速；不使用 contain / will-change，避免视频循环时合成层重建导致闪动 */
+  transform: translateZ(0);
+}
+
+.chat-dynamic-bg-media {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  user-select: none;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+.chat-dynamic-bg-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+/* 动态主题下文字加阴影，保证在壁纸背景上清晰可读 */
+.profile-page.has-dynamic-bg .contact-name,
+.profile-page.has-dynamic-bg .uin-text,
+.profile-page.has-dynamic-bg .sign-title,
+.profile-page.has-dynamic-bg .sign-content,
+.profile-page.has-dynamic-bg .row-label,
+.profile-page.has-dynamic-bg .row-value,
+.profile-page.has-dynamic-bg .block-label,
+.profile-page.has-dynamic-bg .member-nickname,
+.profile-page.has-dynamic-bg .empty-placeholder,
+.profile-page.has-dynamic-bg .tag-item,
+.profile-page.has-dynamic-bg .invite-btn,
+.profile-page.has-dynamic-bg .update-btn,
+.profile-page.has-dynamic-bg .action-btn,
+.profile-page.has-dynamic-bg .more-icon {
+  text-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.75),
+    0 0 8px rgba(0, 0, 0, 0.5);
+}
+
+/* 动态主题下在线状态用亮绿，保证在壁纸上可见 */
+.profile-page.has-dynamic-bg .status-text {
+  color: #4ade80;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75);
+}
+
+/* 动态主题下头像描边用半透明深色，避免与壁纸糊在一起 */
+.profile-page.has-dynamic-bg .online-badge {
+  border-color: rgba(0, 0, 0, 0.55);
+}
+
+/* 动态主题下头像加深色投影，与壁纸拉开层次 */
+.profile-page.has-dynamic-bg .detail-avatar,
+.profile-page.has-dynamic-bg .member-avatar {
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+}
+
+/* 动态主题下危险按钮用半透明红底 + 亮红文字，保证在壁纸上可读 */
+.profile-page.has-dynamic-bg .action-btn.danger {
+  background: rgba(245, 108, 108, 0.28);
+  color: #ffb4b4;
+}
+
+/* 动态主题下"查看更多"占位圆加深色半透明底，避免使用浅色块 */
+.profile-page.has-dynamic-bg .more-icon {
+  background: rgba(0, 0, 0, 0.3);
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.profile-page.has-dynamic-bg .more-icon.collapse-icon {
+  background: rgba(0, 0, 0, 0.38);
 }
 
 .profile-layout {
@@ -1043,7 +1260,7 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: v-bind(bgStart);
+  background: v-bind(pageBg);
 }
 
 .empty-placeholder {

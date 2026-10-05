@@ -210,7 +210,15 @@
               <!-- 群号 -->
               <div v-if="contact.isGroup" class="detail-item">
                 <span class="detail-label">群号</span>
-                <span class="detail-value">{{ contact.groupNumber || "无" }}</span>
+                <div class="detail-value-wrapper">
+                  <span class="detail-value">{{ contact.groupNumber || "无" }}</span>
+                  <i
+                    v-if="contact.groupNumber"
+                    class="iconfont icon-fenxiang share-group-btn"
+                    title="分享群聊"
+                    @click.stop="handleShareGroup"
+                  ></i>
+                </div>
               </div>
 
               <!-- 我的本群昵称 -->
@@ -412,6 +420,14 @@
           :current-user-id="currentUserId"
           @update:visible="showPersonalSettingsModal = $event"
           @success="handlePersonalSettingsSuccess"
+        />
+
+        <!-- 分享弹窗 -->
+        <SelectFriendModal
+          :visible="shareModalVisible"
+          share-type="group"
+          :target-id="contact.groupNumber"
+          @update:visible="shareModalVisible = $event"
         />
 
         <!-- 右键菜单 -->
@@ -665,6 +681,13 @@ const closeDrawer = () => {
 const handleEditGroupInfo = () => {
   router.push(`/editgroup/${props.contact.id}`);
   closeDrawer();
+};
+
+const shareModalVisible = ref(false);
+
+const handleShareGroup = () => {
+  if (!props.contact.groupNumber) return;
+  shareModalVisible.value = true;
 };
 
 
@@ -1091,6 +1114,39 @@ const saveToCache = (contactId: string | number) => {
   console.log(`[缓存] 已缓存联系人 ${contactId} 的数据`);
 };
 
+/**
+ * 按需拉取群成员明细。
+ * 联系人列表缓存为了省空间剥离了 groupMembers，打开群抽屉时若缺失则从这里补拉，
+ * 只填充到当前 contact 对象，写回缓存时仍会被剥离（不会让缓存膨胀）。
+ */
+const loadGroupMembers = async (contact: any) => {
+  try {
+    const pureGroupId = String(contact.id).replace("group_", "");
+    const { data } = await request.get(`/group/${pureGroupId}`);
+
+    if (Array.isArray(data?.members)) {
+      contact.groupMembers = data.members.map((m: any) => ({
+        id: String(m.id),
+        name: m.name,
+        avatar: m.avatar,
+        role: m.role,
+        joinTime: m.joinTime,
+        nickname: m.nickname || null,
+        tags: m.tags || [],
+        chatLevel: m.chatLevel || 1,
+        messageCount: m.messageCount || 0,
+        groupTitle: m.groupTitle || null,
+      }));
+      // 成员数一并补全（缺失时回退到数组长度）
+      if (!contact.memberCount) {
+        contact.memberCount = data.memberCount ?? data.members.length;
+      }
+    }
+  } catch (error) {
+    console.warn("[抽屉] 拉取群成员失败:", error);
+  }
+};
+
 // 懒加载初始化抽屉数据 (带缓存)
 const loadDrawerData = async () => {
   const contactId = props.contact.id;
@@ -1116,6 +1172,11 @@ const loadDrawerData = async () => {
     if (props.contact.isGroup) {
       tempGroupRule.value = props.contact.groupRule || "";
       myGroupNickname.value = props.contact.myGroupNickname || "";
+
+      // 缓存剥离了 groupMembers：打开抽屉时若缺失，按需拉取群成员
+      if (!Array.isArray(props.contact.groupMembers) || props.contact.groupMembers.length === 0) {
+        await loadGroupMembers(props.contact);
+      }
 
       if (myNicknameEditableRef.value) {
         const target = myNicknameEditableRef.value;

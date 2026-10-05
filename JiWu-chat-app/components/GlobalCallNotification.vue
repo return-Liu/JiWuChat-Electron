@@ -120,7 +120,7 @@ const playCallSound = () => {
   try {
     if (isRingtonePlaying) return;
     stopCallSound();
-    ringtoneAudio = new Audio("Ringtone/来电铃声.wav");
+    ringtoneAudio = new Audio("Ringtone/来电铃声.mp3");
     ringtoneAudio.loop = true;
     ringtoneAudio.volume = 0.4;
     ringtoneAudio

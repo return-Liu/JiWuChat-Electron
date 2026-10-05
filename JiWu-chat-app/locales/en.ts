@@ -36,7 +36,7 @@ export default {
         },
     },
     footer: {
-        copyright: "© {year} JiWu Chat. All rights reserved.",
+        copyright: "© {year} JiWuChat. All rights reserved.",
     },
     // Search index - for search panel matching
     searchIndex: {

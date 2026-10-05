@@ -2,443 +2,375 @@
   <div class="tab-content">
     <div class="content-header">
       <div>
-        <h3 class="content-title">超级调色盘</h3>
-        <p class="content-desc">个性化你的聊天体验，选择喜欢的主题配色方案</p>
+        <h3 class="content-title">个性装扮</h3>
+        <p class="content-desc">选张壁纸，换个聊天心情</p>
       </div>
     </div>
 
-    <!-- 大预览界面 -->
+    <!-- 壁纸选择 -->
     <div class="setting-group">
       <div class="group-header">
-        <span class="group-title">主题效果</span>
-        <span class="group-desc">预览当前配色方案的实际效果</span>
+        <span class="group-title">背景焕新</span>
+        <span class="group-desc">悬停感受动态，点击即刻生效</span>
       </div>
-      <div class="big-preview-wrapper">
-        <div class="preview-qq-window">
+
+      <!-- 虚拟滚动容器：只渲染可视区域内的壁纸卡片 -->
+      <div ref="gridScrollRef" class="wallpaper-scroll" :style="cssVars" @scroll.passive="pauseAll">
+        <div class="wallpaper-grid" :style="{ height: `${totalHeight}px` }">
           <div
-            class="preview-titlebar"
-            :style="{ background: previewPalette.sidebarBg || previewPalette.color }"
+            v-for="item in visibleItems"
+            :key="`dynamic-${item.index}`"
+            :ref="cardRef(item.index)"
+            class="wvp-card"
+            :class="{ active: isThemeActive(item.index), playing: isPreviewing(item.index) }"
+            :style="itemStyle(item)"
+            role="button"
+            tabindex="0"
+            :aria-pressed="isThemeActive(item.index)"
+            :aria-label="`应用壁纸：${wallpapers[item.index]?.name ?? item.index}`"
+            @click="selectTheme(item.index)"
+            @keydown.enter.prevent="selectTheme(item.index)"
+            @keydown.space.prevent="selectTheme(item.index)"
+            @mouseenter="onCardEnter(item.index, $event)"
+            @mouseleave="onCardLeave(item.index)"
+            @focus="onCardEnter(item.index, $event)"
+            @blur="onCardLeave(item.index)"
           >
-            <div class="titlebar-blocks">
-              <div
-                class="titlebar-block"
-                :style="{ background: previewPalette.sidebarIcon || 'var(--text-tertiary)' }"
-              ></div>
-              <div
-                class="titlebar-block"
-                :style="{ background: previewPalette.sidebarIcon || 'var(--text-tertiary)' }"
-              ></div>
-            </div>
-          </div>
-          <div class="preview-qq-body">
+            <!-- 视频壁纸：默认只展示封面，悬停/聚焦才加载视频本体 -->
             <video
-              v-if="previewChatBgType === 'video' && previewChatBgVideo"
-              class="preview-chat-bg-video"
-              :src="encodeURI(previewChatBgVideo)"
+              v-if="wallpapers[item.index]?.type === 'video'"
+              class="wvp-media"
+              :poster="thumbSrcOf(wallpapers[item.index], item.index)"
+              :src="videoSrcOf(wallpapers[item.index], item.index)"
               muted
               loop
-              autoplay
               playsinline
               preload="metadata"
+              @loadeddata="markLoaded(item.index)"
+              @error="markFailed(item.index)"
             ></video>
+            <img
+              v-else
+              class="wvp-media"
+              :src="thumbSrcOf(wallpapers[item.index], item.index)"
+              :alt="wallpapers[item.index]?.name"
+              loading="lazy"
+              decoding="async"
+              @load="markLoaded(item.index)"
+              @error="markFailed(item.index)"
+            />
+
+            <!-- 加载失败：可重试，次数不限 -->
+            <div v-if="hasFailed(item.index)" class="wvp-failed">
+              <i class="iconfont icon-tishi"></i>
+              <span>加载失败</span>
+              <button class="wvp-retry" type="button" @click.stop="onRetry(item.index)">
+                重试
+              </button>
+            </div>
+            <!-- 加载中：有封面时用轻量指示，避免遮住已显示的画面 -->
             <div
-              class="preview-icon-nav"
-              :style="{
-                background: previewIconNavBg,
-              }"
+              v-else-if="isMediaPending(wallpapers[item.index], item.index)"
+              class="wvp-skeleton"
+              :class="{ subtle: hasThumb(wallpapers[item.index]) }"
             >
-              <div class="nav-icon-group top">
-                <div class="nav-block active" :style="{ background: previewPalette.color }"></div>
-                <div
-                  class="nav-block"
-                  :style="{
-                    background: previewPalette.sidebarIcon || 'var(--text-tertiary)',
-                  }"
-                ></div>
-              </div>
-              <div class="nav-icon-group bottom">
-                <div
-                  class="nav-block"
-                  :style="{
-                    background: previewPalette.sidebarIcon || 'var(--text-tertiary)',
-                  }"
-                ></div>
-                <div
-                  class="nav-block"
-                  :style="{
-                    background: previewPalette.sidebarIcon || 'var(--text-tertiary)',
-                  }"
-                ></div>
-              </div>
+              <span class="wvp-spinner"></span>
             </div>
-            <div
-              class="preview-contact-list"
-              :style="{
-                background: previewContactBg,
-              }"
-            >
-              <div class="contact-search-bar">
-                <div
-                  class="search-block"
-                  :style="{
-                    background:
-                      previewPalette.sidebarActiveBg ||
-                      previewPalette.bgTertiary ||
-                      'rgba(0,0,0,0.04)',
-                  }"
-                ></div>
-              </div>
-              <div
-                v-for="i in 3"
-                :key="i"
-                class="contact-item"
-                :class="{ active: i === 1 }"
-                :style="
-                  i === 1
-                    ? {
-                        background:
-                          previewPalette.contactItemActive ||
-                          previewPalette.sidebarActiveBg ||
-                          'rgba(0,0,0,0.04)',
-                      }
-                    : {}
-                "
-              >
-                <div
-                  class="contact-avatar-block"
-                  :style="{
-                    background:
-                      i === 1
-                        ? previewPalette.color
-                        : previewPalette.sidebarIcon || 'var(--text-tertiary)',
-                  }"
-                ></div>
-                <div class="contact-lines">
-                  <div
-                    class="contact-line long"
-                    :style="{
-                      background: previewPalette.textSecondary || 'var(--text-tertiary)',
-                    }"
-                  ></div>
-                  <div
-                    class="contact-line short"
-                    :style="{
-                      background: previewPalette.textSecondary || 'var(--text-tertiary)',
-                      opacity: 0.5,
-                    }"
-                  ></div>
-                </div>
-              </div>
-            </div>
-            <div class="preview-chat-area" :style="{ background: previewChatBg }">
-              <div class="chat-messages">
-                <div class="chat-msg-row left">
-                  <div
-                    class="msg-avatar-block"
-                    :style="{
-                      background: previewPalette.sidebarIcon || 'var(--text-tertiary)',
-                    }"
-                  ></div>
-                  <div class="msg-bubble-block" :style="{ background: previewLeftBubbleBg }"></div>
-                </div>
-                <div class="chat-msg-row right">
-                  <div
-                    class="msg-bubble-block"
-                    :style="{
-                      background:
-                        previewPalette.bubbleBg || previewPalette.color || 'var(--purple-color)',
-                    }"
-                  ></div>
-                  <div
-                    class="msg-avatar-block"
-                    :style="{ background: previewPalette.color || 'var(--text-tertiary)' }"
-                  ></div>
-                </div>
-                <div class="chat-msg-row left">
-                  <div
-                    class="msg-avatar-block"
-                    :style="{
-                      background: previewPalette.sidebarIcon || 'var(--text-tertiary)',
-                    }"
-                  ></div>
-                  <div
-                    class="msg-bubble-block short"
-                    :style="{ background: previewLeftBubbleBg }"
-                  ></div>
-                </div>
-              </div>
-            </div>
+
+            <div class="wvp-name">{{ wallpapers[item.index]?.name }}</div>
           </div>
         </div>
-        <div class="preview-side-actions">
-          <i
-            class="iconfont preview-mode-icon"
-            :class="previewThemeMode === 'light' ? 'icon-caozuo-riguang' : 'icon-yueliang1'"
-            :title="previewThemeMode === 'light' ? '切换夜间模式' : '切换日间模式'"
-            @click="togglePreviewTheme"
-          ></i>
-        </div>
+
+        <div v-if="!visibleItems.length" class="wvp-empty">暂无可用壁纸</div>
       </div>
     </div>
 
-    <!-- 精品尝鲜 -->
-    <div class="setting-group">
-      <div class="group-header">
-        <span class="group-title">精品尝鲜</span>
-        <span class="group-desc">精选配色，定制你的专属主题</span>
-      </div>
-      <div class="theme-card-list-inline">
-        <div
-          class="theme-card-inline"
-          v-for="(palette, index) in classicPalettes"
-          :key="`classic-${index}`"
-          :class="{ active: isThemeActive('classic', index) }"
-          @click="selectTheme('classic', index)"
-          :style="{ background: palette.previewGradient }"
-        >
-          <div v-if="palette.isDefault" class="default-badge">默认</div>
-          <div class="theme-card-name">{{ palette.name }}</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 水墨国风 -->
-    <div class="setting-group">
-      <div class="group-header">
-        <span class="group-title">水墨国风</span>
-        <span class="group-desc">秋水共长天一色</span>
-      </div>
-      <div class="theme-card-list-inline">
-        <div
-          class="theme-card-inline"
-          v-for="(palette, index) in inkWashPalettes"
-          :key="`ink-${index}`"
-          :class="{ active: isThemeActive('inkWash', index) }"
-          @click="selectTheme('inkWash', index)"
-          :style="{ background: palette.previewGradient }"
-        >
-          <div class="theme-card-name">{{ palette.name }}</div>
-        </div>
-      </div>
-    </div>
-    <!-- 个性装扮 -->
-    <div class="setting-group">
-      <div class="group-header">
-        <span class="group-title">个性装扮</span>
-        <span class="group-desc">选择喜欢的个性作为聊天背景</span>
-      </div>
-      <div class="theme-card-list-inline">
-        <div
-          class="theme-card-inline dynamic-theme-card"
-          :class="{ active: isThemeActive('dynamic', 0) }"
-          @click="selectTheme('dynamic', 0)"
-        >
-          <video
-            class="dynamic-theme-preview-img"
-            :src="encodeURI(dynamicUrl)"
-            muted
-            loop
-            autoplay
-            playsinline
-            preload="metadata"
-          ></video>
-        </div>
+    <!-- 卡片外面的提示（测试版说明） -->
+    <div class="palette-tip">
+      <div class="palette-tip-row">
+        <i class="iconfont icon-tishi"></i>
+        <span>壁纸适配优化中，部分场景可能存在显示差异，我们将持续改进，感谢反馈～</span>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onUnmounted } from "vue";
-import { useSiderColor } from "../../stores/siderColor";
+import { computed, onBeforeUnmount, ref } from "vue";
+import { message, Modal } from "ant-design-vue";
+import { useSiderColor, DYNAMIC_WALLPAPERS } from "../../stores/siderColor";
+import { useTheme } from "../../composables/useTheme";
+import { useVirtualGrid } from "../../composables/useVirtualGrid";
+import { useWallpaperPreview } from "../../composables/useWallpaperPreview";
+import { WALLPAPER_CARD, buildWallpaperVars } from "../../constants/wallpaper";
 
-const siderColorStore = useSiderColor();
-
-// 预览主题切换（仅影响预览窗口的日间/夜间显示）
-const previewThemeMode = ref<"light" | "dark">("light");
-
-const togglePreviewTheme = () => {
-  const newMode = previewThemeMode.value === "light" ? "dark" : "light";
-  previewThemeMode.value = newMode;
-  // 🔥 同步到 store，让 Sidebar/ContactList/MessageDisplay 等组件跟随变化
-  siderColorStore.setPreviewThemeMode(newMode);
-};
-
-// 🔥 离开页面时重置预览模式，恢复正常主题
-onUnmounted(() => {
-  siderColorStore.setPreviewThemeMode(null);
-});
-
-// 大预览界面使用的调色板（当前 store 的实际配色，夜间模式下可能是暗色调色板）
-const currentPreviewPalette = computed(() => siderColorStore.currentColorPalette);
-
-// 获取日间调色板（用于预览日间模式时显示正确的浅色背景）
-const lightPalette = computed(() => {
-  // 如果当前是 system 主题，使用 systemBaseType/systemBaseIndex 对应的日间调色板
-  if (siderColorStore.currentThemeType === "system") {
-    const palettes = siderColorStore.themePalettes?.[siderColorStore.systemBaseType] ?? [];
-    const idx = Math.max(0, Math.min(siderColorStore.systemBaseIndex, palettes.length - 1));
-    return palettes[idx] ?? null;
-  }
-  // 非 system 主题，当前 palette 本身就是日间配色
-  return siderColorStore.currentColorPalette;
-});
-
-// 夜间预览固定配色
-const darkPreviewPalette = {
-  color: "#8b5cf6",
-  sidebarBg: "#141414",
-  sidebarIcon: "#999999",
-  sidebarActiveBg: "#1f1f1f",
-  sidebarHoverBg: "#262626",
-  bgTertiary: "#1f1f1f",
-  bgPrimary: "#1a1a1a",
-  textSecondary: "#999999",
-  textPrimary: "#e5e5e5",
-  borderLight: "#2a2a2a",
-  contactItemActive: "#1f1f1f",
-  contactItemHover: "#262626",
-  chatBgStart: "#0d0d0d",
-  chatBgGradient: "linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #1a1a2e 100%)",
-  bubbleBg: "#1a1a1a",
-  light: "rgba(139, 92, 246, 0.12)",
-};
-
-// 根据日间调色板动态生成对应的夜间暗色调色板
-const buildDarkPaletteFromLight = (light: any) => {
-  // 将日间主题色变暗作为夜间强调色
-  const darkenColor = (hex: string, amount: number = 0.6): string => {
-    if (!hex || !hex.startsWith("#")) return "#8b5cf6";
-    const num = parseInt(hex.replace("#", ""), 16);
-    const r = Math.round(((num >> 16) & 0xff) * amount);
-    const g = Math.round(((num >> 8) & 0xff) * amount);
-    const b = Math.round((num & 0xff) * amount);
-    return `#${((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1)}`;
-  };
-
-  const themeColor = light?.color || "#8b5cf6";
-  const darkenedColor = darkenColor(themeColor, 0.55);
-
-  return {
-    // 保留日间主题色（侧边栏图标激活态、头像等保持主题辨识度）
-    color: themeColor,
-    // 侧边栏：基于日间 sidebarBg 大幅变暗
-    sidebarBg: darkenColor(light?.sidebarBg || light?.chatBgStart || "#FAFAFA", 0.08),
-    sidebarIcon: darkenColor(light?.sidebarIcon || "#D0D0D0", 0.55),
-    sidebarActiveBg: darkenColor(
-      light?.sidebarActiveBg || light?.sidebarHoverBg || "#E8E8E8",
-      0.12,
-    ),
-    sidebarHoverBg: darkenColor(light?.sidebarHoverBg || light?.sidebarActiveBg || "#F0F0F0", 0.16),
-    bgTertiary: darkenColor(light?.bgTertiary || light?.chatBgStart || "#FEFEFE", 0.1),
-    bgPrimary: darkenColor(light?.bgPrimary || light?.chatBgStart || "#FFFFFF", 0.1),
-    textSecondary: darkenColor(light?.textSecondary || "#999999", 0.6),
-    textPrimary: "#e5e5e5",
-    borderLight: darkenColor(light?.borderLight || light?.borderNormal || "#E5E5E5", 0.15),
-    contactItemActive: darkenColor(
-      light?.contactItemActive || light?.sidebarActiveBg || "#E8E8E8",
-      0.12,
-    ),
-    contactItemHover: darkenColor(
-      light?.contactItemHover || light?.sidebarHoverBg || "#F0F0F0",
-      0.16,
-    ),
-    chatBgStart: darkenColor(light?.chatBgStart || "#FEFEFE", 0.06),
-    chatBgGradient: `linear-gradient(135deg, ${darkenColor(light?.chatBgStart || "#FEFEFE", 0.06)} 0%, ${darkenColor(light?.chatBgMiddle || light?.chatBgStart || "#F8F8F8", 0.08)} 50%, ${darkenColor(light?.chatBgStart || "#FEFEFE", 0.06)} 100%)`,
-    bubbleBg: darkenColor(light?.bubbleBg || light?.bgPrimary || "#FFFFFF", 0.1),
-    light: `rgba(${parseInt(themeColor.slice(1, 3), 16)}, ${parseInt(themeColor.slice(3, 5), 16)}, ${parseInt(themeColor.slice(5, 7), 16)}, 0.12)`,
-  };
-};
-
-// 预览窗口实际使用的调色板：根据 previewThemeMode 切换日间/夜间配色
-const previewPalette = computed(() => {
-  if (previewThemeMode.value === "dark") {
-    const light = lightPalette.value || currentPreviewPalette.value;
-    const dark = buildDarkPaletteFromLight(light);
-    return { ...light, ...dark };
-  }
-  return lightPalette.value || currentPreviewPalette.value;
-});
-
-// 预览聊天区是否使用视频背景（个性装扮）
-const previewChatBgType = computed(() => (previewPalette.value as any).chatBgType);
-const previewChatBgVideo = computed(() => (previewPalette.value as any).chatBgVideo || "");
-
-// 是否展示个性装扮视频背景
-const isVideoBackground = computed(
-  () => previewChatBgType.value === "video" && !!previewChatBgVideo.value,
+// 统一样式变量：布局与主题色均来自 constants/wallpaper，改一处即可全局生效。
+// 卡片尺寸随容器宽度自适应拉伸（fillWidth），因此做成响应式 computed。
+const cssVars = computed(() =>
+  buildWallpaperVars({
+    width: cardWidth.value || WALLPAPER_CARD.width,
+    height: cardHeight.value || WALLPAPER_CARD.height,
+  }),
 );
 
-// 根据预览模式计算聊天区背景（个性装扮视频背景时透明，让视频透出）
-const previewChatBg = computed(() => {
-  if (isVideoBackground.value) {
-    return "transparent";
-  }
-  return previewPalette.value.chatBgGradient;
+const siderColorStore = useSiderColor();
+const { theme: isDarkRef, setThemeMode } = useTheme();
+
+// 夜间模式下个性装扮壁纸会被暗色主题覆盖，需要先切回日间模式
+const isDarkMode = computed(() => !!isDarkRef.value);
+
+// 个性装扮壁纸列表（来自 store）
+const wallpapers = DYNAMIC_WALLPAPERS;
+
+const gridScrollRef = ref<HTMLElement | null>(null);
+
+// ===== 虚拟滚动 =====
+// fillWidth：卡片按容器宽度均摊拉伸（保持宽高比），消除行尾右侧大片空白
+const { totalHeight, visibleItems, itemStyle, cardWidth, cardHeight } = useVirtualGrid({
+  count: computed(() => wallpapers.length),
+  containerRef: gridScrollRef,
+  itemWidth: WALLPAPER_CARD.width,
+  itemHeight: WALLPAPER_CARD.height,
+  gap: WALLPAPER_CARD.gap,
+  overscan: WALLPAPER_CARD.overscanRows,
+  fillWidth: true,
+  // 窄容器（设置面板侧栏收窄到单列）时封顶卡片宽度，避免被拉伸得异常大
+  maxItemWidth: WALLPAPER_CARD.width * 1.5,
 });
 
-// 根据预览模式计算联系人列表背景（个性装扮视频背景时半透明，露出视频）
-const previewContactBg = computed(() => {
-  if (isVideoBackground.value) {
-    return "rgba(255, 255, 255, 0.35)";
+// ===== 预览：加载态 + 悬停播放 =====
+const {
+  registerCard,
+  thumbSrcOf,
+  videoSrcOf,
+  hasThumb,
+  isMediaPending,
+  hasFailed,
+  retry,
+  isPreviewing,
+  markLoaded,
+  markFailed,
+  playPreview,
+  pausePreview,
+  pauseAll,
+  dispose: disposePreview,
+} = useWallpaperPreview(() => wallpapers);
+
+/**
+ * 模板 ref 收集：把卡片 DOM 交给 useWallpaperPreview，用于悬停播放时定位 video。
+ *
+ * 必须按 index 缓存回调：虚拟滚动每次滚动都会重渲染，若每次返回新函数，
+ * Vue 会认为 ref 变化而先以 null 再以元素重复调用，造成无谓的卸载/重建抖动
+ * （滚动中正在重试的卡片还会因此丢失重试计数）。
+ */
+const cardRefCache = new Map<number, (el: unknown) => void>();
+const cardRef = (index: number) => {
+  let fn = cardRefCache.get(index);
+  if (!fn) {
+    fn = (el: unknown) => registerCard(el, index);
+    cardRefCache.set(index, fn);
   }
-  const p = previewPalette.value;
-  if (previewThemeMode.value === "dark") {
-    return "#1e1e2e";
-  }
-  return p.chatBgStart ? `${p.chatBgStart}F2` : `${p.color}06`;
-});
-
-// 根据预览模式计算侧边栏图标导航背景（个性装扮视频背景时半透明，露出视频）
-const previewIconNavBg = computed(() => {
-  if (isVideoBackground.value) {
-    return "rgba(255, 255, 255, 0.35)";
-  }
-  return previewPalette.value.sidebarBg || previewPalette.value.color;
-});
-
-// 根据预览模式计算左侧气泡背景
-const previewLeftBubbleBg = computed(() => {
-  const p = previewPalette.value;
-  if (previewThemeMode.value === "dark") {
-    return "#2a2a3e";
-  }
-  return p.bgPrimary || p.light || "var(--bg-tertiary)";
-});
-
-// 精品尝鲜 & 水墨国风
-const classicPalettes = computed(() => {
-  return (siderColorStore.themePalettes?.classic || []).map((p: any, i: number) => ({
-    ...p,
-    previewGradient: p.chatBgGradient || p.sidebarBg,
-    isDefault: i === 0,
-  }));
-});
-
-const inkWashPalettes = computed(() => {
-  return (siderColorStore.themePalettes?.inkWash || []).map((p: any) => ({
-    ...p,
-    previewGradient: p.chatBgGradient || p.sidebarBg,
-  }));
-});
-
-// 个性装扮 —— 默认视频壁纸路径
-const dynamicUrl =
-  "/theme/4k石昊动态壁纸｜水墨风云海对战场景背景视频 - 完美世界国漫「哲风壁纸」.mp4";
-("/theme/3k蓝发美女蒙眼动态壁纸｜雪花雪景背景 - 动漫人物「哲风壁纸」.mp4");
-
-const isThemeActive = (type: string, index: number) => {
-  if (siderColorStore.currentThemeType === "system") {
-    return siderColorStore.systemBaseType === type && siderColorStore.systemBaseIndex === index;
-  }
-  return siderColorStore.currentThemeType === type && siderColorStore.currentPaletteIndex === index;
+  return fn;
 };
 
-const selectTheme = (type: string, index: number) => {
-  if (siderColorStore.currentThemeType === "system") {
-    siderColorStore.updateSystemBase(type as any, index);
-  } else {
-    siderColorStore.setTheme(type as any, index);
+onBeforeUnmount(() => {
+  cardRefCache.clear();
+  disposePreview();
+});
+
+/** 鼠标悬停或键盘聚焦都会激活预览 */
+const onCardEnter = (index: number, event: Event) => {
+  playPreview(index, event.currentTarget as HTMLElement);
+};
+const onCardLeave = (index: number) => {
+  pausePreview(index);
+};
+/** 失败后重试：次数不受限，始终留有退路 */
+const onRetry = (index: number) => {
+  retry(index);
+};
+
+const isThemeActive = (index: number) =>
+  siderColorStore.currentThemeType === "dynamic" && siderColorStore.currentPaletteIndex === index;
+
+const applyTheme = (index: number) => {
+  siderColorStore.setTheme(index);
+};
+
+const selectTheme = (index: number) => {
+  // 夜间模式下个性装扮壁纸不会显示，先征询是否切回日间模式
+  if (isDarkMode.value) {
+    Modal.confirm({
+      title: "要切换到日间模式吗？",
+      content: "此装扮仅在日间模式下绽放，切换日间模式即可欣赏其完整风采",
+      okText: "切换",
+      cancelText: "取消",
+      centered: true,
+      onOk() {
+        setThemeMode("light");
+        applyTheme(index);
+        message.success("已切换为日间模式，壁纸已生效");
+      },
+    });
+    return;
   }
+  applyTheme(index);
 };
 </script>
+
+<style lang="scss" scoped>
+.wallpaper-scroll {
+  height: var(--wvp-viewport-height);
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 2px var(--wvp-card-gap) var(--wvp-card-gap);
+  scrollbar-width: thin;
+
+  // 虚拟滚动占位容器
+  .wallpaper-grid {
+    position: relative;
+    width: 100%;
+  }
+
+  .wvp-card {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: var(--wvp-card-width);
+    height: var(--wvp-card-height);
+    border-radius: var(--wvp-card-radius);
+    overflow: hidden;
+    cursor: pointer;
+    display: flex;
+    align-items: flex-end;
+    border: 2px solid transparent;
+    background: var(--wvp-surface);
+    transition:
+      border-color 0.2s ease,
+      box-shadow 0.2s ease,
+      filter 0.2s ease;
+
+    &:hover {
+      border-color: var(--wvp-accent-soft);
+    }
+
+    // 键盘可达：聚焦时给出与悬停一致的可见反馈
+    &:focus-visible {
+      outline: none;
+      border-color: var(--wvp-accent);
+    }
+
+    &.active {
+      border-color: var(--wvp-accent);
+    }
+
+    // 播放中：在选中/悬停之外再给出投影与提亮，便于区分
+    // 注意：位移不能再用 transform（内联 translate3d 用于虚拟滚动定位，优先级更高）
+    &.playing {
+      border-color: var(--wvp-accent);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+      filter: brightness(1.06);
+    }
+
+    .wvp-media {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center;
+    }
+  }
+
+  // 加载骨架
+  .wvp-skeleton {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--wvp-skeleton-bg);
+    z-index: 2;
+
+    .wvp-spinner {
+      width: 20px;
+      height: 20px;
+      border: 2px solid var(--wvp-border);
+      border-top-color: var(--wvp-accent);
+      border-radius: 50%;
+      animation: wvp-spin 0.8s linear infinite;
+    }
+
+    // 已有封面在展示：不遮挡画面，只给一个轻量指示
+    &.subtle {
+      background: transparent;
+      align-items: flex-end;
+      justify-content: flex-end;
+      padding: 4px;
+
+      .wvp-spinner {
+        width: 12px;
+        height: 12px;
+        border-width: 2px;
+      }
+    }
+  }
+
+  .wvp-failed {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    font-size: 0.714rem;
+    color: var(--wvp-text-secondary);
+    background: var(--wvp-surface);
+
+    .wvp-retry {
+      margin-top: 2px;
+      padding: 1px 10px;
+      font-size: 0.714rem;
+      color: var(--wvp-accent);
+      background: transparent;
+      border: 1px solid var(--wvp-accent-soft);
+      border-radius: 10px;
+      cursor: pointer;
+      transition:
+        background-color 0.2s ease,
+        color 0.2s ease;
+
+      &:hover {
+        color: #fff;
+        background: var(--wvp-accent);
+      }
+    }
+  }
+
+  .wvp-name {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    text-align: center;
+    font-size: 0.714rem;
+    color: #fff;
+    padding: 2px 0;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.5));
+  }
+
+  .wvp-empty {
+    padding: 24px 0;
+    text-align: center;
+    font-size: 0.857rem;
+    color: var(--wvp-text-secondary);
+  }
+}
+
+@keyframes wvp-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+</style>

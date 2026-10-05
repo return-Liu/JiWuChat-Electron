@@ -70,4 +70,4 @@ pnpm test
 
 ## 许可证
 
-Copyright © 2026 JiWu
+Copyright © 2026 JiWuChat

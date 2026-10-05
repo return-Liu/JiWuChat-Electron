@@ -4,215 +4,22 @@ import {
   broadcastThemeSettings,
   onThemeSettingsChanged,
 } from "../untils/electronHelper";
+import type { ThemeType, SystemThemeVariant, ColorPalette } from "./theme/types";
+import {
+  isClient,
+  safeGetStorage,
+  safeSetStorage,
+  readCSSVar,
+  hexToRgb,
+  hexToRgba,
+  isLightColor,
+  darkenColor,
+  createUnifiedGradient,
+  createSidebarShadow,
+} from "./theme/utils";
 
-// ============================================================
-// 类型定义（保持不变）
-// ============================================================
-export type ThemeType = "classic" | "inkWash" | "dynamic" | "system" | "custom";
-export type SystemThemeVariant = "light" | "dark" | "auto";
-
-export interface ColorPalette {
-  name: string;
-  color: string;
-  hover: string;
-  active: string;
-  light: string;
-  text: string;
-  bubbleBg: string;
-  /** 新增：气泡边框，用于提升气泡边界可见度 */
-  bubbleBorder?: string;
-
-  sidebarBg: string;
-  sidebarText: string;
-  sidebarIcon: string;
-  sidebarShadow?: string;
-  sidebarBorder?: string;
-
-  sidebarHoverBg?: string;
-  sidebarActiveBg?: string;
-
-  chatBgGradient: string;
-  chatBgStart: string;
-  chatBgMiddle?: string;
-  chatBgEnd: string;
-
-  chatBgType: "static" | "animated" | "image" | "video";
-  chatBgAnimation: string;
-  chatBgPattern: string;
-  chatBgOpacity: number;
-
-  /** 动态背景：图片 URL（chatBgType === "image" 时生效） */
-  chatBgImage?: string;
-  /** 动态背景：视频 URL（chatBgType === "video" 时生效） */
-  chatBgVideo?: string;
-  /** 动态背景：视频封面图 URL（视频加载前/失败时显示） */
-  chatBgPoster?: string;
-  /** 动态背景叠加层颜色（用于保证文字可读性，如 rgba(0,0,0,0.3)） */
-  chatBgOverlay?: string;
-
-  glassmorphism?: boolean;
-  blurAmount?: number;
-  shadowIntensity?: number;
-  borderGlow?: string;
-  texture?: string;
-  gradientAngle?: number;
-  saturation?: number;
-  brightness?: number;
-
-  contactItemBg?: string;
-  contactItemHover?: string;
-  contactItemActive?: string;
-
-  textPrimary?: string;
-  textSecondary?: string;
-  bgPrimary?: string;
-  borderLight?: string;
-  borderNormal?: string;
-  bgTertiary?: string;
-  tagBg?: string;
-  tagColor?: string;
-  linkColor?: string;
-  dangerColor?: string;
-  highlightBg?: string;
-  highlightColor?: string;
-  selectedBg?: string;
-  primaryLight?: string;
-  scrollbarTrack?: string;
-  scrollbarThumb?: string;
-
-  dividerLineColor: string;
-  dividerLineWidth?: string;
-  dividerLineStyle?: string;
-  dividerLineShadow?: string;
-  dividerTextColor: string;
-  dividerSpacing?: string;
-
-  bubbleShadow?: string;
-  fileIconBg?: string;
-  videoPlayBtnBg?: string;
-  multiSelectBorder?: string;
-  badgeHoverBg?: string;
-  loadingTextColor?: string;
-  recalledBg?: string;
-  joinNoticeBg?: string;
-}
-
-// ============================================================
-// 工具函数
-// ============================================================
-const isClient = () => typeof window !== "undefined";
-
-const safeGetStorage = (key: string): string | null => {
-  try {
-    return localStorage.getItem(key);
-  } catch {
-    return null;
-  }
-};
-
-const safeSetStorage = (key: string, value: string) => {
-  try {
-    localStorage.setItem(key, value);
-  } catch (error) {
-    console.error(`保存 ${key} 失败:`, error);
-  }
-};
-
-// ============================================================
-// CSS 变量读取工具
-// ============================================================
-const readCSSVar = (varName: string): string => {
-  if (!isClient()) return "";
-  try {
-    return getComputedStyle(document.documentElement)
-      .getPropertyValue(varName)
-      .trim();
-  } catch {
-    return "";
-  }
-};
-
-// ============================================================
-// 颜色工具
-// ============================================================
-const hexToRgb = (hex: string): string => {
-  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  return result
-    ? `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}`
-    : "255, 255, 255";
-};
-
-/** 把颜色（支持 hex / rgb / rgba）转成 [r,g,b] */
-const parseColor = (color: string): [number, number, number] | null => {
-  if (!color) return null;
-  const c = color.trim();
-
-  // #rgb / #rrggbb
-  if (c.startsWith("#")) {
-    const hex = c.slice(1);
-    if (hex.length === 3) {
-      return [
-        parseInt(hex[0] + hex[0], 16),
-        parseInt(hex[1] + hex[1], 16),
-        parseInt(hex[2] + hex[2], 16),
-      ];
-    }
-    if (hex.length === 6) {
-      return [
-        parseInt(hex.slice(0, 2), 16),
-        parseInt(hex.slice(2, 4), 16),
-        parseInt(hex.slice(4, 6), 16),
-      ];
-    }
-    return null;
-  }
-
-  // rgb / rgba
-  const m = c.match(/rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/i);
-  if (m) {
-    return [parseFloat(m[1]), parseFloat(m[2]), parseFloat(m[3])];
-  }
-  return null;
-};
-
-/** 相对亮度 0~255 */
-const luminanceOf = (color: string): number => {
-  const rgb = parseColor(color);
-  if (!rgb) return 255;
-  const [r, g, b] = rgb;
-  return 0.299 * r + 0.587 * g + 0.114 * b;
-};
-
-const isLightColor = (color: string): boolean => luminanceOf(color) > 180;
-
-const darkenColor = (color: string, amount: number = 0.6): string => {
-  const rgb = parseColor(color);
-  if (!rgb) return color || "#8b5cf6";
-  const [r, g, b] = rgb.map((v) => Math.round(v * amount));
-  return `#${((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1)}`;
-};
-
-const createShadow = (
-  color: string,
-  intensity: number = 0.15,
-  blur: number = 24,
-  spread: number = 0,
-): string => {
-  const rgb = hexToRgb(color);
-  return `0 ${spread}px ${blur}px rgba(${rgb}, ${intensity})`;
-};
-
-const createUnifiedGradient = (colors: string[], angle: number = 135): string => {
-  const stops = colors.map(
-    (c, i) => `${c} ${(i / (colors.length - 1)) * 100}%`,
-  );
-  return `linear-gradient(${angle}deg, ${stops.join(", ")})`;
-};
-
-const createSidebarShadow = (color: string, intensity: number = 0.06): string => {
-  const rgb = hexToRgb(color);
-  return `2px 0 16px rgba(${rgb}, ${intensity}), 1px 0 4px rgba(${rgb}, ${intensity * 0.5})`;
-};
+// 保持类型 re-export，兼容可能存在的跨文件引用
+export type { ThemeType, SystemThemeVariant, ColorPalette } from "./theme/types";
 
 // ============================================================
 // 由 CSS 变量构建调色板（system 主题用）
@@ -360,9 +167,8 @@ const buildLightPaletteFromCSSVars = (): ColorPalette => {
   };
 };
 
-const DEFAULT_THEME_TYPE: ThemeType = "classic";
+const DEFAULT_THEME_TYPE: ThemeType = "base";
 const DEFAULT_PALETTE_INDEX = 0;
-const DEFAULT_SYSTEM_BASE_TYPE: "classic" | "inkWash" = "classic";
 const DEFAULT_COLOR = "#94A3B8";
 const DEFAULT_TEXT_SECONDARY = "#64748B";
 const DEFAULT_BORDER_LIGHT = "rgba(0, 0, 0, 0.04)";
@@ -375,250 +181,118 @@ const DEFAULT_SCROLLBAR_TRACK = "rgba(0, 0, 0, 0.015)";
 const DEFAULT_SCROLLBAR_THUMB = "rgba(0, 0, 0, 0.1)";
 
 // ============================================================
-// 主题配色
+// 基础调色板：日间模式默认配色（个性装扮在此基础上替换聊天背景）
 // ============================================================
-const THEME_PALETTES = {
-  classic: [
-    {
-      name: "极简白",
-      color: "#DCDCDC",
-      hover: "#E8E8E8",
-      active: "#C8C8C8",
-      light: "rgba(200, 200, 200, 0.10)",
-      text: "#111111",
-      // ✅ 气泡：纯白实色 + 极浅描边，无阴影
-      bubbleBg: "#FFFFFF",
-      bubbleBorder: "1px solid rgba(0, 0, 0, 0.06)",
+const BASE_LIGHT_PALETTE: ColorPalette = {
+  name: "极简白",
+  color: "#DCDCDC",
+  hover: "#E8E8E8",
+  active: "#C8C8C8",
+  light: "rgba(200, 200, 200, 0.10)",
+  text: "#111111",
+  // ✅ 气泡：纯白实色 + 极浅描边，无阴影
+  bubbleBg: "#FFFFFF",
+  bubbleBorder: "1px solid rgba(0, 0, 0, 0.06)",
 
-      sidebarBg: "#FAFAFA",
-      sidebarText: "#1A1A1A",
-      sidebarIcon: "#D0D0D0",
-      sidebarShadow: createSidebarShadow("#DCDCDC", 0.03),
-      sidebarBorder: "1px solid rgba(220, 220, 220, 0.05)",
+  sidebarBg: "#FAFAFA",
+  sidebarText: "#1A1A1A",
+  sidebarIcon: "#D0D0D0",
+  sidebarShadow: createSidebarShadow("#DCDCDC", 0.03),
+  sidebarBorder: "1px solid rgba(220, 220, 220, 0.05)",
 
-      sidebarHoverBg: "#F0F0F0",
-      sidebarActiveBg: "#E8E8E8",
+  sidebarHoverBg: "#F0F0F0",
+  sidebarActiveBg: "#E8E8E8",
 
-      chatBgGradient: createUnifiedGradient(
-        ["#FEFEFE", "#FBFBFB", "#F8F8F8", "#FBFBFB", "#FEFEFE"],
-        120,
-      ),
-      chatBgStart: "#FEFEFE",
-      chatBgMiddle: "#F8F8F8",
-      chatBgEnd: "#FBFBFB",
-      chatBgType: "static" as const,
-      chatBgAnimation: "",
-      chatBgPattern: "",
-      chatBgOpacity: 1,
+  chatBgGradient: createUnifiedGradient(
+    ["#FEFEFE", "#FBFBFB", "#F8F8F8", "#FBFBFB", "#FEFEFE"],
+    120,
+  ),
+  chatBgStart: "#FEFEFE",
+  chatBgMiddle: "#F8F8F8",
+  chatBgEnd: "#FBFBFB",
+  chatBgType: "static" as const,
+  chatBgAnimation: "",
+  chatBgPattern: "",
+  chatBgOpacity: 1,
 
-      glassmorphism: true,
-      blurAmount: 12,
-      shadowIntensity: 0.03,
-      borderGlow: "rgba(220, 220, 220, 0.06)",
-      texture: "matte",
-      gradientAngle: 120,
-      saturation: 0.2,
-      brightness: 1.02,
+  glassmorphism: true,
+  blurAmount: 12,
+  shadowIntensity: 0.03,
+  borderGlow: "rgba(220, 220, 220, 0.06)",
+  texture: "matte",
+  gradientAngle: 120,
+  saturation: 0.2,
+  brightness: 1.02,
 
-      textPrimary: "#1A1A1A",
-      textSecondary: "#999999",
-      bgPrimary: "rgba(255, 255, 255, 0.3)",
-      borderLight: "rgba(220, 220, 220, 0.04)",
-      borderNormal: "rgba(230, 230, 230, 0.4)",
-      bgTertiary: "rgba(220, 220, 220, 0.02)",
-      tagBg: "rgba(220, 220, 220, 0.05)",
-      tagColor: "#999999",
-      linkColor: "#999999",
-      dangerColor: "#E06060",
-      highlightBg: "rgba(251, 191, 36, 0.08)",
-      highlightColor: "#D4880F",
-      selectedBg: "rgba(200, 200, 200, 0.14)",
-      primaryLight: "rgba(220, 220, 220, 0.05)",
-      scrollbarTrack: "rgba(220, 220, 220, 0.02)",
-      scrollbarThumb: "rgba(200, 200, 200, 0.10)",
+  textPrimary: "#1A1A1A",
+  textSecondary: "#999999",
+  bgPrimary: "rgba(255, 255, 255, 0.3)",
+  borderLight: "rgba(220, 220, 220, 0.04)",
+  borderNormal: "rgba(230, 230, 230, 0.4)",
+  bgTertiary: "rgba(220, 220, 220, 0.02)",
+  tagBg: "rgba(220, 220, 220, 0.05)",
+  tagColor: "#999999",
+  linkColor: "#999999",
+  dangerColor: "#E06060",
+  highlightBg: "rgba(251, 191, 36, 0.08)",
+  highlightColor: "#D4880F",
+  selectedBg: "rgba(200, 200, 200, 0.14)",
+  primaryLight: "rgba(220, 220, 220, 0.05)",
+  scrollbarTrack: "rgba(220, 220, 220, 0.02)",
+  scrollbarThumb: "rgba(200, 200, 200, 0.10)",
 
-      contactItemBg: "rgba(255, 255, 255, 0.6)",
-      contactItemHover: "#F0F0F0",
-      contactItemActive: "#E8E8E8",
+  contactItemBg: "rgba(255, 255, 255, 0.6)",
+  contactItemHover: "#F0F0F0",
+  contactItemActive: "#E8E8E8",
 
-      dividerLineColor: "#ebe1e1",
-      dividerLineWidth: "1px",
-      dividerLineStyle: "solid",
-      dividerLineShadow: "none",
-      dividerTextColor: "#B0B0B0",
-      dividerSpacing: "10px",
+  dividerLineColor: "#ebe1e1",
+  dividerLineWidth: "1px",
+  dividerLineStyle: "solid",
+  dividerLineShadow: "none",
+  dividerTextColor: "#B0B0B0",
+  dividerSpacing: "10px",
 
-      // ✅ 无阴影
-      bubbleShadow: "none",
-    },
-    {
-      name: "地海蔚蓝",
-      color: "#4A8DB7",
-      hover: "#6BA3C8",
-      active: "#3A7A9E",
-      light: "rgba(74, 141, 183, 0.12)",
-      text: "#FFFFFF",
-      bubbleBg: "rgba(255, 255, 255, 0.90)",
-      bubbleBorder: "1px solid rgba(74, 141, 183, 0.08)",
-
-      sidebarBg: "#EAF1F7",
-      sidebarText: "#0F2633",
-      sidebarIcon: "#6BA3C8",
-      sidebarShadow: createSidebarShadow("#4A8DB7", 0.06),
-      sidebarBorder: "1px solid rgba(74, 141, 183, 0.08)",
-
-      sidebarHoverBg: "#D8E4ED",
-      sidebarActiveBg: "#C8D8E5",
-
-      chatBgGradient: createUnifiedGradient(
-        ["#F0F7FC", "#E8F0F7", "#DCE8F2", "#E8F0F7", "#F0F7FC"],
-        135,
-      ),
-      chatBgStart: "#F0F7FC",
-      chatBgMiddle: "#DCE8F2",
-      chatBgEnd: "#E8F0F7",
-      chatBgType: "static" as const,
-      chatBgAnimation: "",
-      chatBgPattern: "",
-      chatBgOpacity: 1,
-
-      glassmorphism: true,
-      blurAmount: 16,
-      shadowIntensity: 0.06,
-      borderGlow: "rgba(74, 141, 183, 0.10)",
-      texture: "smooth",
-      gradientAngle: 135,
-      saturation: 0.85,
-      brightness: 1.05,
-
-      textPrimary: "#0A1E2A",
-      textSecondary: "#4A8DB7",
-      bgPrimary: "rgba(255, 255, 255, 0.4)",
-      borderLight: "rgba(74, 141, 183, 0.06)",
-      borderNormal: "#D0DEE8",
-      bgTertiary: "rgba(74, 141, 183, 0.04)",
-      tagBg: "rgba(74, 141, 183, 0.08)",
-      tagColor: "#4A8DB7",
-      linkColor: "#4A8DB7",
-      dangerColor: "#E07070",
-      highlightBg: "rgba(251, 191, 36, 0.12)",
-      highlightColor: "#D4880F",
-      selectedBg: "rgba(74, 141, 183, 0.06)",
-      primaryLight: "rgba(74, 141, 183, 0.06)",
-      scrollbarTrack: "rgba(74, 141, 183, 0.03)",
-      scrollbarThumb: "rgba(74, 141, 183, 0.12)",
-
-      contactItemBg: "rgba(255, 255, 255, 0.5)",
-      contactItemHover: "#D8E4ED",
-      contactItemActive: "#C8D8E5",
-
-      dividerLineColor: "#C0D2E0",
-      dividerLineWidth: "1.5px",
-      dividerLineStyle: "solid",
-      dividerLineShadow: "0 1px 2px rgba(74, 141, 183, 0.06)",
-      dividerTextColor: "#6BA3C8",
-      dividerSpacing: "10px",
-
-      // ✅ 无阴影
-      bubbleShadow: "none",
-    },
-  ],
-  inkWash: [
-    {
-      name: "水墨江南",
-      color: "#5A6B7A",
-      hover: "#7A8B9A",
-      active: "#4A5B6A",
-      light: "rgba(90, 107, 122, 0.12)",
-      text: "#FFFFFF",
-      bubbleBg: "rgba(248, 245, 240, 0.92)",
-      bubbleBorder: "1px solid rgba(90, 107, 122, 0.10)",
-
-      sidebarBg: "#E8E4DE",
-      sidebarText: "#1A1A2E",
-      sidebarIcon: "#7A8B9A",
-      sidebarShadow: createSidebarShadow("#5A6B7A", 0.05),
-      sidebarBorder: "1px solid rgba(90, 107, 122, 0.06)",
-
-      sidebarHoverBg: "#D5D0C8",
-      sidebarActiveBg: "#C5C0B8",
-
-      chatBgGradient: createUnifiedGradient(
-        ["#F5F2ED", "#EDEAE4", "#E5E0D8", "#EDEAE4", "#F5F2ED"],
-        120,
-      ),
-      chatBgStart: "#F5F2ED",
-      chatBgMiddle: "#E5E0D8",
-      chatBgEnd: "#EDEAE4",
-      chatBgType: "static" as const,
-      chatBgAnimation: "",
-      chatBgPattern: "",
-      chatBgOpacity: 1,
-
-      glassmorphism: true,
-      blurAmount: 14,
-      shadowIntensity: 0.05,
-      borderGlow: "rgba(90, 107, 122, 0.08)",
-      texture: "paper",
-      gradientAngle: 120,
-      saturation: 0.4,
-      brightness: 1.04,
-
-      textPrimary: "#1A1A2E",
-      textSecondary: "#5A6B7A",
-      bgPrimary: "rgba(248, 245, 240, 0.4)",
-      borderLight: "rgba(90, 107, 122, 0.05)",
-      borderNormal: "#D5D0C8",
-      bgTertiary: "rgba(90, 107, 122, 0.03)",
-      tagBg: "rgba(90, 107, 122, 0.06)",
-      tagColor: "#5A6B7A",
-      linkColor: "#5A6B7A",
-      dangerColor: "#C07060",
-      highlightBg: "rgba(251, 191, 36, 0.10)",
-      highlightColor: "#B0880F",
-      selectedBg: "rgba(90, 107, 122, 0.05)",
-      primaryLight: "rgba(90, 107, 122, 0.05)",
-      scrollbarTrack: "rgba(90, 107, 122, 0.02)",
-      scrollbarThumb: "rgba(90, 107, 122, 0.10)",
-
-      contactItemBg: "rgba(248, 245, 240, 0.5)",
-      contactItemHover: "#D5D0C8",
-      contactItemActive: "#C5C0B8",
-
-      dividerLineColor: "#C5C0B8",
-      dividerLineWidth: "1px",
-      dividerLineStyle: "solid",
-      dividerLineShadow: "0 1px 2px rgba(90, 107, 122, 0.04)",
-      dividerTextColor: "#8A9BAA",
-      dividerSpacing: "10px",
-
-      // ✅ 无阴影
-      bubbleShadow: "none",
-    },
-  ],
+  // ✅ 无阴影
+  bubbleShadow: "none",
 };
 
 // ============================================================
 // 个性装扮 —— 默认使用 public/theme 下的本地视频壁纸
 // ============================================================
-const DEFAULT_LIGHT_PALETTE = THEME_PALETTES.classic[0] as ColorPalette;
+const DEFAULT_LIGHT_PALETTE: ColorPalette = BASE_LIGHT_PALETTE;
 
-/** 默认个性装扮视频壁纸路径 */
-const DEFAULT_DYNAMIC_URL =
-  "/theme/4k石昊动态壁纸｜水墨风云海对战场景背景视频 - 完美世界国漫「哲风壁纸」.mp4";
+// 壁纸列表由 scripts/generate-wallpapers.js 自动生成
+export type { DynamicWallpaper } from "./dynamicWallpapers.generated";
+export { DYNAMIC_WALLPAPERS } from "./dynamicWallpapers.generated";
+import { DYNAMIC_WALLPAPERS } from "./dynamicWallpapers.generated";
+
+/** 默认个性装扮壁纸路径（兼容旧引用） */
+const DEFAULT_DYNAMIC_URL = DYNAMIC_WALLPAPERS[0].url;
+
+/** 索引夹取（模块级） */
+function clampIndexRaw(idx: number | undefined, len: number): number {
+  if (typeof idx !== "number" || Number.isNaN(idx) || len <= 0) return 0;
+  return Math.max(0, Math.min(idx, len - 1));
+}
 
 /**
- * 生成个性装扮调色板 —— 复用默认主题配色，仅替换背景为视频
+ * 生成个性装扮调色板 —— 复用默认主题配色，仅替换背景为视频/图片
+ * @param index 壁纸索引（对应 DYNAMIC_WALLPAPERS）
  */
-const buildDynamicPalette = (): ColorPalette => {
+const buildDynamicPalette = (index: number = 0): ColorPalette => {
+  const wallpaper =
+    DYNAMIC_WALLPAPERS[clampIndexRaw(index, DYNAMIC_WALLPAPERS.length)] ??
+    DYNAMIC_WALLPAPERS[0];
   return {
     ...DEFAULT_LIGHT_PALETTE,
-    name: "个性装扮",
-    chatBgType: "video",
+    name: `个性装扮 · ${wallpaper.name}`,
+    chatBgType: wallpaper.type,
     chatBgAnimation: "",
     chatBgPattern: "",
-    chatBgVideo: DEFAULT_DYNAMIC_URL,
-    chatBgPoster: DEFAULT_DYNAMIC_URL,
+    chatBgVideo: wallpaper.type === "video" ? wallpaper.url : undefined,
+    chatBgImage: wallpaper.type === "image" ? wallpaper.url : undefined,
+    // 封面：视频用抽帧生成的 poster，图片用自身；缺省时空串，前端退化为透明
+    chatBgPoster: wallpaper.type === "video" ? (wallpaper.poster || "") : wallpaper.url,
     chatBgOverlay: "transparent",
   };
 };
@@ -746,23 +420,27 @@ const buildDarkPaletteFromLight = (light: ColorPalette): ColorPalette => {
   };
 };
 
+/**
+ * 个性装扮（动态壁纸）的产品策略：夜间模式下是否允许显示动态壁纸。
+ *
+ * 🔥 当前策略：夜间优先——夜间关闭个性装扮，完全回到普通暗色主题。
+ * 将来若需「夜间也支持壁纸」，只需把这里改为 true，全站唯一开关生效，
+ * 无需在 hasDynamicBackground 里到处找硬编码的 !systemPrefersDark。
+ */
+const DYNAMIC_WALLPAPER_ALLOWED_IN_DARK = false;
+
 // ============================================================
 // Store 定义
 // ============================================================
 export const useSiderColor = defineStore("siderColor", () => {
   // ---- 状态 ----
-  const themePalettes = ref<typeof THEME_PALETTES>(
-    structuredClone(THEME_PALETTES),
-  );
   const currentThemeType = ref<ThemeType>(DEFAULT_THEME_TYPE);
   const currentPaletteIndex = ref<number>(DEFAULT_PALETTE_INDEX);
   const currentSystemVariant = ref<SystemThemeVariant>("auto");
   const systemPrefersDark = ref(false);
-  const systemBaseType = ref<"classic" | "inkWash">(DEFAULT_SYSTEM_BASE_TYPE);
-  const systemBaseIndex = ref<number>(DEFAULT_PALETTE_INDEX);
   const customPalette = ref<ColorPalette | null>(null);
 
-  // 超级调色盘预览模式
+  // 主题预览模式（外观页不再提供预览入口，保留 API 以免其它窗口调用报错）
   const previewThemeMode = ref<"light" | "dark" | null>(null);
 
   const setPreviewThemeMode = (mode: "light" | "dark" | null) => {
@@ -806,14 +484,7 @@ export const useSiderColor = defineStore("siderColor", () => {
       return buildDarkPaletteFromCSSVars();
     }
 
-    const palettes = themePalettes.value?.[systemBaseType.value] ?? [];
-    const idx = clampIndex(systemBaseIndex.value, palettes.length);
-    return palettes[idx] ?? buildLightPaletteFromCSSVars();
-  };
-
-  const clampIndex = (idx: number | undefined, len: number): number => {
-    if (typeof idx !== "number" || Number.isNaN(idx) || len <= 0) return 0;
-    return Math.max(0, Math.min(idx, len - 1));
+    return DEFAULT_LIGHT_PALETTE;
   };
 
   // ---- 核心计算属性 ----
@@ -822,7 +493,7 @@ export const useSiderColor = defineStore("siderColor", () => {
     const previewMode = previewThemeMode.value;
     const type = currentThemeType.value;
 
-    // ---------- 超级调色盘预览：夜间 ----------
+    // ---------- 主题预览：夜间 ----------
     if (previewMode === "dark") {
       const base = resolveLightPalette(type);
       return buildDarkPaletteFromLight(base);
@@ -833,7 +504,7 @@ export const useSiderColor = defineStore("siderColor", () => {
       return getCurrentSystemPalette();
     }
 
-    // ---------- classic / inkWash / custom ----------
+    // ---------- 基础配色 / custom ----------
     const lightPalette = resolveLightPalette(type);
     if (dark) {
       return buildDarkPaletteFromLight(lightPalette);
@@ -847,30 +518,43 @@ export const useSiderColor = defineStore("siderColor", () => {
       return customPalette.value ?? DEFAULT_LIGHT_PALETTE;
     }
     if (type === "dynamic") {
-      return buildDynamicPalette();
+      return buildDynamicPalette(currentPaletteIndex.value);
     }
-    const key = type === "system" ? systemBaseType.value : type;
-    const palettes = themePalettes.value?.[key] ?? themePalettes.value?.classic ?? [];
-    const idx = clampIndex(
-      type === "system" ? systemBaseIndex.value : currentPaletteIndex.value,
-      palettes.length,
-    );
-    return palettes[idx] ?? DEFAULT_LIGHT_PALETTE;
+    // base（默认）及历史保存的 classic / inkWash 统一使用基础配色
+    return DEFAULT_LIGHT_PALETTE;
   };
+
+  /** 日间基础调色板（不受夜间状态影响，供外观页日间预览使用） */
+  const baseLightPalette = computed(() =>
+    resolveLightPalette(currentThemeType.value),
+  );
 
   // ---- 所有颜色属性 ----
   const currentColor = computed(
     () => currentColorPalette.value.color || DEFAULT_COLOR,
   );
-  const bubbleBg = computed(
-    () => currentColorPalette.value.bubbleBg || "#FFFFFF",
-  );
-  const bubbleBorder = computed(
-    () => currentColorPalette.value.bubbleBorder || "none",
-  );
+  const bubbleBg = computed(() => {
+    // 个性装扮（动态背景）时，气泡无背景，直接显示动态主题背景
+    if (hasDynamicBackground.value) {
+      return "transparent";
+    }
+    return currentColorPalette.value.bubbleBg || "#FFFFFF";
+  });
+  const bubbleBorder = computed(() => {
+    // 个性装扮（动态背景）时，气泡无背景但保留白色半透明边框（勾勒气泡轮廓）
+    if (hasDynamicBackground.value) {
+      return "1px solid rgba(255, 255, 255, 0.45)";
+    }
+    return currentColorPalette.value.bubbleBorder || "none";
+  });
   const bubbleTextColor = computed(() => {
+    // 个性装扮（动态背景）时，气泡文字用白色 + 阴影（在 MessageDisplay 中处理）
+    if (hasDynamicBackground.value) {
+      return "#ffffff";
+    }
     const bg = currentColorPalette.value.bubbleBg || "#FFFFFF";
-    return isLightColor(bg) ? "#111111" : "#e5e5e5";
+    // 浅底→接近纯黑，深底→纯白，保证气泡文字足够"深"、清晰可读
+    return isLightColor(bg) ? "#0A0A0A" : "#F5F5F5";
   });
   const bubbleShadow = computed(
     () => currentColorPalette.value.bubbleShadow || "none",
@@ -889,26 +573,46 @@ export const useSiderColor = defineStore("siderColor", () => {
   const sidebarIconActiveColor = computed(
     () => currentColorPalette.value.active || "#64748B",
   );
-  const sidebarItemHoverBg = computed(
-    () =>
+  const sidebarItemHoverBg = computed(() => {
+    // 个性装扮（动态背景）时，用从背景吸取的主色生成半透明悬停色
+    if (hasDynamicBackground.value && dynamicAccentColor.value) {
+      return hexToRgba(dynamicAccentColor.value, 0.25);
+    }
+    return (
       currentColorPalette.value.sidebarHoverBg ||
-      "rgba(148, 163, 184, 0.10)",
-  );
-  const sidebarItemActiveBg = computed(
-    () =>
+      "rgba(148, 163, 184, 0.10)"
+    );
+  });
+  const sidebarItemActiveBg = computed(() => {
+    // 个性装扮（动态背景）时，用从背景吸取的主色生成半透明选中色
+    if (hasDynamicBackground.value && dynamicAccentColor.value) {
+      return hexToRgba(dynamicAccentColor.value, 0.45);
+    }
+    return (
       currentColorPalette.value.sidebarActiveBg ||
-      "rgba(148, 163, 184, 0.15)",
-  );
-  const contactItemHoverBg = computed(
-    () =>
+      "rgba(148, 163, 184, 0.15)"
+    );
+  });
+  const contactItemHoverBg = computed(() => {
+    // 个性装扮（动态背景）时，用从背景吸取的主色生成半透明悬停色
+    if (hasDynamicBackground.value && dynamicAccentColor.value) {
+      return hexToRgba(dynamicAccentColor.value, 0.25);
+    }
+    return (
       currentColorPalette.value.contactItemHover ||
-      "rgba(148, 163, 184, 0.10)",
-  );
-  const contactItemActiveBg = computed(
-    () =>
+      "rgba(148, 163, 184, 0.10)"
+    );
+  });
+  const contactItemActiveBg = computed(() => {
+    // 个性装扮（动态背景）时，用从背景吸取的主色生成半透明选中色
+    if (hasDynamicBackground.value && dynamicAccentColor.value) {
+      return hexToRgba(dynamicAccentColor.value, 0.45);
+    }
+    return (
       currentColorPalette.value.contactItemActive ||
-      "rgba(148, 163, 184, 0.15)",
-  );
+      "rgba(148, 163, 184, 0.15)"
+    );
+  });
 
   const textSecondaryColor = computed(
     () => currentColorPalette.value.textSecondary || DEFAULT_TEXT_SECONDARY,
@@ -968,6 +672,29 @@ export const useSiderColor = defineStore("siderColor", () => {
       currentColorPalette.value.color ||
       "#CBD5E1",
   );
+
+  /**
+   * 面板分割线颜色（侧边栏 / 联系人列表 / 输入框统一使用）
+   * 个性装扮（动态背景）时使用从壁纸吸取主色的加深版，保证深浅壁纸下都清晰可见；
+   * 提取失败时回退到白色半透明（深色壁纸下可见）。
+   */
+  const panelDividerColor = computed(() =>
+    hasDynamicBackground.value
+      ? (dynamicAccentDeep.value || "rgba(255, 255, 255, 0.3)")
+      : dividerLineColorValue.value,
+  );
+
+  /**
+   * 动态背景（个性装扮）时的面板背景色（不透明）
+   * 使用主题专属色（bgPrimary / color），避免半透明层在视频循环时重新合成导致闪动。
+   */
+  const dynamicPanelBg = computed(() => {
+    const p = currentColorPalette.value;
+    // 取主题背景色（bgPrimary），回退到主题色
+    const base = p.bgPrimary || p.color || "#FFFFFF";
+    const rgb = hexToRgb(base);
+    return `rgb(${rgb})`;
+  });
   const dividerLineWidth = computed(
     () => currentColorPalette.value.dividerLineWidth || "1.5px",
   );
@@ -1073,53 +800,76 @@ export const useSiderColor = defineStore("siderColor", () => {
     () => currentColorPalette.value.chatBgOverlay || "transparent",
   );
 
-  const hasDynamicBackground = computed(
-    () =>
+  /**
+   * 是否显示个性装扮（动态壁纸）背景。
+   *
+   * 这里是全站唯一的开关，关掉后 Sidebar / ContactList / MessageDisplay /
+   * 消息页 / 好友页 / 设置中心的 `has-dynamic-bg` 样式与动态配色都会自动失效。
+   */
+  const hasDynamicBackground = computed(() => {
+    // 夜间是否允许壁纸由模块级策略常量决定（单一开关，避免逻辑散落）
+    if (systemPrefersDark.value && !DYNAMIC_WALLPAPER_ALLOWED_IN_DARK) {
+      return false;
+    }
+    return (
       (chatBgType.value === "image" && !!chatBgImage.value) ||
-      (chatBgType.value === "video" && !!chatBgVideo.value),
-  );
-
-  // ---- 可用调色板 ----
-  const getAvailablePalettes = computed(() => {
-    if (currentThemeType.value === "system") {
-      return [];
-    }
-    if (currentThemeType.value === "dynamic") {
-      const p = buildDynamicPalette();
-      return [
-        {
-          name: p.name,
-          color: p.color,
-          previewGradient: p.chatBgGradient,
-          isDefault: true,
-        },
-      ];
-    }
-    const key =
-      currentThemeType.value === "custom"
-        ? "classic"
-        : currentThemeType.value;
-    const palettes = themePalettes.value[key] || [];
-    return palettes.map((p, index) => ({
-      name: p.name,
-      color: p.color,
-      previewGradient: p.chatBgGradient,
-      isDefault: index === 0,
-    }));
+      (chatBgType.value === "video" && !!chatBgVideo.value)
+    );
   });
+
+  /**
+   * 从动态背景（视频/图片）吸取的主色调
+   * 用于动态主题下的选中态配色（联系人选中、悬停等）。
+   */
+  const dynamicAccentColor = ref<string>("");
+  const setDynamicAccentColor = (color: string) => {
+    dynamicAccentColor.value = color || "";
+  };
+  /** 动态背景主色（hex），未提取到则回退到主题色 */
+  const dynamicAccent = computed(
+    () => dynamicAccentColor.value || currentColorPalette.value.color || "#94A3B8",
+  );
+  /** 动态背景主色的加深版（吸取的主色往往偏淡，分割线等细线条用它更醒目） */
+  const dynamicAccentDeep = computed(() =>
+    dynamicAccent.value ? darkenColor(dynamicAccent.value, 0.55) : "",
+  );
+  /** 动态背景主色的浅色半透明背景（用于更新入口等） */
+  const dynamicAccentBgSoft = computed(() =>
+    hexToRgba(dynamicAccent.value, 0.18),
+  );
+  /** 动态背景主色的半透明背景（用于悬停等） */
+  const dynamicAccentBg = computed(() =>
+    hexToRgba(dynamicAccent.value, 0.3),
+  );
+  /**
+   * 动态背景主色的「图标版」：吸取的主色偏淡时自动加深，
+   * 保证头部按钮 / 输入框工具这类图标在壁纸上仍然清晰可辨（而不是糊成一片白）。
+   */
+  const dynamicAccentIcon = computed(() => {
+    const accent = dynamicAccent.value;
+    if (!accent) return "#ffffff";
+    return isLightColor(accent) ? dynamicAccentDeep.value || accent : accent;
+  });
+
+  // ---- 可用装扮壁纸（只保留个性装扮） ----
+  const getAvailablePalettes = computed(() =>
+    DYNAMIC_WALLPAPERS.map((w, index) => {
+      const p = buildDynamicPalette(index);
+      return {
+        name: w.name,
+        color: p.color,
+        previewGradient: p.chatBgGradient,
+        isDefault: index === 0,
+        type: w.type,
+        url: w.url,
+      };
+    }),
+  );
 
   // ============================================================
   // 操作方法
   // ============================================================
   const setSystemTheme = (variant: SystemThemeVariant) => {
-    if (currentThemeType.value !== "system") {
-      const currentType = currentThemeType.value;
-      if (currentType === "classic" || currentType === "inkWash") {
-        systemBaseType.value = currentType;
-        systemBaseIndex.value = currentPaletteIndex.value;
-      }
-    }
-
     currentThemeType.value = "system";
     currentSystemVariant.value = variant;
     customPalette.value = null;
@@ -1127,26 +877,14 @@ export const useSiderColor = defineStore("siderColor", () => {
     if (isClient()) {
       safeSetStorage("theme-type", "system");
       safeSetStorage("system-theme-variant", variant);
-      safeSetStorage("system-base-type", systemBaseType.value);
-      safeSetStorage("system-base-index", String(systemBaseIndex.value));
     }
 
     syncThemeAcrossWindows();
   };
 
-  const updateSystemBase = (type: "classic" | "inkWash", index: number) => {
-    systemBaseType.value = type;
-    systemBaseIndex.value = index;
-
-    if (isClient()) {
-      safeSetStorage("system-base-type", type);
-      safeSetStorage("system-base-index", String(index));
-    }
-
-    syncThemeAcrossWindows();
-  };
-
-  const setTheme = (type: "classic" | "inkWash" | "dynamic", index: number = 0) => {
+  /** 启用个性装扮壁纸 */
+  const setTheme = (index: number = 0) => {
+    const type: ThemeType = "dynamic";
     currentThemeType.value = type;
     currentPaletteIndex.value = index;
     customPalette.value = null;
@@ -1194,9 +932,12 @@ export const useSiderColor = defineStore("siderColor", () => {
 
     // Web 端多标签页同步：监听 localStorage storage 事件
     window.addEventListener("storage", (e) => {
-      if (e.key === "theme-type" || e.key === "theme-palette-index" ||
-        e.key === "system-theme-variant" || e.key === "system-base-type" ||
-        e.key === "system-base-index" || e.key === "custom-theme") {
+      if (
+        e.key === "theme-type" ||
+        e.key === "theme-palette-index" ||
+        e.key === "system-theme-variant" ||
+        e.key === "custom-theme"
+      ) {
         loadThemeFromStorage();
       }
     });
@@ -1215,18 +956,10 @@ export const useSiderColor = defineStore("siderColor", () => {
         const savedVariant = safeGetStorage(
           "system-theme-variant",
         ) as SystemThemeVariant;
-        const savedBaseType = safeGetStorage("system-base-type") as
-          | "classic"
-          | "inkWash";
-        const savedBaseIndex = safeGetStorage("system-base-index");
 
         if (savedVariant && ["light", "dark", "auto"].includes(savedVariant)) {
           currentThemeType.value = "system";
           currentSystemVariant.value = savedVariant;
-          systemBaseType.value =
-            savedBaseType === "inkWash" ? "inkWash" : "classic";
-          const idx = parseInt(savedBaseIndex || "0", 10);
-          systemBaseIndex.value = isNaN(idx) ? 0 : idx;
           return;
         }
       }
@@ -1244,20 +977,13 @@ export const useSiderColor = defineStore("siderColor", () => {
         }
       }
 
+      // 个性装扮：恢复上次选择的壁纸
       const savedPaletteIndex = safeGetStorage("theme-palette-index");
-      const savedType = safeGetStorage("theme-type") as
-        | "classic"
-        | "inkWash"
-        | "dynamic";
-      if (
-        (savedType === "classic" ||
-          savedType === "inkWash" ||
-          savedType === "dynamic") &&
-        savedPaletteIndex !== null
-      ) {
+      const savedType = safeGetStorage("theme-type");
+      if (savedType === "dynamic" && savedPaletteIndex !== null) {
         const index = parseInt(savedPaletteIndex, 10);
         if (!isNaN(index)) {
-          currentThemeType.value = savedType;
+          currentThemeType.value = "dynamic";
           currentPaletteIndex.value = index;
           return;
         }
@@ -1266,8 +992,8 @@ export const useSiderColor = defineStore("siderColor", () => {
       console.error("读取主题设置失败:", error);
     }
 
-    // 兜底：无保存设置时使用默认主题（直接设置状态，不触发跨窗口广播，避免递归）
-    currentThemeType.value = "classic";
+    // 兜底：无保存设置时使用默认基础配色（直接设置状态，不触发跨窗口广播，避免递归）
+    currentThemeType.value = DEFAULT_THEME_TYPE;
     currentPaletteIndex.value = 0;
     customPalette.value = null;
   };
@@ -1336,16 +1062,29 @@ export const useSiderColor = defineStore("siderColor", () => {
     textTransform: "uppercase" as const,
   });
 
-  const resetToDefault = () => setTheme("classic", 0);
+  /**
+   * 恢复到默认基础配色（非个性装扮壁纸）
+   * 注意：不能复用 setTheme —— 它只接受壁纸索引，传主题名会被当成 index 写入存储。
+   */
+  const resetToDefault = () => {
+    currentThemeType.value = DEFAULT_THEME_TYPE;
+    currentPaletteIndex.value = DEFAULT_PALETTE_INDEX;
+    customPalette.value = null;
+
+    if (isClient()) {
+      safeSetStorage("theme-type", DEFAULT_THEME_TYPE);
+      safeSetStorage("theme-palette-index", String(DEFAULT_PALETTE_INDEX));
+    }
+
+    syncThemeAcrossWindows();
+  };
 
   // ===== 返回 =====
   return {
     // 状态
     currentThemeType: readonly(currentThemeType),
     currentPaletteIndex: readonly(currentPaletteIndex),
-    themePalettes: readonly(themePalettes),
-    systemBaseType: readonly(systemBaseType),
-    systemBaseIndex: readonly(systemBaseIndex),
+    baseLightPalette,
 
     // 颜色属性
     currentColor,
@@ -1382,6 +1121,8 @@ export const useSiderColor = defineStore("siderColor", () => {
 
     // 分割线
     dividerLineColorValue,
+    panelDividerColor,
+    dynamicPanelBg,
     dividerLineWidth,
     dividerLineStyle,
     dividerLineShadow,
@@ -1406,6 +1147,13 @@ export const useSiderColor = defineStore("siderColor", () => {
     chatBgPoster,
     chatBgOverlay,
     hasDynamicBackground,
+    dynamicAccentColor,
+    setDynamicAccentColor,
+    dynamicAccent,
+    dynamicAccentDeep,
+    dynamicAccentBgSoft,
+    dynamicAccentBg,
+    dynamicAccentIcon,
 
     // 质感
     glassmorphismEnabled,
@@ -1420,7 +1168,6 @@ export const useSiderColor = defineStore("siderColor", () => {
     getAvailablePalettes,
     setTheme,
     setSystemTheme,
-    updateSystemBase,
     setCustomTheme,
     initTheme,
     resetToDefault,

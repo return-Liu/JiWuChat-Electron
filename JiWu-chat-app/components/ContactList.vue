@@ -1,5 +1,9 @@
 ﻿<template>
-  <div class="content-container">
+  <div
+    class="content-container"
+    :class="{ 'has-dynamic-bg': siderColorStore.hasDynamicBackground }"
+    :style="dynamicStyle"
+  >
     <!-- 消息列表 -->
     <div v-if="contentType === 'message'" class="contact-list">
       <div
@@ -326,8 +330,33 @@ import { shouldShowOnlineStatus as checkOnlineVisibility } from "../untils/level
 
 const siderColorStore = useSiderColor();
 
+/**
+ * 空态图标配色：
+ * 个性装扮（动态背景）时用白色（深色主题文字色在视频壁纸上几乎看不见），
+ * 其余情况沿用调色板的主文字色。
+ */
 const currentThemeColor = computed(() => {
+  if (siderColorStore.hasDynamicBackground) return "#ffffff";
   return siderColorStore.currentColorPalette.textPrimary || "#6366F1";
+});
+
+/**
+ * 动态主题下，选中/悬停背景色来自从背景吸取的主色。
+ * 用 :style 直接绑定，确保 store 主色变化时能实时更新（CSS v-bind 对外部 store 响应可能不及时）。
+ * 同时动态主题下把文字色覆盖为白色（视频背景上深色文字看不清）。
+ */
+const dynamicStyle = computed(() => {
+  const isDynamic = siderColorStore.hasDynamicBackground;
+  return {
+    "--bg-hover": siderColorStore.contactItemHoverBg,
+    "--bg-active": siderColorStore.contactItemActiveBg,
+    ...(isDynamic
+      ? {
+          "--text-primary": "#ffffff",
+          "--text-secondary": "rgba(255, 255, 255, 0.8)",
+        }
+      : {}),
+  };
 });
 
 interface Friend {
@@ -353,6 +382,8 @@ interface Group {
   memberCount?: number;
   isAdmin?: boolean;
   category?: string; // 分组标识
+  role?: "owner" | "admin" | "member"; // 群内角色，用于「我创建/我管理/我加入」分组
+  isTop?: boolean; // 置顶，用于「置顶群聊」分组
 }
 
 interface Props {
@@ -405,9 +436,7 @@ const shouldShowOnlineStatus = (friend: any): boolean => {
 
 // ========== 好友分组配置（默认关闭） ==========
 const friendCategories = reactive([
-  { key: "myDevice", label: "我的设备", expanded: false },
   { key: "robot", label: "机器人", expanded: false },
-  { key: "specialCare", label: "特别关心", expanded: false },
   { key: "myFriend", label: "我的好友", expanded: false },
 ]);
 
@@ -436,41 +465,37 @@ const toggleGroupCategory = (key: string) => {
   }
 };
 
-// 根据分组标识获取好友列表
+// 根据分组标识获取好友列表（用真实 category 字段，不再用 id 尾号模拟）
 const getFriendsByCategory = (categoryKey: string): Friend[] => {
   if (!props.friends) return [];
   return props.friends.filter((friend) => {
-    if (friend.category) {
-      return friend.category === categoryKey;
-    }
-    // 模拟映射：根据 id 尾号简单分配（仅演示，实际请替换为真实数据）
-    if (categoryKey === "myDevice" && friend.id.endsWith("1")) return true;
-    if (categoryKey === "robot" && friend.id.endsWith("2")) return true;
-    if (categoryKey === "specialCare" && friend.id.endsWith("3")) return true;
     if (categoryKey === "myFriend") {
-      return !friend.id.endsWith("1") && !friend.id.endsWith("2") && !friend.id.endsWith("3");
+      // 没有分组字段的好友统一归入「我的好友」
+      return !friend.category || friend.category === "myFriend";
     }
-    return false;
+    // 其余分组（机器人）依赖后端返回的 category 字段
+    return friend.category === categoryKey;
   });
 };
 
-// 根据分组标识获取群聊列表
+// 根据分组标识获取群聊列表（用真实字段：role / name / isTop，不再用 id 尾号模拟）
 const getGroupsByCategory = (categoryKey: string): Group[] => {
   if (!props.groups) return [];
   return props.groups.filter((group) => {
-    if (group.category) {
-      return group.category === categoryKey;
+    switch (categoryKey) {
+      case "topGroup":
+        return !!group.isTop;
+      case "unnamedGroup":
+        return !group.name;
+      case "createdGroup":
+        return group.role === "owner";
+      case "managedGroup":
+        return group.role === "admin";
+      case "joinedGroup":
+        return group.role === "member";
+      default:
+        return false;
     }
-    // 模拟映射（仅演示，实际请替换为真实数据）
-    const id = group.id;
-    if (categoryKey === "topGroup" && id.endsWith("1")) return true;
-    if (categoryKey === "unnamedGroup" && !group.name) return true;
-    if (categoryKey === "createdGroup" && id.endsWith("2")) return true;
-    if (categoryKey === "managedGroup" && id.endsWith("3")) return true;
-    if (categoryKey === "joinedGroup") {
-      return !id.endsWith("1") && !id.endsWith("2") && !id.endsWith("3");
-    }
-    return false;
   });
 };
 
@@ -635,7 +660,64 @@ const handleNoticeClick = (type: "friend" | "group") => {
 
   --text-primary: v-bind("siderColorStore.currentColorPalette.textPrimary");
   --text-secondary: v-bind("siderColorStore.currentColorPalette.textSecondary");
-  border-right: 1px solid v-bind("siderColorStore.dividerLineColorValue");
+  border-right: 1px solid v-bind("siderColorStore.panelDividerColor");
+
+  /* 个性装扮（动态背景）时，所有文字加阴影，保证在视频背景上清晰可读 */
+  &.has-dynamic-bg {
+    /* 动态主题下主色改用从壁纸吸取的颜色，分割线用半透明白 */
+    --primary-color: v-bind("siderColorStore.dynamicAccent");
+    --divider-color: rgba(255, 255, 255, 0.25);
+
+    .contact-name,
+    .contact-time,
+    .message-text,
+    .friend-name,
+    .friend-bio,
+    .notice-text,
+    .collapse-title,
+    .collapse-count,
+    .tab-item,
+    .empty-text {
+      color: #fff;
+      text-shadow:
+        0 1px 3px rgba(0, 0, 0, 0.75),
+        0 0 8px rgba(0, 0, 0, 0.5);
+    }
+    .friend-bio,
+    .collapse-count,
+    .contact-time {
+      color: rgba(255, 255, 255, 0.85);
+    }
+    .notice-arrow,
+    .collapse-arrow {
+      color: rgba(255, 255, 255, 0.85);
+      filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
+    }
+    .online-status {
+      color: #4ade80;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75);
+    }
+    /* Tab 选中项：主色取自壁纸，文字加白描边阴影保证对比度 */
+    .tab-item.active {
+      color: #fff;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+    }
+    /* 空态图标（iconfont）加深色投影，避免与浅色壁纸融为一体 */
+    .empty-state .empty-icon,
+    .empty-category > .iconfont {
+      color: #fff;
+      filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.7));
+    }
+    /* 头像在线小圆点：深色描边，避免糊在壁纸上 */
+    .status-indicator {
+      border-color: rgba(0, 0, 0, 0.55);
+    }
+    /* 置顶 / 免打扰图标跟随壁纸主色，但补一层投影保证可见 */
+    .top-icon,
+    .mute-icon {
+      filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.55));
+    }
+  }
 }
 
 // ============ 消息列表样式 ============
@@ -821,7 +903,7 @@ const handleNoticeClick = (type: "friend" | "group") => {
       transition: background 0.2s ease;
 
       & + .notice-item {
-        border-top: 1px solid v-bind("siderColorStore.dividerLineColorValue");
+        border-top: 1px solid var(--divider-color);
       }
 
       &:hover {

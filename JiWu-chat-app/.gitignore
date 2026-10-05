@@ -12,6 +12,13 @@ release
 .env.*
 !.env.example
 
+# Code signing certificates (NEVER commit these)
+*.pfx
+*.p12
+*.cer
+*.pem
+certs/
+
 # Logs
 *.log
 build-log.txt

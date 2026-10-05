@@ -361,24 +361,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { computed } from "vue";
 import { useUiSettings } from "../../stores/uiSettings";
 import { useTheme } from "../../composables/useTheme";
 import { useSiderColor } from "../../stores/siderColor";
 import FontPreview from "../FontPreview.vue";
 
 const uiSettingsStore = useUiSettings();
-const { setThemeMode, toggleTheme } = useTheme();
+const { setThemeMode, toggleTheme, themeMode: currentThemeMode } = useTheme();
 const siderColorStore = useSiderColor();
 
-// 系统主题预览卡片配色
-const sysLightPalette = computed(() => {
-  const palettes =
-    siderColorStore.themePalettes?.[siderColorStore.systemBaseType] ||
-    siderColorStore.themePalettes?.classic ||
-    [];
-  return palettes[0] || siderColorStore.currentColorPalette;
-});
+// 系统主题预览卡片配色（日间使用基础调色板，不受夜间状态影响）
+const sysLightPalette = computed(() => siderColorStore.baseLightPalette);
 
 const sysDarkPalette = computed(() => ({
   sidebarBg: "#141414",
@@ -391,17 +385,13 @@ const sysDarkPalette = computed(() => ({
 }));
 
 // ===== 主题相关 =====
-const currentThemeMode = ref<"light" | "dark" | "system">(
-  (typeof window !== "undefined" && (localStorage.getItem("theme-mode") as any)) || "light",
-);
-
+// currentThemeMode 直接复用 useTheme 的共享状态：其它页面切换主题后这里同步高亮
 const handleThemeModeChange = (val: "light" | "dark" | "system", event?: MouseEvent) => {
   if (val === "system") {
     setThemeMode("system");
   } else {
     toggleTheme(event, val === "dark");
   }
-  currentThemeMode.value = val;
 };
 
 // ===== 字体设置 =====

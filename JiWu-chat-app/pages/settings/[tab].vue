@@ -1,5 +1,34 @@
 <template>
-  <div class="settings-page">
+  <div
+    class="settings-page"
+    :class="{ 'has-dynamic-bg': hasDynamicBackground }"
+    :style="dynamicThemeStyle"
+  >
+    <!-- 个性装扮：动态背景层（视频 / 图片壁纸，铺满整个设置中心） -->
+    <div v-if="hasDynamicBackground" class="settings-dynamic-bg">
+      <video
+        v-if="chatBgType === 'video' && chatBgVideo"
+        ref="chatBgVideoRef"
+        class="settings-dynamic-bg-media"
+        :src="encodeURI(chatBgVideo)"
+        muted
+        loop
+        autoplay
+        playsinline
+        preload="auto"
+      ></video>
+      <img
+        v-else-if="chatBgType === 'image' && chatBgImage"
+        class="settings-dynamic-bg-media"
+        :src="chatBgImage"
+        alt=""
+      />
+      <div class="settings-dynamic-bg-overlay" :style="{ background: chatBgOverlay }"></div>
+    </div>
+
+    <!-- 全局侧边栏导航（与消息 / 好友 / 账户中心保持一致） -->
+    <Sidebar :current-area="'settings'" />
+
     <!-- 左侧边栏 -->
     <div class="settings-sidebar">
       <div class="sidebar-header">
@@ -30,7 +59,8 @@
       <div class="settings-content">
         <SettingsNotification v-show="currentTab === 'notification'" />
         <SettingsAppearance v-show="currentTab === 'appearance'" />
-        <SettingsSuperColorPalette v-show="currentTab === 'supercolorpalette'" />
+        <!-- 个性装扮持有 video / 观察器，用 v-if 真正卸载，避免切走后仍在后台占用资源 -->
+        <SettingsSuperColorPalette v-if="currentTab === 'supercolorpalette'" />
         <SettingsPrivacy v-show="currentTab === 'privacy'" />
         <SettingsLanguage v-show="currentTab === 'language'" />
         <SettingsShortcut v-show="currentTab === 'shortcut'" />
@@ -43,8 +73,10 @@
 
 <script setup lang="ts">
 import { computed, onMounted, watch, ref } from "vue";
-import { useRouter, useRoute } from "#app";
+import { useRoute } from "#app";
 import { useTheme } from "../../composables/useTheme";
+import { useDynamicBackground } from "../../composables/useDynamicBackground";
+import { useDynamicThemeVars } from "../../composables/useDynamicThemeVars";
 import { useSiderColor } from "../../stores/siderColor";
 import { useUserStore } from "../../stores/user";
 import SettingsNotification from "../../components/settings/SettingsNotification.vue";
@@ -56,11 +88,23 @@ import SettingsShortcut from "../../components/settings/SettingsShortcut.vue";
 import SettingsFeature from "../../components/settings/SettingsFeature.vue";
 import SettingsSystem from "../../components/settings/SettingsSystem.vue";
 
-const router = useRouter();
 const route = useRoute();
 const { initTheme: initThemeMode } = useTheme();
 const siderColorStore = useSiderColor();
 const userStore = useUserStore();
+
+// 个性装扮：动态背景（视频 / 图片壁纸）+ 从壁纸吸取主色
+const {
+  hasDynamicBackground,
+  chatBgType,
+  chatBgVideo,
+  chatBgImage,
+  chatBgOverlay,
+  chatBgVideoRef,
+} = useDynamicBackground();
+
+// 设置中心内容密集，动态主题下面板用半透明深底保证对比度
+const { dynamicThemeStyle } = useDynamicThemeVars("dark");
 
 // 支持浮层场景：从 props 接收 tab（浮层渲染时 route.params 为空）
 const props = defineProps<{ tab?: string }>();
@@ -69,7 +113,7 @@ const props = defineProps<{ tab?: string }>();
 const menuItems = [
   { key: "notification", label: "通知", icon: "icon-tongzhi", color: "#f59e0b" },
   { key: "appearance", label: "外观", icon: "icon-theme", color: "#8b5cf6" },
-  { key: "supercolorpalette", label: "超级调色盘", icon: "icon-pifu", color: "#8b5cf6" },
+  { key: "supercolorpalette", label: "个性装扮", icon: "icon-pifu", color: "#8b5cf6" },
   { key: "privacy", label: "隐私", icon: "icon-yinsibaohu", color: "#3b82f6" },
   { key: "language", label: "语言", icon: "icon-yuyan", color: "#10b981" },
   { key: "shortcut", label: "快捷键", icon: "icon-kuaijiejian", color: "#ef4444" },
@@ -85,20 +129,32 @@ if (!menuItems.some((item) => item.key === currentTab.value)) {
   currentTab.value = "notification";
 }
 
-// 🔥 离开超级调色盘 tab 时重置预览模式
-watch(currentTab, (newTab, oldTab) => {
-  if (oldTab === "supercolorpalette" && newTab !== "supercolorpalette") {
-    siderColorStore.setPreviewThemeMode(null);
-  }
-});
+// 浏览器前进 / 后退时（popstate 导致 route.params.tab 变化）同步本地 tab，
+// 这里只改本地状态，不再反向 push 路由，避免页面被重建
+watch(
+  () => route.params.tab,
+  (v) => {
+    if (props.tab) return;
+    const key = String(v || "");
+    if (key && key !== currentTab.value && menuItems.some((i) => i.key === key)) {
+      currentTab.value = key;
+    }
+  },
+);
 
 // ===== 导航方法 =====
-// 浮层场景下切换 tab 用本地状态（不切换路由）；正常路由场景下用 router.push
+// 以本地 tab 状态为唯一数据源，地址栏用 history.replaceState 静默同步。
+// ⚠️ 之前用 router.push 切 tab：Nuxt 会重建整个页面组件，壁纸视频重新加载、
+//    所有 SettingsXxx 重新挂载，表现就是切换时闪一下白屏。
 const navigateTo = (key: string) => {
+  if (currentTab.value === key) return;
   currentTab.value = key;
-  // 仅在非浮层（正常路由）场景下同步路由
-  if (!props.tab) {
-    router.push(`/settings/${key}`);
+
+  if (props.tab || typeof window === "undefined") return;
+  try {
+    window.history.replaceState(window.history.state, "", `/settings/${key}`);
+  } catch {
+    // 某些 Electron 子窗口 history 不可用，忽略即可（本地 tab 已经生效）
   }
 };
 
@@ -137,6 +193,46 @@ onMounted(async () => {
   background: var(--bg-primary);
   display: flex;
   overflow: hidden;
+
+  /* 个性装扮（动态背景）时，内容层浮在壁纸之上 */
+  &.has-dynamic-bg > :not(.settings-dynamic-bg) {
+    position: relative;
+    z-index: 1;
+  }
+
+  /* 侧边栏悬浮卡片要始终盖在内容之上，否则会被同层内容遮住 */
+  &.has-dynamic-bg .qq-sidebar {
+    z-index: 2;
+  }
+
+  /* ===== 动态背景层（视频 / 图片壁纸） ===== */
+  .settings-dynamic-bg {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+    pointer-events: none;
+    /* 独立合成层 + 硬件加速；不使用 contain / will-change，避免视频循环时合成层重建导致闪动 */
+    transform: translateZ(0);
+  }
+
+  .settings-dynamic-bg-media {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+    user-select: none;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+  }
+
+  .settings-dynamic-bg-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+  }
 
   // 左侧边栏
   .settings-sidebar {

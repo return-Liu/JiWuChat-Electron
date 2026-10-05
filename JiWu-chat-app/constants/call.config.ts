@@ -55,7 +55,7 @@ export const CALL_CONFIG = {
 
     // 音效路径
     AUDIO_PATHS: {
-        RINGTONE: '/Ringtone/来电铃声.wav',
+        RINGTONE: '/Ringtone/来电铃声.mp3',
         HANGUP: '/Ringtone/来电挂断铃声.mp3',
     },
 } as const;
