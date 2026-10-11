@@ -16,13 +16,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm run electron:build:prod
+      - run: cd JiWu-chat-app && pnpm install --frozen-lockfile
+      - run: cd JiWu-chat-app && pnpm run electron:build:prod
       - uses: actions/upload-artifact@v4
         with:
           name: windows
-          path: release/*.exe
+          path: JiWu-chat-app/release/*.exe
 
   macos:
     runs-on: macos-latest
@@ -37,10 +36,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - run: cd JiWu-chat-app && pnpm install --frozen-lockfile
       # 签名/公证为可选项：未配置 secrets 时产出未签名包（本地可用）
-      - run: pnpm run electron:build:prod -- --mac --${{ matrix.arch }}
+      - run: cd JiWu-chat-app && pnpm run electron:build:prod -- --mac --${{ matrix.arch }}
         env:
           CSC_LINK: ${{ secrets.MAC_CERT_P12 }}
           CSC_KEY_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
@@ -51,8 +49,8 @@ jobs:
         with:
           name: mac-${{ matrix.arch }}
           path: |
-            release/*.dmg
-            release/*.zip
+            JiWu-chat-app/release/*.dmg
+            JiWu-chat-app/release/*.zip
 
   linux:
     runs-on: ubuntu-latest
@@ -64,17 +62,16 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: pnpm
       - run: sudo apt-get update && sudo apt-get install -y fakeroot rpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm run electron:build:prod -- --linux --x64
+      - run: cd JiWu-chat-app && pnpm install --frozen-lockfile
+      - run: cd JiWu-chat-app && pnpm run electron:build:prod -- --linux --x64
       - uses: actions/upload-artifact@v4
         with:
           name: linux
           path: |
-            release/*.AppImage
-            release/*.deb
-            release/*.rpm
+            JiWu-chat-app/release/*.AppImage
+            JiWu-chat-app/release/*.deb
+            JiWu-chat-app/release/*.rpm
 
   release:
     needs: [windows, macos, linux]
@@ -88,10 +85,42 @@ jobs:
         with:
           path: artifacts
           merge-multiple: true
+      # 把安装包平铺到 upload/ 顶层，避免 Release 资产带 release/ 前缀导致首页链接 404
+      - name: Flatten installers
+        run: |
+          mkdir -p upload
+          find artifacts -type f \( -name "*.exe" -o -name "*.dmg" -o -name "*.zip" -o -name "*.AppImage" -o -name "*.deb" -o -name "*.rpm" \) -exec mv {} upload/ \;
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/**/*
+          files: upload/*
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  deploy-site:
+    needs: [release]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: cd JiWu-chat-app && pnpm install --frozen-lockfile
+      - name: Generate static site
+        run: cd JiWu-chat-app && pnpm run generate
+        env:
+          NUXT_PUBLIC_WALLPAPER_BASE: https://jiwuchat.com
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: JiWu-chat-app/.output/public
+          # 若官网使用自定义域名（如 jiwuchat.com），取消下一行注释并在仓库 Settings → Pages 配置：
+          # cname: jiwuchat.com
