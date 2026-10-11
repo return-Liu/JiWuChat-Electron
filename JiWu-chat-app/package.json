@@ -128,7 +128,7 @@
       "signingHashAlgorithms": [
         "sha256"
       ],
-      "signAndEditExecutable": true,
+      "signAndEditExecutable": false,
       "publisherName": "JiWuChat",
       "legalTrademarks": "极物聊天",
       "rfc3161TimeStampServer": "http://timestamp.digicert.com"
@@ -153,7 +153,7 @@
       "artifactName": "JiwuChat_${version}_${arch}.${ext}",
       "icon": "build/icon/logo.icns",
       "category": "public.app-category.social-networking",
-      "hardenedRuntime": true,
+      "hardenedRuntime": false,
       "gatekeeperAssess": false,
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist"
