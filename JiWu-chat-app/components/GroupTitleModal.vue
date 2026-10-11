@@ -220,7 +220,7 @@ const handleConfirm = async () => {
 }
 
 .group-title-modal {
-  background: #fff;
+  background: var(--dt-panel-solid, var(--card-bg));
   border-radius: 12px;
   width: 420px;
   max-height: 85vh;
@@ -233,14 +233,14 @@ const handleConfirm = async () => {
   align-items: center;
   justify-content: space-between;
   padding: 14px 18px;
-  border-bottom: 1px solid #e5e5e5;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .modal-header h3 {
   margin: 0;
   font-size: 16px;
   font-weight: 500;
-  color: #1a1a1a;
+  color: var(--text-primary);
 }
 
 .close-btn {
@@ -258,7 +258,7 @@ const handleConfirm = async () => {
 }
 
 .close-btn:hover {
-  background: #f5f5f5;
+  background: var(--bg-tertiary);
 }
 
 .modal-body {
@@ -271,7 +271,7 @@ const handleConfirm = async () => {
   gap: 12px;
   margin-bottom: 20px;
   padding: 12px;
-  background: #f8f8f8;
+  background: var(--bg-tertiary);
   border-radius: 10px;
 }
 
@@ -296,7 +296,7 @@ const handleConfirm = async () => {
 .username {
   font-size: 15px;
   font-weight: 500;
-  color: #1a1a1a;
+  color: var(--text-primary);
   margin-bottom: 2px;
 }
 
@@ -312,7 +312,7 @@ const handleConfirm = async () => {
 .title-input-section label {
   display: block;
   font-size: 13px;
-  color: #1a1a1a;
+  color: var(--text-primary);
   margin-bottom: 6px;
   font-weight: 500;
 }
@@ -320,7 +320,7 @@ const handleConfirm = async () => {
 .title-input {
   width: 100%;
   padding: 8px 10px;
-  border: 1px solid #e5e5e5;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   font-size: 13px;
   outline: none;
@@ -345,14 +345,14 @@ const handleConfirm = async () => {
 .title-type-section label {
   display: block;
   font-size: 13px;
-  color: #1a1a1a;
+  color: var(--text-primary);
   margin-bottom: 6px;
   font-weight: 500;
 }
 
 .title-type-info {
   padding: 12px;
-  background: #f8f8f8;
+  background: var(--bg-tertiary);
   border-radius: 8px;
 }
 
@@ -368,17 +368,17 @@ const handleConfirm = async () => {
 .info-label {
   font-size: 12px;
   font-weight: 500;
-  color: #1a1a1a;
+  color: var(--text-primary);
 }
 
 .info-desc {
   font-size: 12px;
-  color: #666;
+  color: var(--text-secondary);
 }
 
 .title-preview {
   padding: 12px;
-  background: #f8f8f8;
+  background: var(--bg-tertiary);
   border-radius: 10px;
 }
 
@@ -404,7 +404,7 @@ const handleConfirm = async () => {
 
 .preview-name {
   font-size: 13px;
-  color: #666;
+  color: var(--text-secondary);
 }
 
 .modal-footer {
@@ -412,7 +412,7 @@ const handleConfirm = async () => {
   justify-content: flex-end;
   gap: 10px;
   padding: 12px 18px;
-  border-top: 1px solid #e5e5e5;
+  border-top: 1px solid var(--border-color);
 }
 
 .btn {
@@ -425,12 +425,12 @@ const handleConfirm = async () => {
 }
 
 .btn.cancel {
-  background: #f5f5f5;
-  color: #666;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
 }
 
 .btn.cancel:hover {
-  background: #e5e5e5;
+  background: var(--bg-secondary);
 }
 
 .btn.confirm {

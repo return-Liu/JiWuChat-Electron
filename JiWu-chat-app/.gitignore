@@ -26,3 +26,9 @@ build-log.txt
 # Misc
 .git_disabled
 .DS_Store
+
+# Build backups
+.output.bak
+
+# Editor / extension data
+.codebuddy/

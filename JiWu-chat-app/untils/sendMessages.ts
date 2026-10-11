@@ -58,6 +58,12 @@ const revokeVideoUrls = (videos: SelectedVideo[]) => {
 export const sendMessages = async (options: SendMessageOptions & {
   contacts?: any[];
   activeContact?: any;
+  replyTo?: {
+    messageId?: string | number;
+    senderName?: string;
+    content?: string;
+    messageType?: string;
+  };
 }) => {
   const {
     messageTextareaRef,
@@ -76,6 +82,7 @@ export const sendMessages = async (options: SendMessageOptions & {
     getOptions,
     activeContact,
     rightChatAreaRef,
+    replyTo,
   } = options;
 
   // 检查拉黑状态
@@ -97,6 +104,11 @@ export const sendMessages = async (options: SendMessageOptions & {
       sendOpts,
       userStore,
       "text",
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      replyTo,
     );
 
     clearRecalledContent(activeContact);
@@ -124,6 +136,9 @@ export const sendMessages = async (options: SendMessageOptions & {
       "image",
       undefined,
       tempFilenames,
+      undefined,
+      undefined,
+      replyTo,
     );
 
     clearRecalledContent(activeContact);
@@ -149,6 +164,9 @@ export const sendMessages = async (options: SendMessageOptions & {
       "video",
       undefined,
       tempFilenames,
+      undefined,
+      undefined,
+      replyTo,
     );
 
     clearRecalledContent(activeContact);
@@ -185,6 +203,7 @@ export const sendMessages = async (options: SendMessageOptions & {
       tempFilenames,
       originalNames,
       fileSizes,
+      replyTo,
     );
 
     selectedFiles.value = [];

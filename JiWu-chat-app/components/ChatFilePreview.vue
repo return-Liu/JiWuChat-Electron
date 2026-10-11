@@ -231,7 +231,7 @@ const handleOpenInBrowser = () => {
   justify-content: space-between;
   margin-bottom: 20px;
   padding-bottom: 16px;
-  border-bottom: 1px solid var(--border-light, #e8e8e8);
+  border-bottom: 1px solid var(--border-light, var(--border-color));
 }
 
 .preview-title {
@@ -363,7 +363,7 @@ const handleOpenInBrowser = () => {
 .action-btn.secondary {
   background: var(--bg-tertiary, #f5f5f5);
   color: var(--text-primary, #333333);
-  border: 1px solid var(--border-normal, #d9d9d9);
+  border: 1px solid var(--border-normal, var(--border-color));
 }
 
 .action-btn.secondary:hover {

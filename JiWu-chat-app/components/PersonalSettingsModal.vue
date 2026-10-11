@@ -258,7 +258,7 @@ const syncSelectedTitle = () => {
   left: 0;
   right: 0;
   bottom: 0;
-  background: #f5f5f5;
+  background: var(--bg-tertiary);
   z-index: 3000;
   display: flex;
   flex-direction: column;
@@ -270,8 +270,8 @@ const syncSelectedTitle = () => {
     align-items: center;
     justify-content: space-between;
     padding: 10px 16px;
-    background: #fff;
-    border-bottom: 1px solid #e5e5e5;
+    background: var(--dt-panel-solid, var(--card-bg));
+    border-bottom: 1px solid var(--border-color);
     position: sticky;
     top: 0;
     z-index: 10;
@@ -291,14 +291,14 @@ const syncSelectedTitle = () => {
     }
 
     .back-btn:hover {
-      background: #f5f5f5;
+      background: var(--bg-tertiary);
     }
 
     h3 {
       margin: 0;
       font-size: 16px;
       font-weight: 500;
-      color: #1a1a1a;
+      color: var(--text-primary);
     }
 
     .header-placeholder {
@@ -321,10 +321,10 @@ const syncSelectedTitle = () => {
       margin-bottom: 16px;
 
       .preview-card {
-        background: #fff;
+        background: var(--dt-panel-solid, var(--card-bg));
         border-radius: 8px;
         padding: 12px;
-        border: 1px solid #e5e5e5;
+        border: 1px solid var(--border-color);
 
         .preview-message {
           display: flex;
@@ -336,7 +336,7 @@ const syncSelectedTitle = () => {
             border-radius: 50%;
             overflow: hidden;
             flex-shrink: 0;
-            background: #e5e5e5;
+            background: var(--bg-secondary);
 
             img {
               width: 100%;
@@ -362,7 +362,7 @@ const syncSelectedTitle = () => {
                 flex-wrap: wrap;
 
                 .preview-nickname {
-                  color: #1a1a1a;
+                  color: var(--text-primary);
                   font-size: 13px;
                   font-weight: 500;
                 }
@@ -380,14 +380,14 @@ const syncSelectedTitle = () => {
             }
 
             .preview-text {
-              background: #f8f8f8;
+              background: var(--bg-tertiary);
               padding: 8px 12px;
               border-radius: 8px;
               font-size: 12px;
-              color: #666;
+              color: var(--text-secondary);
               display: inline-block;
               max-width: 80%;
-              border: 1px solid #e5e5e5;
+              border: 1px solid var(--border-color);
             }
           }
         }
@@ -396,11 +396,11 @@ const syncSelectedTitle = () => {
 
     .selection-section {
       .option-card {
-        background: #fff;
+        background: var(--dt-panel-solid, var(--card-bg));
         border-radius: 8px;
         padding: 10px 12px;
         margin-bottom: 8px;
-        border: 1px solid #e5e5e5;
+        border: 1px solid var(--border-color);
 
         .option-header {
           display: flex;
@@ -408,12 +408,12 @@ const syncSelectedTitle = () => {
           justify-content: space-between;
           margin-bottom: 8px;
           padding-bottom: 6px;
-          border-bottom: 1px solid #f0f0f0;
+          border-bottom: 1px solid var(--border-color);
 
           .option-title {
             font-size: 13px;
             font-weight: 500;
-            color: #1a1a1a;
+            color: var(--text-primary);
           }
         }
 
@@ -431,10 +431,10 @@ const syncSelectedTitle = () => {
             cursor: pointer;
             transition: all 0.2s;
             border: 1px solid #d0d0d0;
-            background: #fff;
+            background: var(--dt-panel-solid, var(--card-bg));
 
             &:hover {
-              background: #f5f5f5;
+              background: var(--bg-tertiary);
             }
 
             &.active {
@@ -456,13 +456,13 @@ const syncSelectedTitle = () => {
         font-size: 12px;
         cursor: pointer;
         padding: 8px 12px;
-        background: #fff;
+        background: var(--dt-panel-solid, var(--card-bg));
         border-radius: 8px;
         margin-bottom: 8px;
-        border: 1px solid #e5e5e5;
+        border: 1px solid var(--border-color);
 
         &:hover {
-          background: #f8f8f8;
+          background: var(--bg-tertiary);
         }
       }
     }

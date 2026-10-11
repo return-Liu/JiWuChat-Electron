@@ -91,7 +91,7 @@ const removeCover = (index: number) => {
   height: 100px;
   border-radius: 6px;
   overflow: hidden;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border-color);
   flex-shrink: 0;
 
   img {
@@ -137,7 +137,7 @@ const removeCover = (index: number) => {
   cursor: pointer;
   transition: all 0.2s;
   flex-shrink: 0;
-  background: #fafafa;
+  background: var(--bg-tertiary);
 
   &:hover {
     border-color: #4a7cf7;
@@ -150,18 +150,18 @@ const removeCover = (index: number) => {
 
   .plus-icon {
     font-size: 24px;
-    color: #999;
+    color: var(--text-tertiary);
     transition: color 0.2s;
   }
 
   .upload-text {
     font-size: 12px;
-    color: #666;
+    color: var(--text-secondary);
   }
 
   .count-text {
     font-size: 11px;
-    color: #999;
+    color: var(--text-tertiary);
   }
 }
 </style>

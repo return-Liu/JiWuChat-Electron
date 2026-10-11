@@ -687,7 +687,7 @@ const handleCheckUpdate = async () => {
     message.success(`发现新版本: ${latestLog.version}`);
     setTimeout(() => {
       // 低频页面统一走浮层渲染（中间件自动拦截转为浮层）
-      router.push("/updateLogs");
+      router.push("/versions/latest");
     }, 1000);
   } catch (err) {
     console.error("检查更新失败:", err);

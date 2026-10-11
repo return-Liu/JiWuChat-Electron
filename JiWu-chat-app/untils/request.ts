@@ -36,6 +36,10 @@ const getKey = (config: any) =>
 
 // 添加/移除 pending 请求
 const addPending = (config: any) => {
+  // 只对无副作用的读请求（GET）做去重；写请求（POST/PUT/DELETE）不去重，
+  // 否则「发送消息」等写操作会被后续相同请求 abort，导致前端判定失败但后端已入库。
+  const method = String(config.method || "get").toLowerCase();
+  if (method !== "get") return;
   const key = getKey(config);
   pendingMap.get(key)?.abort();
   pendingMap.set(key, new AbortController());

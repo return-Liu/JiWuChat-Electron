@@ -120,7 +120,7 @@ const bindPhone = async () => {
 }
 
 .form-card {
-  background: white;
+  background: var(--card-bg);
   border-radius: 10px;
   padding: 25px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
@@ -134,14 +134,14 @@ const bindPhone = async () => {
   display: block;
   margin-bottom: 8px;
   font-weight: 500;
-  color: #333;
+  color: var(--text-primary);
   font-size: 14px;
 }
 
 .form-input {
   width: 100%;
   padding: 12px 15px;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   font-size: 16px;
   box-sizing: border-box;
@@ -162,10 +162,10 @@ const bindPhone = async () => {
 
 .help-text {
   text-align: center;
-  color: #999;
+  color: var(--text-tertiary);
   font-size: 14px;
   padding-top: 10px;
-  border-top: 1px solid #eee;
+  border-top: 1px solid var(--border-color);
 }
 
 .submit-btn {

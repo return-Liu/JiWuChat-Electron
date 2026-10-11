@@ -200,7 +200,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from "vue";
+import { ref, reactive, onMounted, onBeforeUnmount } from "vue";
 import { useRouter } from "vue-router";
 import { message } from "ant-design-vue";
 import request from "../untils/request";
@@ -208,6 +208,9 @@ import { useUserStore } from "../stores/user";
 import { websocketService } from "../untils/websocket";
 import { isElectron, resizeWindow } from "../untils/electronHelper";
 import GeetestVerification from "../components/GeetestVerification.vue";
+
+// 登录页固定浅色外观：即使处于夜间模式也不套用夜间样式
+useHead({ htmlAttrs: { class: "auth-light" } });
 
 const router = useRouter();
 const isElectronEnv = ref(false);
@@ -259,11 +262,48 @@ const getBaseURL = () => {
   return "http://localhost:8080";
 };
 
+// 判断当前页面是否运行在 iframe 中
+const isInIframe = (): boolean => {
+  try {
+    return window.self !== window.top;
+  } catch (e) {
+    // 跨域访问 window.top 会抛异常，此时也视为 iframe 环境
+    return true;
+  }
+};
+
+// 处理 OAuth 回调结果（iframe 场景：新窗口授权成功后由回调页 postMessage 通知）
+const handleOAuthResult = (event: MessageEvent) => {
+  if (!event.data || event.data.type !== "oauth-login-success") return;
+  window.removeEventListener("message", handleOAuthResult);
+  const redirect = event.data.redirect || "/message";
+  // token 已写入同源 Cookie，iframe 内直接跳转到目标页
+  const separator = redirect.includes("?") ? "&" : "?";
+  window.location.href = `${redirect}${separator}version=beta`;
+};
+
 const handleQQLogin = async () => {
   try {
     const baseURL = getBaseURL();
     const qqAuthUrl = `${baseURL}/auth/qq`;
-    window.location.href = qqAuthUrl;
+
+    if (isInIframe()) {
+      // 第三方授权页（qq.wch666.com）禁止被 iframe 嵌入（X-Frame-Options），
+      // 需在新窗口完成授权，授权成功后回调页会 postMessage 通知本窗口，再在 iframe 内跳转。
+      const oauthWin = window.open(qqAuthUrl, "_blank");
+      if (!oauthWin) {
+        // 弹窗被拦截：降级为顶层窗口跳转完成授权
+        try {
+          window.top!.location.href = qqAuthUrl;
+        } catch (e) {
+          message.error("QQ登录跳转失败，请允许弹出窗口");
+        }
+        return;
+      }
+      window.addEventListener("message", handleOAuthResult);
+    } else {
+      window.location.href = qqAuthUrl;
+    }
   } catch (error) {
     message.error("QQ登录跳转失败");
   }
@@ -349,8 +389,16 @@ const doLogin = async (geetestData?: any) => {
     const response = await request.post("/auth/login", payload);
 
     const userStore = useUserStore();
-    // skipFetch=true：跳过拉取用户信息，立即跳转，由 message 页面自行初始化用户数据
+    // skipFetch=true：跳过 login 内部的串行拉取，改为下面「并行预热」，
+    // 避免 message 页挂载后才开始拉用户信息，造成进入聊天页明显变慢。
     await userStore.login(response.data.token, true);
+
+    // 并行预热：拉取用户信息（写入 store），让 message 页 initializeAuth 直接复用，
+    // 无需再等一次 /users/profile 往返。失败不阻塞登录流程。
+    const warmupPromise = userStore.fetchUserInfo().catch((e) => {
+      console.warn("登录预热用户信息失败:", e);
+      return null;
+    });
 
     // 记住密码 / 自动登录：保存到 localStorage
     try {
@@ -380,6 +428,9 @@ const doLogin = async (geetestData?: any) => {
     websocketService.connect().catch((wsError) => {
       console.error("WebSocket 连接失败:", wsError);
     });
+    // 等待用户信息预热完成再跳转：此时 store 里已有 user，
+    // message 页 onMounted 的 initializeAuth 会直接命中，不再发起额外请求。
+    await warmupPromise;
     router.push("/message");
   } catch (error: any) {
     if (error.response?.data?.data?.message) {
@@ -444,6 +495,11 @@ onMounted(async () => {
     }, 800);
   }
 });
+
+onBeforeUnmount(() => {
+  // 清理第三方登录结果监听，避免残留监听器
+  window.removeEventListener("message", handleOAuthResult);
+});
 </script>
 
 <style scoped lang="scss">
@@ -472,7 +528,7 @@ onMounted(async () => {
   justify-content: center;
   padding: 0;
   box-sizing: border-box;
-  background: #ffffff; /* 纯白背景，无渐变 */
+  background: var(--card-bg); /* 纯白背景，无渐变 */
 }
 
 .electron-brand {
@@ -487,7 +543,7 @@ onMounted(async () => {
     object-fit: contain;
     border-radius: 16px;
     margin-bottom: 14px;
-    background: #f5f5f5; /* 扁平占位 */
+    background: var(--bg-tertiary); /* 扁平占位 */
     box-shadow: 0 4px 14px rgba(139, 92, 246, 0.18);
   }
 
@@ -515,9 +571,9 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 10px;
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--border-color);
   border-radius: 10px;
-  background: #fafafa;
+  background: var(--bg-tertiary);
   margin-bottom: 14px;
   padding: 0 14px;
   box-sizing: border-box;
@@ -528,12 +584,12 @@ onMounted(async () => {
 
   &:hover {
     border-color: #c4b5fd;
-    background: #ffffff;
+    background: var(--card-bg);
   }
 
   &:focus-within {
     border-color: var(--brand-500);
-    background: #ffffff;
+    background: var(--card-bg);
     box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.14); /* 极简光晕 */
   }
 
@@ -679,12 +735,12 @@ onMounted(async () => {
   }
 
   .electron-agreement-link {
-    color: #000000;
+    color: var(--text-primary);
     cursor: pointer;
     text-decoration: none;
 
     &:hover {
-      color: #000000;
+      color: var(--text-primary);
       text-decoration: underline;
     }
   }
@@ -698,13 +754,13 @@ onMounted(async () => {
 
   .electron-link {
     font-size: 13px;
-    color: #000000;
+    color: var(--text-primary);
     cursor: pointer;
     transition: color 0.2s ease;
     text-decoration: none;
 
     &:hover {
-      color: #000000;
+      color: var(--text-primary);
       text-decoration: underline;
     }
   }
@@ -734,9 +790,9 @@ onMounted(async () => {
 .login-card {
   width: 500px;
   padding: 48px 44px 40px;
-  background: #ffffff;
+  background: var(--card-bg);
   border-radius: 20px;
-  border: 1px solid #eee;
+  border: 1px solid var(--border-color);
   box-sizing: border-box;
   position: relative;
   z-index: 10;
@@ -797,7 +853,7 @@ onMounted(async () => {
     height: 42px;
     border-radius: 12px;
     border: 1px solid #e5e6eb;
-    background: #fff;
+    background: var(--card-bg);
     font-size: 14px;
     text-align: center;
     transition: all 0.3s ease;
@@ -820,7 +876,7 @@ onMounted(async () => {
     height: 42px;
     border-radius: 12px;
     border: 1px solid #e5e6eb;
-    background: #fff;
+    background: var(--card-bg);
     transition: all 0.3s ease;
     padding: 0 11px;
 
@@ -938,7 +994,7 @@ onMounted(async () => {
   flex-direction: column;
   align-items: center;
   gap: 6px;
-  color: #333 !important;
+  color: var(--text-primary) !important;
   font-size: 14px;
   transition: transform 0.2s ease;
 }

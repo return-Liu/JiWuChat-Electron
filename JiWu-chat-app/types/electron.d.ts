@@ -70,6 +70,20 @@ interface ElectronAPI {
     url: string;
   }) => void) => (() => void);
   onOAuthWindowClosed: (callback: () => void) => (() => void);
+
+  // ===== UI 设置跨窗口同步（字体大小/字体族）=====
+  broadcastUiSettings: (settings: Record<string, any>) => void;
+  onUiSettingsChanged: (callback: (settings: Record<string, any>) => void) => (() => void);
+
+  // ===== 主题跨窗口同步（明暗模式/侧边栏颜色）=====
+  broadcastThemeSettings: (settings: Record<string, any>) => void;
+  onThemeSettingsChanged: (callback: (settings: Record<string, any>) => void) => (() => void);
+
+  // ===== 窗口内 SPA 路由跳转指令 =====
+  onNavigate: (callback: (path: string) => void) => (() => void);
+
+  // 打开 Web 体验窗口
+  openWebExperience: () => void;
 }
 
 declare global {

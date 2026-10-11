@@ -137,6 +137,7 @@
 </template>
 
 <script setup lang="ts">
+import { getErrorMessage } from "../untils/errorMessage";
 import { ref, reactive } from "vue";
 import { useRouter } from "vue-router";
 import { CheckOutlined } from "@ant-design/icons-vue";
@@ -193,7 +194,7 @@ const goToStep3 = async () => {
     message.success(response.data?.message);
   } catch (error: any) {
     passwordError.value =
-      error.response?.data?.data?.message || "密码验证失败，请检查密码是否正确";
+      getErrorMessage(error, "密码验证失败，请检查密码是否正确");
     message.error(passwordError.value);
   }
 };
@@ -221,7 +222,7 @@ const performDeleteAccount = async () => {
 <style scoped lang="scss">
 .account-delete-container {
   min-height: 100vh;
-  background: #f5f5f5;
+  background: var(--bg-tertiary);
   display: flex;
   flex-direction: column;
 }
@@ -249,7 +250,7 @@ const performDeleteAccount = async () => {
       width: 32px;
       height: 32px;
       border-radius: 50%;
-      background: #e5e5e5;
+      background: var(--bg-secondary);
       color: #8e8e93;
       display: flex;
       align-items: center;
@@ -288,7 +289,7 @@ const performDeleteAccount = async () => {
   .step-line {
     width: 60px;
     height: 2px;
-    background: #e5e5e5;
+    background: var(--bg-secondary);
     margin: 0 12px;
 
     &.active {
@@ -304,7 +305,7 @@ const performDeleteAccount = async () => {
 .risk-card,
 .verify-card,
 .confirm-card {
-  background: #fff;
+  background: var(--card-bg);
   border-radius: 12px;
   padding: 24px;
 }
@@ -314,7 +315,7 @@ const performDeleteAccount = async () => {
 .confirm-title {
   font-size: 16px;
   font-weight: 500;
-  color: #1a1a1a;
+  color: var(--text-primary);
   margin: 0 0 16px;
   text-align: center;
 }
@@ -333,7 +334,7 @@ const performDeleteAccount = async () => {
     align-items: center;
     gap: 10px;
     font-size: 13px;
-    color: #666;
+    color: var(--text-secondary);
     line-height: 1.6;
     padding: 6px 0;
   }
@@ -367,7 +368,7 @@ const performDeleteAccount = async () => {
 
   span {
     font-size: 12px;
-    color: #666;
+    color: var(--text-secondary);
     line-height: 1.4;
   }
 }
@@ -386,7 +387,7 @@ const performDeleteAccount = async () => {
 .password-input {
   width: 100%;
   padding: 10px 12px;
-  border: 1px solid #e5e5e5;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   font-size: 14px;
   outline: none;
@@ -431,11 +432,11 @@ const performDeleteAccount = async () => {
   cursor: pointer;
 
   &.btn-default {
-    background: #f5f5f5;
-    color: #1a1a1a;
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
 
     &:hover {
-      background: #e5e5e5;
+      background: var(--bg-secondary);
     }
   }
 

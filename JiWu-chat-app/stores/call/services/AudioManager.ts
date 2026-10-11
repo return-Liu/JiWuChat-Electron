@@ -15,7 +15,7 @@ export class AudioManager {
     private options: AudioManagerOptions;
 
     // 状态
-    public volume = {
+    public volume: { speaker: number; microphone: number } = {
         speaker: CALL_CONFIG.AUDIO.VOLUME.DEFAULT,
         microphone: CALL_CONFIG.AUDIO.VOLUME.DEFAULT,
     };

@@ -24,20 +24,15 @@
           </div>
 
           <div class="nav-tabs">
-            <router-link
+            <a
               v-for="tab in tabs"
               :key="tab.key"
               class="func-link"
               :class="{ 'tab-active': activeTab === tab.key }"
-              :to="tab.path"
-              @click="switchTab(tab.key)"
+              :href="tab.path"
+              @click.prevent="switchTab(tab.key)"
             >
               <h3 class="link-label">{{ tab.label }}</h3>
-            </router-link>
-
-            <!-- 更新日志 - 跳转到 GitHub commits 展示页 -->
-            <a class="func-link changelog-link" @click="goToChangelog">
-              <h3 class="link-label">{{ $t("header.nav.changelog") }}</h3>
             </a>
 
             <!-- 生态 - 作为导航标签 -->
@@ -132,11 +127,17 @@
           <div class="divider-line"></div>
 
           <!-- GitHub 链接 -->
-          <router-link to="/github" class="github-wrapper" @click="openGitHub">
+          <a
+            href="https://github.com/return-Liu/JiWuChat-Electron"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="github-wrapper"
+            title="GitHub"
+          >
             <div class="github-btn">
               <i class="iconfont icon-GitHub github-icon"></i>
             </div>
-          </router-link>
+          </a>
         </div>
       </div>
     </a-layout-header>
@@ -152,6 +153,9 @@
       <Chat v-if="activeTab === TAB_KEYS.experience" />
       <section v-if="activeTab === TAB_KEYS.jiwu_story" class="jiwu_story-section">
         <JiwuStoryContent />
+      </section>
+      <section v-if="activeTab === TAB_KEYS.changelog" class="changelog-section">
+        <GithubChangelog :version="changelogVersion" @version-change="onVersionChange" />
       </section>
     </a-layout-content>
 
@@ -225,16 +229,15 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from "vue";
 import { useI18n } from "vue-i18n";
-import { useRouter } from "vue-router";
 import pkg from "../package.json";
 // 显式导入页面组件（pages/ 目录不会被 Nuxt components 自动导入扫描）
 import Home from "./homeTabs/home.vue";
 import Chat from "./homeTabs/Chat.vue";
+import GithubChangelog from "../components/GithubChangelog.vue";
 // 显式导入并重命名（自动导入名为 JiwuStoryContent，模板中为小写 jiwu_storyContent）
 import JiwuStoryContent from "../components/jiwu_storyContent.vue";
 
 const { t, locale } = useI18n();
-const router = useRouter();
 
 // 🔥 首页主题独立：使用独立存储键 home-theme + 独立 class home-dark，
 //    不再复用 useTheme 的 theme-mode / html.dark，避免与设置页主题互相影响。
@@ -325,7 +328,7 @@ const TAB_KEYS = {
   pricing: "pricing.html",
   experience: "chat.html",
   jiwu_story: "jiwu_story.html",
-  changelog: `version/${appVersion}.html`,
+  changelog: "changelog.html",
 } as const;
 
 // 添加"极物聊天故事"菜单项 - 使用 computed 支持国际化
@@ -335,9 +338,30 @@ const tabs = computed(() => [
   { key: TAB_KEYS.pricing, path: "/pricing.html", label: t("header.nav.pricing") },
   { key: TAB_KEYS.experience, path: "/chat.html", label: t("header.nav.chat") },
   { key: TAB_KEYS.jiwu_story, path: "/jiwu_story.html", label: t("header.nav.jiwu_story") },
+  {
+    key: TAB_KEYS.changelog,
+    path: `/versions/${changelogVersion.value || "latest"}.html`,
+    label: t("header.nav.changelog"),
+  },
 ]);
 
 const activeTab = ref<string>(TAB_KEYS.home);
+
+// ===== 动态浏览器标题（随导航切换，后缀固定为「JiWuChat - 极物聊天官网」） =====
+const pageTitleMap: Record<string, string> = {
+  [TAB_KEYS.home]: "极物聊天",
+  [TAB_KEYS.start]: "开始",
+  [TAB_KEYS.pricing]: "定价",
+  [TAB_KEYS.experience]: "Web端",
+  [TAB_KEYS.jiwu_story]: "极物故事",
+  [TAB_KEYS.changelog]: "更新日志",
+};
+const pageTitle = computed(
+  () => `${pageTitleMap[activeTab.value] ?? "极物聊天"} | JiWuChat - 极物聊天官网`,
+);
+useHead({ title: pageTitle });
+// 当前更新日志版本号（空 = 最新），用于 /versions/xxx.html 路由
+const changelogVersion = ref<string>("");
 const isSearchPanelVisible = ref(false);
 const searchInputRef = ref<HTMLInputElement | null>(null);
 
@@ -417,10 +441,16 @@ function handleClickOutside(event: MouseEvent) {
   }
 }
 
-function getTabFromHash(): string {
-  const hash = window.location.hash.replace("#", "");
-  if (!hash) return TAB_KEYS.home;
-  const tab = tabs.value.find((t) => t.key === hash);
+function resolvePath(): string {
+  const path = window.location.pathname.replace(/^\//, "");
+  if (!path) return TAB_KEYS.home;
+  // /versions/xxx.html -> 更新日志 tab，并同步版本号
+  const vm = path.match(/^versions\/(.+)\.html$/);
+  if (vm) {
+    changelogVersion.value = vm[1] === "latest" ? "" : vm[1];
+    return TAB_KEYS.changelog;
+  }
+  const tab = tabs.value.find((t) => t.key === path);
   return tab ? tab.key : TAB_KEYS.home;
 }
 
@@ -428,14 +458,20 @@ function switchTab(key: string) {
   activeTab.value = key;
   const tab = tabs.value.find((t) => t.key === key);
   if (tab && key === TAB_KEYS.home) {
-    history.replaceState(null, "", window.location.pathname);
+    history.pushState(null, "", "/");
   } else if (tab) {
-    window.location.hash = key;
+    history.pushState(null, "", tab.path);
   }
 }
 
-function onHashChange() {
-  activeTab.value = getTabFromHash();
+/** 更新日志切换版本：同步版本号并更新 URL 为 /versions/xxx.html */
+function onVersionChange(version: string) {
+  changelogVersion.value = version;
+  history.pushState(null, "", `/versions/${version}.html`);
+}
+
+function onPopState() {
+  activeTab.value = resolvePath();
 }
 
 // ===== 搜索功能 =====
@@ -559,15 +595,6 @@ const handleToggleTheme = (event: MouseEvent) => {
   toggleHomeTheme(event);
 };
 
-function openGitHub() {
-  window.open("https://github.com/return-Liu/JiWuChat", "_blank");
-}
-
-// 跳转到更新日志页面（GitHub commits 展示）
-function goToChangelog() {
-  router.push("/updateLogs").catch(() => {});
-}
-
 // ==================== Chat tab 缩放拦截 & 滚动条隐藏 ====================
 function preventZoomWheel(e: WheelEvent) {
   if (e.ctrlKey || e.metaKey) e.preventDefault();
@@ -661,8 +688,8 @@ onMounted(() => {
       locale.value = savedLang;
     }
   }
-  activeTab.value = getTabFromHash();
-  window.addEventListener("hashchange", onHashChange);
+  activeTab.value = resolvePath();
+  window.addEventListener("popstate", onPopState);
   window.addEventListener("keydown", handleSearchShortcut);
   window.addEventListener("click", handleClickOutside);
   appContainerRef.value = document.querySelector(".app-container");
@@ -671,7 +698,7 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
-  window.removeEventListener("hashchange", onHashChange);
+  window.removeEventListener("popstate", onPopState);
   window.removeEventListener("keydown", handleSearchShortcut);
   window.removeEventListener("click", handleClickOutside);
   appContainerRef.value?.removeEventListener("scroll", handleScroll);
@@ -704,6 +731,7 @@ onBeforeUnmount(() => {
   --text-tertiary: #8e8e93;
   --border-color: #dce2ef;
   --card-bg: #ffffff;
+  --color-brand: #5d33f6;
 
   min-height: 100vh;
   background: var(--bg-primary);
@@ -724,6 +752,7 @@ onBeforeUnmount(() => {
   --text-tertiary: #6b7280;
   --border-color: #2a2a2a;
   --card-bg: #1a1a1a;
+  --color-brand: #8b5cf6;
 }
 
 .app-header {
@@ -737,6 +766,11 @@ onBeforeUnmount(() => {
   background: transparent;
   padding: 40px 24px 24px;
   min-height: auto;
+}
+
+.changelog-section {
+  height: calc(100vh - 200px);
+  min-height: 480px;
 }
 
 .footer-section {
@@ -945,7 +979,7 @@ onBeforeUnmount(() => {
 }
 
 .app-container:not(.home-dark) .search-modal {
-  background: #ffffff;
+  background: var(--card-bg);
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.12);
 }
 
@@ -988,7 +1022,7 @@ onBeforeUnmount(() => {
 }
 
 .app-container:not(.home-dark) .search-input-wrap:focus-within {
-  background: #ffffff;
+  background: var(--card-bg);
 }
 
 .home-dark .search-input-wrap:focus-within {
@@ -1347,7 +1381,7 @@ onBeforeUnmount(() => {
 }
 
 .app-container:not(.home-dark) .eco-dropdown {
-  background: #ffffff;
+  background: var(--card-bg);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
 }
 
@@ -1508,7 +1542,7 @@ onBeforeUnmount(() => {
 }
 
 .app-container:not(.home-dark) .lang-dropdown {
-  background: #ffffff;
+  background: var(--card-bg);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
 }
 

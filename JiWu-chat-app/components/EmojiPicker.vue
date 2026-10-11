@@ -302,7 +302,7 @@ const selectEmoji = (emoji: string) => {
   left: 0;
   width: 340px;
   height: 240px;
-  background: #ffffff;
+  background: var(--dt-panel-solid, var(--card-bg));
   border: 1px solid #e2e8f0;
   border-radius: 12px;
   box-shadow: 0 8px 24px rgba(149, 157, 165, 0.1);

@@ -1283,7 +1283,7 @@ button {
   justify-content: center;
   gap: 6px;
   font-size: 12px;
-  color: #888;
+  color: var(--text-tertiary);
   margin-top: 2px;
 }
 
@@ -1484,7 +1484,7 @@ button {
   flex-direction: column;
   align-items: center;
   gap: 12px;
-  color: #888;
+  color: var(--text-tertiary);
 }
 
 .error-desc {

@@ -25,6 +25,21 @@ const parseMessageTime = (timeStr: string): number | null => {
     }
   }
 
+  // 处理 "昨天 HH:mm" 或 "昨天 HH:mm:ss" 格式
+  if (trimmed.includes('昨天')) {
+    const timePart = trimmed.replace('昨天', '').trim();
+    const match = timePart.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+    if (match) {
+      const hours = parseInt(match[1]);
+      const minutes = parseInt(match[2]);
+      const seconds = parseInt(match[3] || '0');
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      yesterday.setHours(hours, minutes, seconds, 0);
+      return yesterday.getTime();
+    }
+  }
+
   // 处理 "M-D HH:mm" 格式（如 "8-3 13:48"）
   const dateTimeMatch = trimmed.match(/^(\d{1,2})-(\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
   if (dateTimeMatch) {
@@ -126,28 +141,33 @@ export const shouldShowTimeStamp = (
 };
 
 /**
- * 判断是否显示"新消息"分割线
- * 规则：时间差 > 5分钟
+ * 判断是否显示「新消息」分割线。
+ *
+ * 基于后端「已读游标」（conversation_reads.lastReadMessageId）：
+ * 消息 id 为全局自增整数，`id > readCursor` 的消息即为该会话的「新消息」。
+ * 分割线显示在「第一条 id > readCursor 的消息」前，精确标记「上次读到哪」。
  */
 export const shouldShowNewMessageDivider = (
   message: ChatMessage,
   index: number,
   messages: ChatMessage[],
+  readCursor: number = 0,
 ): boolean => {
-  if (index === 0 || !messages || messages.length === 0) {
-    return false;
+  if (!message || !messages || messages.length === 0) return false;
+  // 无游标（首次进入 / 从未读过）时无法判断新消息，不显示
+  if (!readCursor || readCursor <= 0) return false;
+
+  // 找到第一条 id > readCursor 的消息，作为新消息起点
+  let dividerIndex = -1;
+  for (let i = 0; i < messages.length; i++) {
+    const msgId = Number(messages[i].id);
+    if (msgId && msgId > readCursor) {
+      dividerIndex = i;
+      break;
+    }
   }
 
-  const prev = messages[index - 1];
-  if (!prev) return false;
-
-  const curTime = getMessageTimestamp(message);
-  const prevTime = getMessageTimestamp(prev);
-  if (curTime === null || prevTime === null) return false;
-
-  const diffMinutes = Math.abs(curTime - prevTime) / (1000 * 60);
-
-  return diffMinutes > 5;
+  return index === dividerIndex;
 };
 
 /**

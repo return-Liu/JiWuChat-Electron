@@ -343,11 +343,15 @@ const handleSubmit = async () => {
   }
 
   try {
-    await Modal.confirm({
-      title: "确认提交",
-      content: `你确定要举报${props.contact.isGroup ? "该群聊" : "该用户"}吗？\n举报原因：${reasonOptions[selectedReportReason.value as keyof typeof reasonOptions]}\n提交后将无法撤回，请谨慎操作。`,
-      okText: "确认提交",
-      cancelText: "取消",
+    await new Promise<void>((resolve, reject) => {
+      Modal.confirm({
+        title: "确认提交",
+        content: `你确定要举报${props.contact.isGroup ? "该群聊" : "该用户"}吗？\n举报原因：${reasonOptions[selectedReportReason.value as keyof typeof reasonOptions]}\n提交后将无法撤回，请谨慎操作。`,
+        okText: "确认提交",
+        cancelText: "取消",
+        onOk: () => resolve(),
+        onCancel: () => reject("cancel"),
+      });
     });
   } catch {
     message.info("已取消举报");
@@ -421,7 +425,7 @@ watch(
 .report-modal-wrapper {
   width: 100%;
   max-width: 560px;
-  background: #fff;
+  background: var(--dt-panel-solid, var(--card-bg));
   border-radius: 12px;
   display: flex;
   flex-direction: column;
@@ -432,7 +436,7 @@ watch(
 
 .report-modal-header {
   padding: 14px 20px;
-  border-bottom: 1px solid #e5e5e5;
+  border-bottom: 1px solid var(--border-color);
   position: relative;
 }
 
@@ -440,7 +444,7 @@ watch(
   margin: 0;
   font-size: 16px;
   font-weight: 500;
-  color: #1a1a1a;
+  color: var(--text-primary);
   padding-right: 32px;
 }
 
@@ -459,7 +463,7 @@ watch(
 }
 
 .close-btn:hover:not(:disabled) {
-  background: #f5f5f5;
+  background: var(--bg-tertiary);
 }
 
 .report-tip {
@@ -479,7 +483,7 @@ watch(
   align-items: center;
   gap: 14px;
   padding: 12px;
-  background: #f8f8f8;
+  background: var(--bg-tertiary);
   border-radius: 10px;
   margin-bottom: 20px;
 }
@@ -501,12 +505,12 @@ watch(
 .avatar-fallback {
   width: 100%;
   height: 100%;
-  background: #e5e5e5;
+  background: var(--bg-secondary);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 18px;
-  color: #666;
+  color: var(--text-secondary);
 }
 
 .target-info {
@@ -516,7 +520,7 @@ watch(
 .target-name {
   font-size: 15px;
   font-weight: 500;
-  color: #1a1a1a;
+  color: var(--text-primary);
   margin-bottom: 2px;
 }
 
@@ -528,7 +532,7 @@ watch(
 
 .target-type {
   font-size: 11px;
-  color: #666;
+  color: var(--text-secondary);
 }
 
 .report-section {
@@ -538,7 +542,7 @@ watch(
 .section-label {
   font-size: 13px;
   font-weight: 500;
-  color: #1a1a1a;
+  color: var(--text-primary);
   margin-bottom: 10px;
   display: flex;
   justify-content: space-between;
@@ -569,12 +573,12 @@ watch(
 
 .reason-item {
   padding: 6px 14px;
-  border: 1px solid #e5e5e5;
+  border: 1px solid var(--border-color);
   border-radius: 20px;
   cursor: pointer;
   font-size: 13px;
   transition: all 0.2s;
-  background: #fff;
+  background: var(--dt-panel-solid, var(--card-bg));
 }
 
 .reason-item:hover {
@@ -591,7 +595,7 @@ watch(
 .description-input {
   width: 100%;
   padding: 10px 12px;
-  border: 1px solid #e5e5e5;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   resize: none;
   font-size: 13px;
@@ -613,14 +617,14 @@ watch(
 .add-file-btn {
   width: 80px;
   height: 80px;
-  border: 1px dashed #e5e5e5;
+  border: 1px dashed var(--border-color);
   border-radius: 8px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  background: #fafafa;
+  background: var(--bg-tertiary);
   transition: all 0.2s;
 }
 
@@ -657,7 +661,7 @@ watch(
   border-radius: 8px;
   overflow: hidden;
   position: relative;
-  border: 1px solid #e5e5e5;
+  border: 1px solid var(--border-color);
 }
 
 .file-preview {
@@ -719,7 +723,7 @@ watch(
 
 .report-modal-footer {
   padding: 14px 20px;
-  border-top: 1px solid #e5e5e5;
+  border-top: 1px solid var(--border-color);
   display: flex;
   justify-content: flex-end;
   gap: 12px;
@@ -735,12 +739,12 @@ watch(
 }
 
 .cancel-btn {
-  background: #f5f5f5;
-  color: #666;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
 }
 
 .cancel-btn:hover:not(:disabled) {
-  background: #e5e5e5;
+  background: var(--bg-secondary);
 }
 
 .submit-btn {

@@ -70,6 +70,7 @@ const toCacheItem = (contact: Contact): Contact => {
     messages: _messages,
     groupMembers: _groupMembers,
     joinMessages: _joinMessages,
+    joinNotices: _joinNotices,
     chatHistoryPagination: _pagination,
     ...rest
   } = contact;
@@ -232,5 +233,54 @@ export const pruneOtherUsersCache = (currentUserId: string): void => {
     });
   } catch {
     /* 忽略 */
+  }
+};
+
+/**
+ * 主动清理所有已过期 / 结构不兼容的联系人缓存（应用启动或进入消息页时调用一次）。
+ *
+ * 缓存本身是「惰性清理」——读取时才发现过期。这已经能保证正确性，
+ * 但过期数据会一直占着 localStorage 配额，直到该账号下次读取才会被清掉。
+ * 这里做一次全量扫描，把不再需要的缓存提前释放，避免配额被长期占用。
+ *
+ * 注意：只清理「过期 / 版本不兼容 / 损坏」的缓存，
+ * 当前账号仍有效的缓存会保留（否则会丢掉首屏秒开能力）。
+ */
+export const pruneExpiredContactsCache = (): void => {
+  if (typeof window === "undefined") return;
+
+  try {
+    const now = Date.now();
+    Object.keys(localStorage).forEach((key) => {
+      if (!key.startsWith(KEY_PREFIX)) return;
+
+      const userId = key.slice(KEY_PREFIX.length);
+      let shouldRemove = false;
+
+      try {
+        const parsed = JSON.parse(localStorage.getItem(key) || "null") as
+          | ContactsCachePayload
+          | null;
+        // 解析失败 / 版本不兼容 / 超过 TTL / 结构损坏 → 清理
+        if (
+          !parsed ||
+          parsed.v !== CACHE_SCHEMA_VERSION ||
+          !isValidContacts(parsed.contacts) ||
+          now - parsed.ts > CACHE_TTL
+        ) {
+          shouldRemove = true;
+        }
+      } catch {
+        // 数据损坏，直接清理
+        shouldRemove = true;
+      }
+
+      if (shouldRemove) {
+        memoryCache.delete(userId);
+        localStorage.removeItem(key);
+      }
+    });
+  } catch {
+    /* 忽略：清理失败不影响功能 */
   }
 };

@@ -137,7 +137,7 @@ watch(
   display: flex;
   gap: 8px;
   margin-bottom: 16px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border-color);
   padding-bottom: 12px;
 }
 
@@ -146,7 +146,7 @@ watch(
   border: none;
   background: transparent;
   font-size: 14px;
-  color: #666;
+  color: var(--text-secondary);
   cursor: pointer;
   border-radius: 4px;
   transition: all 0.2s;
@@ -157,7 +157,7 @@ watch(
 }
 
 .tab-btn:hover {
-  background: #f5f5f5;
+  background: var(--bg-tertiary);
 }
 
 .tab-btn.active {
@@ -178,8 +178,8 @@ watch(
 }
 
 .tab-btn:not(.active) .tab-count {
-  background: #f0f0f0;
-  color: #999;
+  background: var(--bg-tertiary);
+  color: var(--text-tertiary);
 }
 
 .update-list {
@@ -198,7 +198,7 @@ watch(
 }
 
 .update-item:hover {
-  background: #fafafa;
+  background: var(--bg-tertiary);
 }
 
 .update-avatar {
@@ -217,25 +217,25 @@ watch(
 .update-name {
   font-size: 14px;
   font-weight: 500;
-  color: #1a1a1a;
+  color: var(--text-primary);
 }
 
 .update-desc {
   font-size: 13px;
-  color: #666;
+  color: var(--text-secondary);
   margin-top: 2px;
 }
 
 .update-time {
   font-size: 12px;
-  color: #999;
+  color: var(--text-tertiary);
   flex-shrink: 0;
 }
 
 .empty-updates {
   text-align: center;
   padding: 40px 0;
-  color: #999;
+  color: var(--text-tertiary);
 }
 
 .update-list::-webkit-scrollbar {
@@ -245,7 +245,7 @@ watch(
   background: transparent;
 }
 .update-list::-webkit-scrollbar-thumb {
-  background: #ddd;
+  background: var(--bg-secondary);
   border-radius: 2px;
 }
 </style>

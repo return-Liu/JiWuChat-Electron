@@ -1,27 +1,6 @@
 ﻿<template>
   <div class="profile-page" :class="{ 'has-dynamic-bg': hasDynamicBackground }">
-    <!-- 个性装扮：动态背景层（视频 / 图片壁纸，铺满整个好友窗口） -->
-    <div v-if="hasDynamicBackground" class="chat-dynamic-bg">
-      <video
-        v-if="chatBgType === 'video' && chatBgVideo"
-        ref="chatBgVideoRef"
-        class="chat-dynamic-bg-media"
-        :src="encodeURI(chatBgVideo)"
-        :poster="chatBgPoster"
-        muted
-        loop
-        autoplay
-        playsinline
-        preload="auto"
-      ></video>
-      <img
-        v-else-if="chatBgType === 'image' && chatBgImage"
-        class="chat-dynamic-bg-media"
-        :src="chatBgImage"
-        alt=""
-      />
-      <div class="chat-dynamic-bg-overlay" :style="{ background: chatBgOverlay }"></div>
-    </div>
+    <DynamicBackground />
 
     <Sidebar :current-area="'friend'" />
 
@@ -65,7 +44,7 @@
               @error="handleAvatarError"
             />
             <span
-              v-if="selectedContact?.isOnline && !selectedContact?.isGroup"
+              v-if="selectedContact?.isOnline && !selectedContact?.isGroup && !isRobotContact"
               class="online-badge"
             ></span>
           </div>
@@ -83,7 +62,10 @@
             >
               群号：{{ selectedContact.groupNumber }}
             </div>
-            <div class="status-text" v-if="selectedContact?.isOnline && !selectedContact?.isGroup">
+            <div
+              class="status-text"
+              v-if="selectedContact?.isOnline && !selectedContact?.isGroup && !isRobotContact"
+            >
               在线
             </div>
           </div>
@@ -211,7 +193,7 @@
           </div>
         </div>
 
-        <!-- 群成员区域 -->
+        <!-- 群成员区域：宽度占满，查看更新时也保持整齐换行 -->
         <div class="members-block" v-if="selectedContact?.isGroup && groupDetails?.members?.length">
           <div class="members-header">
             <div class="members-header-left">
@@ -223,29 +205,32 @@
             </div>
           </div>
 
-          <!-- 群成员列表 -->
           <div class="members-list-wrapper">
             <div class="members-list">
-              <div v-for="m in displayedMembers" :key="m.id" class="member-info">
+              <!-- 默认展示：全部成员 +「查看更多」作为最后一个格子，由 grid 自动决定落点 -->
+              <div
+                v-for="m in showAllMembers ? groupDetails.members : displayedMembers"
+                :key="m.id"
+                class="member-info"
+              >
                 <img :src="m.avatar" class="member-avatar" @error="handleAvatarError" />
                 <span class="member-nickname">{{ m.name }}</span>
               </div>
+              <!-- 未展开时显示「查看更多」，作为列表最后一项，紧跟成员后面 -->
               <div
-                v-if="groupDetails.members.length > 6 && !showAllMembers"
+                v-if="!showAllMembers && groupDetails.members.length > MEMBERS_PER_ROW"
                 class="member-info more-members"
                 @click="handleViewAllMembers"
               >
-                <div class="more-icon">+{{ groupDetails.members.length - 6 }}</div>
+                <div class="more-icon">+{{ groupDetails.members.length - MEMBERS_PER_ROW }}</div>
                 <span class="member-nickname">查看更多</span>
               </div>
-            </div>
-            <!-- 展开全部成员 -->
-            <div v-if="showAllMembers" class="members-list all-members">
-              <div v-for="m in remainingMembers" :key="m.id" class="member-info">
-                <img :src="m.avatar" class="member-avatar" @error="handleAvatarError" />
-                <span class="member-nickname">{{ m.name }}</span>
-              </div>
-              <div class="member-info more-members" @click="showAllMembers = false">
+              <!-- 展开后显示「收起」，作为列表最后一项 -->
+              <div
+                v-if="showAllMembers"
+                class="member-info more-members"
+                @click="showAllMembers = false"
+              >
                 <div class="more-icon collapse-icon">收起</div>
                 <span class="member-nickname">收起</span>
               </div>
@@ -337,7 +322,10 @@ import { message, Modal } from "ant-design-vue";
 import { ExclamationCircleOutlined } from "@ant-design/icons-vue";
 import { createVNode } from "vue";
 import request from "../untils/request";
-import { handleEditRemark as editRemarkUtil, getTopStatusFromLocalStorage } from "../untils/contactManager";
+import {
+  handleEditRemark as editRemarkUtil,
+  getTopStatusFromLocalStorage,
+} from "../untils/contactManager";
 import { useUserStore } from "../stores/user";
 import { useSiderColor } from "../stores/siderColor";
 import { getFriends } from "../untils/friendManager";
@@ -351,15 +339,7 @@ const userStore = useUserStore();
 const siderColorStore = useSiderColor();
 
 // 个性装扮：动态背景（视频 / 图片壁纸）+ 从壁纸吸取主色
-const {
-  hasDynamicBackground,
-  chatBgType,
-  chatBgVideo,
-  chatBgImage,
-  chatBgPoster,
-  chatBgOverlay,
-  chatBgVideoRef,
-} = useDynamicBackground();
+const { hasDynamicBackground } = useDynamicBackground();
 
 // 是否处于动态主题（个性装扮）下：此时面板需透明、文字转白并加阴影
 const isDynamic = computed(() => hasDynamicBackground.value);
@@ -376,9 +356,7 @@ const textSecondary = computed(() =>
 );
 const bgPrimary = computed(() => siderColorStore.bgPrimaryColor);
 // 页面底色：动态主题下透明，透出底层壁纸
-const pageBg = computed(() =>
-  isDynamic.value ? "transparent" : siderColorStore.chatBgStartColor,
-);
+const pageBg = computed(() => (isDynamic.value ? "transparent" : siderColorStore.chatBgStartColor));
 // 块底色 / 悬浮底色：动态主题下用半透明白，保证在壁纸上可见
 const bgStart = computed(() =>
   isDynamic.value ? "rgba(255, 255, 255, 0.18)" : siderColorStore.chatBgStartColor,
@@ -388,9 +366,7 @@ const borderColor = computed(() =>
   isDynamic.value ? "rgba(255, 255, 255, 0.4)" : siderColorStore.borderLightColor,
 );
 // 详情面板背景：动态主题下透明，透出底层壁纸
-const cardBg = computed(() =>
-  isDynamic.value ? "transparent" : siderColorStore.bgPrimaryColor,
-);
+const cardBg = computed(() => (isDynamic.value ? "transparent" : siderColorStore.bgPrimaryColor));
 const dangerColor = computed(() => siderColorStore.dangerColorValue);
 
 const defaultAvatar = "https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png";
@@ -469,17 +445,16 @@ const canInviteMembers = computed(() => {
   return groupDetails.value?.allowMemberInvite !== false;
 });
 const hasBio = computed(() => selectedContact.value?.bio || selectedContact.value?.description);
+/** 机器人（好友分组 category === "robot"）：右栏不展示在线状态 */
+const isRobotContact = computed(() => selectedContact.value?.category === "robot");
 
 const MEMBERS_PER_ROW = 6;
 
+// 默认展示的成员：仅用于「查看更多」上的数字，
+// 真正渲染由模板控制（全部成员 + 查看更多格子，grid 自动决定换行）
 const displayedMembers = computed(() => {
   if (!groupDetails.value?.members) return [];
   return groupDetails.value.members.slice(0, MEMBERS_PER_ROW);
-});
-
-const remainingMembers = computed(() => {
-  if (!groupDetails.value?.members) return [];
-  return groupDetails.value.members.slice(MEMBERS_PER_ROW);
 });
 
 const formatGender = (g?: number) => {
@@ -859,7 +834,7 @@ onMounted(async () => {
 }
 
 /* 个性装扮（动态背景）时，内容层浮在壁纸之上 */
-.profile-page.has-dynamic-bg > :not(.chat-dynamic-bg) {
+.profile-page.has-dynamic-bg > :not(.dynamic-bg-layer) {
   position: relative;
   z-index: 1;
 }
@@ -867,35 +842,6 @@ onMounted(async () => {
 /* 侧边栏悬浮卡片要始终盖在内容之上，否则会被同层内容遮住 */
 .profile-page.has-dynamic-bg .qq-sidebar {
   z-index: 2;
-}
-
-/* ===== 动态背景层（视频 / 图片壁纸） ===== */
-.chat-dynamic-bg {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  overflow: hidden;
-  pointer-events: none;
-  /* 独立合成层 + 硬件加速；不使用 contain / will-change，避免视频循环时合成层重建导致闪动 */
-  transform: translateZ(0);
-}
-
-.chat-dynamic-bg-media {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center;
-  user-select: none;
-  transform: translateZ(0);
-  backface-visibility: hidden;
-}
-
-.chat-dynamic-bg-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
 }
 
 /* 动态主题下文字加阴影，保证在壁纸背景上清晰可读 */
@@ -913,15 +859,13 @@ onMounted(async () => {
 .profile-page.has-dynamic-bg .update-btn,
 .profile-page.has-dynamic-bg .action-btn,
 .profile-page.has-dynamic-bg .more-icon {
-  text-shadow:
-    0 1px 3px rgba(0, 0, 0, 0.75),
-    0 0 8px rgba(0, 0, 0, 0.5);
+  text-shadow: var(--dt-text-shadow);
 }
 
 /* 动态主题下在线状态用亮绿，保证在壁纸上可见 */
 .profile-page.has-dynamic-bg .status-text {
   color: #4ade80;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75);
+  text-shadow: var(--dt-text-shadow);
 }
 
 /* 动态主题下头像描边用半透明深色，避免与壁纸糊在一起 */
@@ -1087,8 +1031,11 @@ onMounted(async () => {
   color: v-bind(textSecondary);
 }
 
+/* ===== 群成员区域：宽度占满，网格整齐换行 ===== */
 .members-block {
   padding: 4px 0 8px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .members-header {
@@ -1096,12 +1043,16 @@ onMounted(async () => {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 10px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .members-header-left {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 1;
+  min-width: 0;
 }
 
 .members-header-right {
@@ -1152,12 +1103,18 @@ onMounted(async () => {
 .members-list-wrapper {
   display: flex;
   flex-direction: column;
+  width: 100%;
+  box-sizing: border-box;
 }
 
+/* 用 grid 固定列宽，成员与「查看更多」自然紧挨排列，一行排满才换行 */
 .members-list {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 56px);
+  justify-content: start;
   gap: 18px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .member-info {
@@ -1207,7 +1164,9 @@ onMounted(async () => {
 }
 
 .all-members {
-  margin-top: 4px;
+  margin-top: 18px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .action-buttons {

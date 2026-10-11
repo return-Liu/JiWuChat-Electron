@@ -240,11 +240,15 @@ function isReporter(report: ReportItem) {
 
 async function handleDeleteReport(report: ReportItem) {
   try {
-    await Modal.confirm({
-      title: "删除确认",
-      content: "确定删除这条举报记录？",
-      okText: "确定",
-      cancelText: "取消",
+    await new Promise<void>((resolve, reject) => {
+      Modal.confirm({
+        title: "删除确认",
+        content: "确定删除这条举报记录？",
+        okText: "确定",
+        cancelText: "取消",
+        onOk: () => resolve(),
+        onCancel: () => reject("cancel"),
+      });
     });
     await deleteReport(report.id);
     message.success("删除成功");
@@ -287,7 +291,7 @@ function handleClose() {
   width: 90%;
   max-width: 600px;
   max-height: 85vh;
-  background: #fff;
+  background: var(--dt-panel-solid, var(--card-bg));
   border-radius: 12px;
   display: flex;
   flex-direction: column;
@@ -300,13 +304,13 @@ function handleClose() {
   justify-content: space-between;
   align-items: center;
   padding: 14px 20px;
-  border-bottom: 1px solid #e5e5e5;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .page-title {
   font-size: 16px;
   font-weight: 500;
-  color: #1a1a1a;
+  color: var(--text-primary);
   margin: 0;
 }
 
@@ -325,7 +329,7 @@ function handleClose() {
 }
 
 .header-close:hover {
-  background: #f5f5f5;
+  background: var(--bg-tertiary);
 }
 
 .loading-wrapper {
@@ -341,7 +345,7 @@ function handleClose() {
 .loading-spinner {
   width: 28px;
   height: 28px;
-  border: 2px solid #e5e5e5;
+  border: 2px solid var(--border-color);
   border-top-color: #007aff;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
@@ -359,12 +363,12 @@ function handleClose() {
 }
 
 .report-section {
-  background: #fff;
+  background: var(--dt-panel-solid, var(--card-bg));
 }
 
 .section-header {
   padding: 12px 16px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border-color);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -373,7 +377,7 @@ function handleClose() {
 .section-title {
   font-size: 14px;
   font-weight: 500;
-  color: #1a1a1a;
+  color: var(--text-primary);
   margin: 0;
 }
 
@@ -412,7 +416,7 @@ function handleClose() {
 }
 
 .report-item:hover {
-  background: #fafafa;
+  background: var(--bg-tertiary);
 }
 
 .report-main {
@@ -452,7 +456,7 @@ function handleClose() {
 .target-name {
   font-size: 14px;
   font-weight: 500;
-  color: #1a1a1a;
+  color: var(--text-primary);
 }
 
 .status-tag {
@@ -463,7 +467,7 @@ function handleClose() {
 }
 
 .status-tag.pending {
-  background: #fff3e0;
+  background: var(--warning-bg);
   color: #ff9800;
 }
 .status-tag.processing {
@@ -495,6 +499,10 @@ function handleClose() {
 
 .report-time {
   flex-shrink: 0;
+  padding: 2px 8px;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 10px;
+  white-space: nowrap;
 }
 
 .report-btns {
@@ -532,7 +540,7 @@ function handleClose() {
 
 .pagination-section {
   padding: 10px 16px;
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid var(--border-color);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -542,15 +550,15 @@ function handleClose() {
 .page-btn {
   width: 28px;
   height: 28px;
-  border: 1px solid #e5e5e5;
-  background: #fff;
+  border: 1px solid var(--border-color);
+  background: var(--dt-panel-solid, var(--card-bg));
   border-radius: 6px;
   font-size: 12px;
   cursor: pointer;
 }
 
 .page-btn:hover:not(:disabled) {
-  background: #f5f5f5;
+  background: var(--bg-tertiary);
 }
 
 .page-btn:disabled {
@@ -560,6 +568,6 @@ function handleClose() {
 
 .page-info {
   font-size: 12px;
-  color: #666;
+  color: var(--text-secondary);
 }
 </style>

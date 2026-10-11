@@ -90,6 +90,23 @@ interface TokenResponse {
   user: any;
 }
 
+// 通知父窗口（iframe 内的登录页）QQ 授权登录成功。
+// 仅当本回调页是被 window.open 打开（第三方登录在 iframe 中触发）时使用，
+// 此时 token 已写入同源 Cookie，父窗口收到通知后会在 iframe 内跳转到目标页。
+const notifyOAuthSuccess = (redirect: string) => {
+  const payload = { type: "oauth-login-success", redirect };
+  try {
+    window.opener.postMessage(payload, window.location.origin);
+  } catch (e) {
+    // 跨域时退化为通配 targetOrigin（消息不含敏感信息）
+    try {
+      window.opener.postMessage(payload, "*");
+    } catch (_) {
+      /* ignore */
+    }
+  }
+};
+
 const handleAuthCallback = async () => {
   try {
     // 从 URL hash 中读取临时 code
@@ -131,7 +148,8 @@ const handleAuthCallback = async () => {
     loadingText.value = "正在换取登录凭证...";
 
     const response = await request.get(`/auth/exchange-token?code=${tempCode}`);
-    const data = response as any;
+    // 兼容统一响应格式 { status, data: { token, user } } 与旧的顶层平铺格式
+    const data = (response as any)?.data ?? response;
 
     const token = data?.token;
     const rawUser = data?.user;
@@ -174,11 +192,17 @@ const handleAuthCallback = async () => {
     // 检查用户是否有完整信息（邮箱或手机号）
     const hasCompleteInfo =
       !!(user.email && user.email.trim() !== "") || !!(user.phone && user.phone.trim() !== "");
-    if (hasCompleteInfo) {
-      router.push("/message");
-    } else {
-      router.push("/auth/qq/fill-info");
+    const targetRoute = hasCompleteInfo ? "/message" : "/auth/qq/fill-info";
+
+    // 若本回调页是被 window.open 打开的（第三方登录在 iframe 中触发），
+    // 将登录结果通知父窗口（iframe 内的登录页），并关闭当前窗口。
+    if (window.opener && window.opener !== window) {
+      notifyOAuthSuccess(targetRoute);
+      window.close();
+      return;
     }
+
+    router.push(targetRoute);
   } catch (err: any) {
     console.error("登录处理失败:", err);
     const errMsg = safeGetString(err.message) || "处理登录信息时出现问题，请重试";
@@ -201,7 +225,7 @@ onMounted(() => {
   display: flex;
   justify-content: center;
   align-items: center;
-  background: #f5f5f5;
+  background: var(--bg-tertiary);
 }
 
 .loading-container {
@@ -218,7 +242,7 @@ onMounted(() => {
 .spinner {
   width: 36px;
   height: 36px;
-  border: 3px solid #e5e5e5;
+  border: 3px solid var(--border-color);
   border-top: 3px solid #007aff;
   border-radius: 50%;
   animation: spin 1s linear infinite;
@@ -237,7 +261,7 @@ onMounted(() => {
   font-size: 14px;
   margin: 0 0 16px;
   text-align: center;
-  color: #666;
+  color: var(--text-secondary);
 }
 
 .status-text.error {

@@ -4,9 +4,26 @@
 
 export const isClient = () => typeof window !== "undefined";
 
+// ============================================================
+// 主题存储：按用户 uid 隔离
+// ============================================================
+
+let currentThemeUid: string | null = null;
+
+/** 设置当前主题归属用户（登录后调用），使主题设置按用户隔离存储 */
+export const setThemeStorageUid = (uid: string | number | null | undefined): void => {
+  currentThemeUid = uid == null ? null : String(uid);
+};
+
+export const getThemeStorageUid = (): string | null => currentThemeUid;
+
+/** 生成带 uid 前缀的存储键；未登录时用原始键（登录页仍可用全局主题） */
+export const withThemeUid = (key: string): string =>
+  currentThemeUid ? `theme_${currentThemeUid}_${key}` : key;
+
 export const safeGetStorage = (key: string): string | null => {
   try {
-    return localStorage.getItem(key);
+    return localStorage.getItem(withThemeUid(key));
   } catch {
     return null;
   }
@@ -14,7 +31,7 @@ export const safeGetStorage = (key: string): string | null => {
 
 export const safeSetStorage = (key: string, value: string) => {
   try {
-    localStorage.setItem(key, value);
+    localStorage.setItem(withThemeUid(key), value);
   } catch (error) {
     console.error(`保存 ${key} 失败:`, error);
   }

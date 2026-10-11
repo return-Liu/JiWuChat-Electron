@@ -1,7 +1,5 @@
 import request from "../untils/request";
 import type {
-  ProcessReportParams,
-  ProcessReportResponse,
   SubmitReportData,
   UploadedFile,
 } from "../types/untilsTypes";

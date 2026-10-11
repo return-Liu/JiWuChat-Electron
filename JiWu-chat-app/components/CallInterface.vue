@@ -1092,7 +1092,7 @@ onUnmounted(() => {
 .call-mini-name {
   font-size: 13px;
   font-weight: 600;
-  color: #333;
+  color: var(--text-primary);
   line-height: 1.3;
   white-space: nowrap;
   overflow: hidden;
@@ -1100,7 +1100,7 @@ onUnmounted(() => {
 }
 .call-mini-status {
   font-size: 11px;
-  color: #999;
+  color: var(--text-tertiary);
   line-height: 1.3;
 }
 
@@ -1285,7 +1285,7 @@ onUnmounted(() => {
 }
 .call-titlebar-btn:hover {
   background: rgba(100, 130, 220, 0.1);
-  color: #333;
+  color: var(--text-primary);
 }
 .call-titlebar-close:hover {
   background: #e53935 !important;
@@ -1326,7 +1326,7 @@ onUnmounted(() => {
 }
 .call-header-btn:hover {
   background: rgba(100, 130, 220, 0.1);
-  color: #333;
+  color: var(--text-primary);
 }
 .call-title {
   color: #3a4a6a;
@@ -1374,10 +1374,10 @@ onUnmounted(() => {
   font-size: 18px;
 }
 .call-tip-warning {
-  color: #000;
+  color: var(--text-primary);
 }
 .call-tip-warning .iconfont {
-  color: #000;
+  color: var(--text-primary);
 }
 
 /* ============================================================
@@ -1917,7 +1917,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 8px 16px;
-  color: #333;
+  color: var(--text-primary);
   font-size: 13px;
   cursor: pointer;
   transition: background 0.15s ease;
@@ -1997,7 +1997,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 8px 16px;
-  color: #333;
+  color: var(--text-primary);
   font-size: 13px;
   cursor: pointer;
   gap: 12px;
@@ -2023,7 +2023,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 7px 16px;
-  color: #333;
+  color: var(--text-primary);
   font-size: 13px;
   cursor: pointer;
   transition: background 0.15s ease;
@@ -2064,7 +2064,7 @@ onUnmounted(() => {
 .call-switch-thumb {
   width: 16px;
   height: 16px;
-  background: #fff;
+  background: var(--dt-panel-solid, var(--card-bg));
   border-radius: 50%;
   position: absolute;
   top: 2px;
@@ -2141,7 +2141,7 @@ onUnmounted(() => {
 }
 .call-volume-panel-close:hover {
   background: rgba(180, 200, 240, 0.1);
-  color: #333;
+  color: var(--text-primary);
 }
 .call-volume-panel-body {
   padding: 22px;
@@ -2232,7 +2232,7 @@ onUnmounted(() => {
   justify-content: center;
   flex-shrink: 0;
   transition: all 0.2s ease;
-  background: #fff;
+  background: var(--dt-panel-solid, var(--card-bg));
   position: relative;
 }
 .call-volume-checkbox input:checked + .call-volume-checkbox-custom {

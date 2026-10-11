@@ -805,3 +805,167 @@
     }
   }
 }
+
+// ============================================================
+// 弹窗全局样式
+// ant-design-vue 的 a-modal 通过 Teleport 渲染到 body，
+// 无法被 .settings-page 包裹的选择器命中，故这里以全局选择器重新声明，
+// 否则提示音 / 快捷回复 / 撤回消息等弹窗内容会没有样式。
+// ============================================================
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+
+  .btn {
+    padding: 6px 16px;
+    border-radius: 4px;
+    font-size: 1rem;
+    cursor: pointer;
+    border: 1px solid var(--border-color);
+    background: var(--card-bg);
+    color: var(--text-primary);
+
+    &.btn-confirm {
+      background: var(--purple-color, #8b5cf6);
+      color: #fff;
+      border-color: var(--purple-color, #8b5cf6);
+    }
+
+    &.btn-cancel {
+      background: var(--bg-tertiary);
+    }
+  }
+}
+
+.ringtone-selector {
+  .ring-option {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.15s;
+
+    &.active {
+      background: var(--bg-tertiary);
+    }
+
+    .play-btn {
+      padding: 2px 8px;
+      border-radius: 4px;
+      border: 1px solid var(--border-color);
+      background: var(--card-bg);
+      color: var(--text-secondary);
+      font-size: 0.857rem;
+      cursor: pointer;
+    }
+  }
+}
+
+.quick-reply-manager {
+  .manager-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+
+    .btn-add {
+      padding: 4px 12px;
+      border-radius: 4px;
+      border: 1px solid var(--purple-color, #8b5cf6);
+      background: var(--card-bg);
+      color: var(--purple-color, #8b5cf6);
+      font-size: 0.929rem;
+      cursor: pointer;
+    }
+
+    .tip {
+      font-size: 0.857rem;
+      color: var(--text-tertiary);
+    }
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 20px;
+    color: var(--text-tertiary);
+    font-size: 1rem;
+  }
+
+  .reply-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .reply-item {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+
+    .reply-input {
+      flex: 1;
+      padding: 6px 10px;
+      border-radius: 4px;
+      border: 1px solid var(--border-color);
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      font-size: 0.929rem;
+    }
+
+    .btn-delete {
+      padding: 4px 8px;
+      border-radius: 4px;
+      border: 1px solid var(--danger-color, #ff4d4f);
+      background: var(--card-bg);
+      color: var(--danger-color, #ff4d4f);
+      font-size: 0.857rem;
+      cursor: pointer;
+    }
+  }
+}
+
+.recall-settings {
+  .preview-text {
+    padding: 12px;
+    background: var(--bg-tertiary);
+    border-radius: 6px;
+    font-size: 1rem;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+    text-align: center;
+  }
+
+  .preset-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .preset-item {
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.929rem;
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+    transition: all 0.15s;
+
+    &.active {
+      border-color: var(--purple-color, #8b5cf6);
+      color: var(--purple-color, #8b5cf6);
+      background: var(--bg-tertiary);
+    }
+  }
+
+  .show-more {
+    text-align: center;
+    padding: 8px;
+    font-size: 0.857rem;
+    color: var(--purple-color, #8b5cf6);
+    cursor: pointer;
+  }
+}

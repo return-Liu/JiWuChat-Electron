@@ -280,7 +280,7 @@ function handleClose() {
 }
 
 .report-detail-content {
-  background: #fff;
+  background: var(--dt-panel-solid, var(--card-bg));
   border-radius: 12px;
   width: 90%;
   max-width: 700px;
@@ -293,7 +293,7 @@ function handleClose() {
 
 .report-detail-header {
   padding: 14px 20px;
-  border-bottom: 1px solid #e5e5e5;
+  border-bottom: 1px solid var(--border-color);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -303,7 +303,7 @@ function handleClose() {
   margin: 0;
   font-size: 16px;
   font-weight: 500;
-  color: #1a1a1a;
+  color: var(--text-primary);
 }
 
 .close-btn {
@@ -321,7 +321,7 @@ function handleClose() {
 }
 
 .close-btn:hover:not(:disabled) {
-  background: #f5f5f5;
+  background: var(--bg-tertiary);
 }
 
 .report-detail-body {
@@ -342,9 +342,9 @@ function handleClose() {
   margin: 0 0 12px;
   font-size: 14px;
   font-weight: 500;
-  color: #1a1a1a;
+  color: var(--text-primary);
   padding-bottom: 6px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .target-info {
@@ -352,7 +352,7 @@ function handleClose() {
   align-items: center;
   gap: 14px;
   padding: 12px;
-  background: #f8f8f8;
+  background: var(--bg-tertiary);
   border-radius: 10px;
 }
 
@@ -379,7 +379,7 @@ function handleClose() {
 .target-name {
   font-size: 15px;
   font-weight: 500;
-  color: #1a1a1a;
+  color: var(--text-primary);
 }
 
 .target-type {
@@ -396,15 +396,15 @@ function handleClose() {
 }
 
 .target-type.group {
-  background: #f0f0f0;
-  color: #666;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
 }
 
 .info-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 12px;
-  background: #f8f8f8;
+  background: var(--bg-tertiary);
   border-radius: 10px;
   padding: 12px;
 }
@@ -426,14 +426,14 @@ function handleClose() {
 
 .info-value {
   font-size: 13px;
-  color: #1a1a1a;
+  color: var(--text-primary);
   line-height: 1.4;
 
   &.description {
-    background: #fff;
+    background: var(--dt-panel-solid, var(--card-bg));
     padding: 8px 10px;
     border-radius: 6px;
-    border: 1px solid #e5e5e5;
+    border: 1px solid var(--border-color);
   }
 }
 
@@ -446,7 +446,7 @@ function handleClose() {
 }
 
 .status-tag.pending {
-  background: #fff3e0;
+  background: var(--warning-bg);
   color: #ff9800;
 }
 
@@ -472,12 +472,12 @@ function handleClose() {
 }
 
 .evidence-item {
-  border: 1px solid #e5e5e5;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   overflow: hidden;
   cursor: pointer;
   transition: all 0.2s;
-  background: #fff;
+  background: var(--dt-panel-solid, var(--card-bg));
 }
 
 .evidence-item:hover {
@@ -490,7 +490,7 @@ function handleClose() {
   width: 100%;
   height: 120px;
   overflow: hidden;
-  background: #f5f5f5;
+  background: var(--bg-tertiary);
 }
 
 .evidence-image {
@@ -529,12 +529,12 @@ function handleClose() {
 
 .evidence-info {
   padding: 8px 10px;
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid var(--border-color);
 }
 
 .file-name {
   font-size: 12px;
-  color: #1a1a1a;
+  color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -560,7 +560,7 @@ function handleClose() {
 .loading-spinner {
   width: 28px;
   height: 28px;
-  border: 2px solid #e5e5e5;
+  border: 2px solid var(--border-color);
   border-top-color: #007aff;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;

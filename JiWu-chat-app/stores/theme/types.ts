@@ -66,6 +66,8 @@ export interface ColorPalette {
   tagColor?: string;
   linkColor?: string;
   dangerColor?: string;
+  /** 成功色（用于在线状态、已同步等正向提示） */
+  successColor?: string;
   highlightBg?: string;
   highlightColor?: string;
   selectedBg?: string;

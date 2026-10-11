@@ -217,7 +217,7 @@ const securityTableData = computed(() => {
 
   // 现代化卡片样式
   .modern-card {
-    background-color: #ffffff;
+    background-color: var(--card-bg);
     border-radius: 8px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
     overflow: hidden;
@@ -226,7 +226,7 @@ const securityTableData = computed(() => {
     .card-header {
       padding: 12px 16px;
       border-bottom: 1px solid #e5e7eb;
-      background-color: #f8f9fa;
+      background-color: var(--bg-tertiary);
       color: #495057;
 
       .card-title {
@@ -253,7 +253,7 @@ const securityTableData = computed(() => {
           justify-content: space-between;
           align-items: flex-start;
           padding: 8px 0;
-          border-bottom: 1px solid #f0f0f0;
+          border-bottom: 1px solid var(--border-color);
 
           &:last-child {
             border-bottom: none;
@@ -292,7 +292,7 @@ const securityTableData = computed(() => {
 
   .loading-container {
     padding: 16px;
-    background-color: #ffffff;
+    background-color: var(--card-bg);
     border-radius: 8px;
     border: 1px solid #e5e7eb;
   }

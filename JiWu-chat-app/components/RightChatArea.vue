@@ -6,9 +6,32 @@
       :currentColorPalette="currentColorPalette"
       :hideMenuButton="props.readonly"
       :isTyping="isTyping"
+      :botThinking="botThinking"
       @navigate-to-edit="navigateToEdit"
       @toggle-drawer="showContactDrawer = !showContactDrawer"
       @refresh-contacts="emit('refreshContacts')"
+    />
+
+    <!-- 群聊风险提示横幅（QQ 式安全提醒，仅提示不拦截，用户可关闭） -->
+    <div v-if="showRiskBanner" class="group-risk-banner" :class="riskBannerLevel">
+      <WarningFilled class="risk-banner-icon" />
+      <span class="risk-banner-text">{{ riskBannerText }}</span>
+      <button class="risk-banner-link" type="button" @click="showRiskDetail = true">
+        了解详情
+      </button>
+      <button class="risk-banner-close" type="button" title="不再提示" @click="dismissRiskBanner">
+        <CloseOutlined />
+      </button>
+    </div>
+
+    <!-- 群聊风险详情弹窗 -->
+    <GroupRiskModal
+      :visible="showRiskDetail"
+      :group-name="activeContact?.name || ''"
+      :risk-level="activeContact?.riskLevel || 'normal'"
+      :report-count="activeContact?.riskReportCount || 0"
+      :reasons="activeContact?.riskReasons || []"
+      @update:visible="showRiskDetail = $event"
     />
 
     <!-- 搜索面板 -->
@@ -39,11 +62,13 @@
           :active-contact="activeContact"
           :show-join-group-notice="!!showJoinGroupNotice"
           :join-message-display-text="joinMessageDisplayText || ''"
+          :join-new-members="joinNewMembers"
           :is-self-chat="isSelfChat"
           :search-keyword="searchKeyword"
           :contacts="contacts"
           :current-user-id="Number(props.currentUserId)"
           :is-multi-select-mode="isMultiSelectMode"
+          :chat-loading="props.chatLoading"
           @preview-image="previewImageLocal"
           @preview-video="previewVideoLocal"
           @play-video-on-hover="playVideoOnHover"
@@ -52,17 +77,29 @@
           @send-message="handleSendMessageFromProfile"
           @report="handleReportFromProfile"
           @refresh-messages="refreshChatHistory"
-          @refresh-contacts="emit('refreshContacts')"
+          @refresh-contacts="(forceRefresh) => emit('refreshContacts', forceRefresh)"
           @re-edit-message="handleReEditMessage"
           @re-edit-image="handleReEditImage"
           @re-edit-video="handleReEditVideo"
           @toggle-multi-select-mode="handleToggleMultiSelectMode"
           @file-click="handleFileMessageClick"
           @redial-call="handleRedialCall"
+          @context-menu-show="handleContextMenuShow"
+          @context-menu-close="closeContextMenu"
+          @delete-message="handleMessageDelete"
+          @recall-message="handleMessageRecall"
+          @copy-message="handleMessageCopy"
+          @reply-message="handleMessageReply"
+          @forward-message="handleMessageForward"
+          @multi-select-message="handleMultiSelectMessage"
+          @retry-send-message="handleRetrySendMessage"
+          @mention-user="handleMentionUser"
+          @forward-messages="handleForwardMessages"
           ref="messageDisplayRef"
         />
       </div>
       <ContactDrawer
+        :key="activeContact ? String(activeContact.id) : 'empty-contact'"
         :visible="showContactDrawer"
         @update:visible="showContactDrawer = $event"
         :contact="activeContact"
@@ -153,6 +190,7 @@
         :they-blocked-me="theyBlockedMe"
         :no-content-tip="props.noContentTip"
         :active-contact="activeContact"
+        :reply-target="replyTarget"
         :currentColorPalette="currentColorPalette"
         :selected-images="selectedImages"
         :selected-videos="selectedVideos"
@@ -182,17 +220,8 @@
         @preview-file="previewTempFile"
         @play-video-on-hover="playVideoOnHover"
         @pause-video-on-leave="pauseVideoOnLeave"
-        @open-chat-history-modal="openChatHistoryModal"
         @add-screenshot="handleAddScreenshot"
-      />
-
-      <!-- 聊天记录管理模态框 -->
-      <ChatHistoryModal
-        :visible="showChatHistoryModal"
-        :contact-id="props.activeContactId"
-        :contacts="props.contacts"
-        :current-user-id="props.currentUserId"
-        @update:visible="showChatHistoryModal = $event"
+        @cancel-reply="replyTarget = null"
       />
 
       <!-- 添加好友模态框 -->
@@ -210,15 +239,37 @@
         @update:visible="showReportModal = $event"
       />
 
-      <!-- 消息右键菜单 -->
-      <MessageContextMenu
-        :visible="contextMenuVisible"
-        :position="contextMenuPosition"
-        :message="selectedMessage"
+      <!-- 消息右键菜单
+           统一 Teleport 到 body：菜单用视口坐标（event.clientX/clientY）定位，
+           挂到 body 可彻底摆脱祖先的层叠上下文 / overflow 裁剪影响，
+           与 SystemMessageCard、ContactDrawer 的菜单实现保持一致。 -->
+      <Teleport to="body">
+        <MessageContextMenu
+          :visible="contextMenuVisible"
+          :position="contextMenuPosition"
+          :message="selectedMessage"
+          :contacts="props.contacts"
+          :active-contact-id="props.activeContactId"
+          :current-user-id="Number(props.currentUserId)"
+          @close="closeContextMenu"
+          @delete="handleMessageDelete"
+          @recall="handleMessageRecall"
+          @copy="handleMessageCopy"
+          @reply="handleMessageReply"
+          @forward="handleMessageForward"
+          @multiSelect="handleMultiSelectMessage"
+        />
+      </Teleport>
+
+      <!-- 转发选择器 -->
+      <ForwardMessageModal
+        :visible="showForwardModal"
+        :messages="forwardTargetMessages"
         :contacts="props.contacts"
         :active-contact-id="props.activeContactId"
-        :current-user-id="Number(props.currentUserId)"
-        @close="closeContextMenu"
+        :loading="forwarding"
+        @update:visible="showForwardModal = $event"
+        @confirm="handleForwardConfirm"
       />
 
       <!-- 文件预览组件 -->
@@ -233,6 +284,7 @@
 </template>
 
 <script setup lang="ts">
+import { getErrorMessage } from "../untils/errorMessage";
 import {
   ref,
   reactive,
@@ -246,7 +298,6 @@ import {
 } from "vue";
 import { useRouter } from "vue-router";
 import { message, Modal } from "ant-design-vue";
-import { isElectron, openAuxiliaryWindow } from "../untils/electronHelper";
 import {
   LoadingOutlined,
   CloseOutlined,
@@ -257,10 +308,12 @@ import {
   PictureOutlined,
   LockOutlined,
   HistoryOutlined,
+  WarningFilled,
 } from "@ant-design/icons-vue";
 import { useUserStore } from "../stores/user";
 import { useCallStore } from "../stores/call";
 import { useSiderColor } from "../stores/siderColor";
+import GroupRiskModal from "./GroupRiskModal.vue";
 
 import {
   handleTopToggle,
@@ -282,15 +335,19 @@ import {
   handleSearchChatHistory,
   globalOriginalOrderManager, // 导入全局管理器
   updateContactLastMessage, // 导入更新联系人最后消息的函数
+  formatMessageContent, // 生成统一的联系人列表摘要文案（含撤回文案）
 } from "../untils/contactManager";
+
+// 群详情：统一入口，带去重缓存，避免与列表刷新重复请求同一个群
+import { fetchGroupDetail } from "../untils/messageManager";
 import {
   type ChatMessage,
   type Contact,
   type UserInfo,
   type ColorPalette,
+  type SelectedImage,
+  type SelectedVideo,
 } from "../types/chatTypes";
-import type { SelectedImage } from "../untils/imageHandler";
-import type { SelectedVideo } from "../untils/videoHandler";
 import { useShouldShowTimeStamp, useFormatMessageTime } from "../untils/rightchat";
 import {
   selectImage as selectImageUtil,
@@ -313,6 +370,8 @@ import request from "../untils/request";
 // 导入新组件
 import MessageContextMenu from "./MessageContextMenu.vue";
 import ChatFilePreview from "./ChatFilePreview.vue";
+import ForwardMessageModal from "./ForwardMessageModal.vue";
+import { forwardMessagesToTargets } from "../untils/forwardMessage";
 
 // 导入MessageDisplay和MessageInputArea组件用于类型引用
 import MessageDisplay from "./MessageDisplay.vue";
@@ -349,11 +408,13 @@ interface Props {
   noContentTip?: string; // 无消息时的提示文本
   currentUserId?: string; // 当前登录用户ID
   readonly?: boolean; // 是否只读
+  chatLoading?: boolean; // 会话消息是否正在加载（用于展示骨架屏）
 }
 
 const props = withDefaults(defineProps<Props>(), {
   noContentTip: "爱发消息的人 运气不会差...",
   currentUserId: "",
+  chatLoading: false,
 });
 
 // 组件事件定义
@@ -369,7 +430,7 @@ const emit = defineEmits<{
   (e: "dissolveGroup", groupId: string): void;
   (e: "updateGroupRule", groupId: string, rule: string): void;
   (e: "searchHistory", keyword: string, results: any[]): void;
-  (e: "refreshContacts"): void;
+  (e: "refreshContacts", forceRefresh?: boolean): void;
   (e: "send-message", payload: { userId: number; userInfo?: any }): void;
   (e: "contactSelect", contactId: string): void;
   (e: "startCall", contact: Contact, type: "audio" | "video"): void;
@@ -453,6 +514,44 @@ const currentTempPreviewIndex = ref(0); // 当前临时预览图片的索引
 const isTyping = ref(false); // 对方是否正在输入
 let typingTimer: ReturnType<typeof setTimeout> | null = null; // 防抖定时器
 
+// 🔥 群机器人「正在思考」状态（后端 bot_thinking_status 事件驱动）
+const botThinking = ref(false);
+let botThinkingTimer: ReturnType<typeof setTimeout> | null = null;
+
+const resetBotThinking = () => {
+  if (botThinkingTimer) {
+    clearTimeout(botThinkingTimer);
+    botThinkingTimer = null;
+  }
+  botThinking.value = false;
+};
+
+/**
+ * 群机器人正在思考：只处理当前会话所在的群。
+ * 兜底 60 秒自动收起，避免后端异常时提示一直挂着。
+ */
+const handleBotThinkingStatus = (data: any) => {
+  const contact = activeContact.value;
+  if (!contact?.isGroup) return;
+  const targetGroupId = `group_${String(data?.groupId ?? "")}`;
+  if (String(contact.id) !== targetGroupId) return;
+
+  if (botThinkingTimer) {
+    clearTimeout(botThinkingTimer);
+    botThinkingTimer = null;
+  }
+
+  if (data?.active) {
+    botThinking.value = true;
+    botThinkingTimer = setTimeout(() => {
+      botThinking.value = false;
+      botThinkingTimer = null;
+    }, 60000);
+  } else {
+    botThinking.value = false;
+  }
+};
+
 // 视频预览相关
 const showVideoPreview = ref(false); // 视频预览弹窗显示状态
 const previewVideoUrl = ref(""); // 当前预览的视频 URL
@@ -479,9 +578,7 @@ const contextMenuVisible = ref(false); // 右键菜单显示状态
 const contextMenuPosition = ref({ x: 0, y: 0 }); // 右键菜单位置
 const selectedMessage = ref<ChatMessage | null>(null); // 选中的消息
 const selectedBubbleElement = ref<HTMLElement | null>(null); // 选中的消息气泡DOM元素
-
-// 聊天记录管理相关
-const showChatHistoryModal = ref(false); // 聊天记录管理模态框显示状态
+const replyTarget = ref<ChatMessage | null>(null); // 引用回复的目标消息
 
 // 用户信息模态框相关
 const showAddFriendModal = ref(false); // 添加好友模态框显示状态
@@ -524,10 +621,46 @@ const handleMultiSelectMessage = (message: ChatMessage) => {
   // 进入多选模式
   isMultiSelectMode.value = true;
 
-  // TODO: 选中当前消息（需要在 MessageDisplay 中暴露方法）
+  // 选中当前消息（通过 MessageDisplay 暴露的 selectMessage 方法）
+  if (message.id) {
+    (messageDisplayRef.value as any)?.selectMessage?.(message.id);
+  }
 
   // 关闭右键菜单
   closeContextMenu();
+};
+
+// 重试发送失败的消息：复用 clientMessageId，后端幂等去重，不重复入库
+const handleRetrySendMessage = async (msg: ChatMessage) => {
+  if (!activeContact.value) return;
+  const type = msg.messageType || "text";
+
+  // 媒体消息重试需重新上传文件，暂不支持，提示手动重发
+  if (["image", "video", "file"].includes(type)) {
+    message.info("媒体消息请重新选择后发送");
+    return;
+  }
+
+  const clientMessageId = String(msg.id || "");
+
+  // 先移除旧的失败消息，避免重试成功后出现两条
+  const list = activeContact.value.messages;
+  const idx = list.findIndex((m) => String(m.id) === clientMessageId);
+  if (idx !== -1) list.splice(idx, 1);
+
+  await handleSendMessage(
+    props.activeContactId,
+    msg.content || "",
+    getOptions.value as any,
+    userStore,
+    type,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    (msg as any).replyTo,
+    clientMessageId,
+  );
 };
 
 // 切换表情包选择器显示状态
@@ -546,31 +679,6 @@ const toggleEmojiPicker = (e?: Event) => {
 // 关闭联系人抽屉
 const closeContactDrawer = () => {
   showContactDrawer.value = false;
-};
-
-// 打开聊天记录管理模态框
-const openChatHistoryModal = () => {
-  if (!activeContact.value) {
-    message.warning("请先选择一个联系人");
-    return;
-  }
-
-  // 桌面端：以独立窗口（自定义标题栏 + 内容）打开聊天记录
-  if (isElectron()) {
-    const contact = activeContact.value;
-    const title = contact.remark || contact.name || contact.username || "聊天记录";
-    const query = new URLSearchParams({
-      contactId: String(contact.id),
-      currentUserId: String(props.currentUserId || ""),
-      title,
-      isGroup: contact.isGroup ? "true" : "false",
-    });
-    openAuxiliaryWindow(`/chat-history?${query.toString()}`);
-    return;
-  }
-
-  // Web 端：保持原有模态框方式
-  showChatHistoryModal.value = true;
 };
 
 // 发送消息 - 支持文本、图片和视频消息
@@ -610,10 +718,24 @@ const sendMessageLocal = async () => {
     contacts: props.contacts,
     // 🔥 关键修复：传递rightChatAreaRef以触发消息区域刷新和滚动
     rightChatAreaRef: { value: { scrollToBottom } },
+    // 引用回复：把被引用的消息信息随发送一起带出
+    replyTo: replyTarget.value
+      ? {
+          messageId: replyTarget.value.id,
+          senderName:
+            replyTarget.value.sender?.nickname ||
+            replyTarget.value.sender?.username ||
+            replyTarget.value.senderName ||
+            "",
+          content: replyTarget.value.content || "",
+          messageType: replyTarget.value.messageType || "text",
+        }
+      : undefined,
   });
 
   // 🔥 修复：发送后同步清空 newMessage
   newMessage.value = "";
+  replyTarget.value = null;
 };
 
 // 处理回车发送消息 - 非shift+回车时发送
@@ -669,7 +791,9 @@ const insertEmoji = (emoji: string) => {
   showEmojiPicker.value = false;
 };
 
-// 点击页面其他区域关闭表情包选择器和右键菜单
+// 点击页面其他区域关闭表情包选择器
+// 注：右键菜单的关闭统一由 MessageContextMenu 内部的 document 监听负责，
+// 这里不再重复处理（原先仅判断 .message-bubble，卡片类消息不在该选择器内，判断过窄）。
 const handleClickOutside = (e: Event) => {
   const target = e.target as Element;
 
@@ -680,11 +804,6 @@ const handleClickOutside = (e: Event) => {
     !target.closest(".message-textarea-div")
   ) {
     showEmojiPicker.value = false;
-  }
-
-  // 判断点击目标是否在右键菜单外
-  if (!target.closest(".context-menu") && !target.closest(".message-bubble")) {
-    closeContextMenu();
   }
 };
 
@@ -981,7 +1100,9 @@ const chatHeaderStyle = computed(() => {
   }
   return {
     background: `linear-gradient(135deg, ${siderColorStore.currentColorPalette?.chatBgStart || "#f5f7fa"} 0%, ${siderColorStore.currentColorPalette?.chatBgMiddle || "#e5e9f2"} 50%, ${siderColorStore.currentColorPalette?.chatBgEnd || "#d0d8e8"} 100%)`,
-    borderBottom: `1px solid ${currentColorPalette.value.light}80`,
+    // 头部底部分割线：统一用 panelDividerColor，与右侧 border-right、联系人列表/输入框分割线保持一致。
+    // 原 `${light}80` 中 light 是 rgba 字符串，拼接后为无效颜色，导致分割线不可见。
+    borderBottom: `1px solid ${siderColorStore.panelDividerColor}`,
   };
 });
 
@@ -995,6 +1116,55 @@ const inputAreaStyle = computed(() => ({
 const activeContact = computed(() => {
   return props.contacts.find((contact) => contact.id === props.activeContactId);
 });
+
+// ==================== 群聊风险提示（QQ 式安全提醒） ====================
+const showRiskDetail = ref(false); // 风险详情弹窗
+/** 已关闭横幅的群 id 集合（按「群 id + 风险等级」记忆，等级变化时重新提示） */
+const dismissedRiskKeys = ref<Set<string>>(new Set());
+
+/** 当前群的风险等级 */
+const currentRiskLevel = computed(() => {
+  const c = activeContact.value;
+  if (!c || !c.isGroup) return "normal";
+  return c.riskLevel || "normal";
+});
+
+/** 是否展示风险横幅：群聊 + 有风险 + 未被用户关闭 */
+const showRiskBanner = computed(() => {
+  if (currentRiskLevel.value === "normal") return false;
+  const c = activeContact.value;
+  if (!c) return false;
+  const key = `${c.id}_${currentRiskLevel.value}`;
+  return !dismissedRiskKeys.value.has(key);
+});
+
+/** 横幅颜色分级 */
+const riskBannerLevel = computed(() => currentRiskLevel.value);
+
+/** 横幅文案 */
+const riskBannerText = computed(() => {
+  switch (currentRiskLevel.value) {
+    case "severe":
+      return "该群聊存在严重安全风险，请谨慎甄别信息";
+    case "high":
+      return "该群聊存在较高安全风险，请注意防范";
+    case "warning":
+      return "该群聊近期被多次举报，请注意防范风险";
+    case "watch":
+      return "该群聊近期收到举报，请谨慎甄别信息";
+    default:
+      return "";
+  }
+});
+
+/** 关闭横幅（按群 + 等级记忆，等级升高会重新提示） */
+const dismissRiskBanner = () => {
+  const c = activeContact.value;
+  if (!c) return;
+  dismissedRiskKeys.value.add(`${c.id}_${currentRiskLevel.value}`);
+  // 触发响应式更新（Set 的原地修改不会被 Vue 侦测）
+  dismissedRiskKeys.value = new Set(dismissedRiskKeys.value);
+};
 
 // 🔥 监听活动联系人变化，检查双向拉黑状态
 watch(
@@ -1232,10 +1402,7 @@ const performSearch = async (filters?: {
     currentSearchPage.value = 1;
   } catch (error) {
     console.error("搜索失败:", error);
-    message.error({
-      message: "搜索失败，请稍后重试",
-      grouping: true,
-    });
+    message.error("搜索失败，请稍后重试");
   } finally {
     isSearching.value = false;
   }
@@ -1279,53 +1446,76 @@ const scrollToMessage = (payload: {
   }
 };
 
-// 计算属性 - 群成员加入提示文本（最多显示 6 个，超出显示数量）
-const joinMessageDisplayText = computed(() => {
-  if (!activeContact.value?.joinMessages || activeContact.value.joinMessages.length === 0) {
-    return "";
+/**
+ * 入群通知数据源。
+ *
+ * 优先用后端群详情接口返回的 `joinNotices` 数组（权威数据源，含该群全部历史入群记录）；
+ * 老数据 / 接口未升级时回退到前端从聊天消息反解出的 `joinMessages`。
+ */
+const joinNoticeSource = computed<any[]>(() => {
+  const contact = activeContact.value as any;
+  if (!contact?.isGroup) return [];
+  if (Array.isArray(contact.joinNotices) && contact.joinNotices.length > 0) {
+    return contact.joinNotices;
   }
+  return Array.isArray(contact.joinMessages) ? contact.joinMessages : [];
+});
 
-  const joinMessages = activeContact.value.joinMessages;
-  const totalCount = joinMessages.length;
+// 是否具备 source 字段可用于区分「初始成员」与「新加入成员」
+const hasJoinSource = computed(() =>
+  joinNoticeSource.value.some((n: any) => n?.source !== undefined),
+);
+
+// 初始/默认成员（统一 tag）：后端群详情返回的历史成员，source 固定为 "join"；
+// 无 source 信息时全部视为初始成员（旧数据兜底）。
+const initialJoinNotices = computed<any[]>(() => {
+  const list = joinNoticeSource.value;
+  if (!list.length) return [];
+  if (!hasJoinSource.value) return list;
+  return list.filter((n: any) => n?.source === "join");
+});
+
+// 新加入成员（单独 tag）：实时 WS 推送的，source 为 invite / application / public / create 等非 "join"
+const newJoinNotices = computed<any[]>(() => {
+  const list = joinNoticeSource.value;
+  if (!list.length || !hasJoinSource.value) return [];
+  return list.filter((n: any) => n?.source !== undefined && n?.source !== "join");
+});
+
+// 计算属性 - 初始成员汇总提示文本（最多显示 6 个，超出显示数量）
+const joinMessageDisplayText = computed(() => {
+  const notices = initialJoinNotices.value;
+  if (notices.length === 0) return "";
+
+  const groupName = activeContact.value?.name || "";
+  const totalCount = notices.length;
   const threshold = 6;
 
-  // 获取群主信息作为默认邀请者
-  const owner = activeContact.value.owner;
-  const groupOwnerName = owner?.nickname || owner?.name || "群主";
+  const names = notices.map((m: any) => m.userName).filter(Boolean);
+
+  if (names.length === 0) return "";
 
   if (totalCount <= threshold) {
-    // 少于等于 6 个，显示全部：邀请者邀请了哪些人
-    // 过滤掉邀请者自己，避免重复显示
-    const invitedMembers = joinMessages.filter((m: any) => m.userName !== groupOwnerName);
-    const names = invitedMembers.map((m: any) => m.userName).join("、");
-
-    if (invitedMembers.length > 0) {
-      return `${groupOwnerName} 邀请了 ${names} 进入了${activeContact.value.name}`;
-    } else {
-      // 如果只有邀请者自己，显示特殊文案
-      return `${groupOwnerName} 加入了${activeContact.value.name}`;
-    }
-  } else if (totalCount > threshold) {
-    // 超过 6 个，显示前 6 个 + 总数
-    // 过滤掉邀请者自己后再截取
-    const invitedMembers = joinMessages.filter((m: any) => m.userName !== groupOwnerName);
-    const showNames = invitedMembers
-      .slice(0, 6)
-      .map((m: any) => m.userName)
-      .join("、");
-
-    const actualTotalCount = invitedMembers.length;
-    if (actualTotalCount > 0) {
-      if (actualTotalCount <= 6) {
-        return `${groupOwnerName} 邀请了 ${showNames} 进入了${activeContact.value.name}`;
-      } else {
-        return `${groupOwnerName} 邀请了 ${showNames} 等${actualTotalCount}位成员进入了${activeContact.value.name}`;
-      }
-    }
-    // 如果没有被邀请的成员，返回空字符串
-    return "";
+    return `${names.join("、")} 加入了${groupName}`;
   }
+
+  const showNames = names.slice(0, 6).join("、");
+  return `${showNames} 等${totalCount}位成员加入了${groupName}`;
 });
+
+// 新加入成员列表（每条独立 tag，不合并进初始汇总）
+const joinNewMembers = computed(() =>
+  [...newJoinNotices.value]
+    .sort((a: any, b: any) => {
+      const ta = new Date(a?.time || a?.joinedAt || 0).getTime();
+      const tb = new Date(b?.time || b?.joinedAt || 0).getTime();
+      return (isNaN(ta) ? 0 : ta) - (isNaN(tb) ? 0 : tb);
+    })
+    .map((n: any) => ({
+      userName: n.userName,
+      time: n.time || n.joinedAt || "",
+    })),
+);
 
 // 滚动到消息底部 - 确保最新消息可见
 const scrollToBottom = () => {
@@ -1367,6 +1557,8 @@ const setupTypingStatusListener = async () => {
 
     // 监听对方正在输入的状态
     websocketService.on("typing_status", handleTypingStatusUpdate);
+    // 监听群机器人「正在思考」状态
+    websocketService.on("bot_thinking_status", handleBotThinkingStatus);
   } catch (error) {
     console.error("[RightChatArea] 设置正在输入监听失败:", error);
   }
@@ -1436,6 +1628,9 @@ onUnmounted(() => {
   // 🔥 清理"正在输入"状态的WebSocket监听
   cleanupTypingStatusListener();
 
+  // 🔥 清除群机器人「正在思考」状态
+  resetBotThinking();
+
   // 🔥 清除防抖定时器
   if (typingTimer) {
     clearTimeout(typingTimer);
@@ -1471,6 +1666,7 @@ const cleanupTypingStatusListener = async () => {
   try {
     const { websocketService } = await import("../untils/websocket");
     websocketService.off("typing_status", handleTypingStatusUpdate);
+    websocketService.off("bot_thinking_status", handleBotThinkingStatus);
   } catch (error) {
     console.error("[RightChatArea] 清理正在输入监听失败:", error);
   }
@@ -1515,7 +1711,6 @@ const isCurrentUserGroupOrAdmin = computed(() => {
   if (!activeContact.value?.isGroup) return false;
   const currentUserId = String(props.currentUserId).trim();
 
-  // 检查是否是群主
   const groupOwnerId =
     activeContact.value.groupOwnerId ||
     (activeContact.value.owner && String(activeContact.value.owner.id));
@@ -1524,15 +1719,17 @@ const isCurrentUserGroupOrAdmin = computed(() => {
     return true;
   }
 
-  // 检查是否是管理员
-  if (activeContact.value.admin && Array.isArray(activeContact.value.admin)) {
-    const isAdmin = activeContact.value.admin.some(
-      (admin: any) => String(admin.id).trim() === String(currentUserId),
-    );
-    return isAdmin;
-  }
+  const explicitAdmins = Array.isArray(activeContact.value.admin) ? activeContact.value.admin : [];
+  const derivedAdmins = Array.isArray(activeContact.value.groupMembers)
+    ? activeContact.value.groupMembers.filter(
+        (member: any) => String(member?.role || "").toLowerCase() === "admin",
+      )
+    : [];
 
-  return false;
+  return [...explicitAdmins, ...derivedAdmins].some((admin: any) => {
+    const adminId = String(admin?.id ?? admin?.userId ?? admin?.user?.id ?? "").trim();
+    return adminId === currentUserId;
+  });
 });
 
 // 计算属性 - 获取当前群公告内容
@@ -1542,17 +1739,31 @@ const groupRule = computed(() => {
 
 // 计算属性 - 获取群管理员列表（排除群主）
 const groupAdmins = computed(() => {
-  if (!activeContact.value?.admin || !Array.isArray(activeContact.value.admin)) {
+  if (!activeContact.value?.isGroup) {
     return [];
   }
+
+  const explicitAdmins = Array.isArray(activeContact.value.admin) ? activeContact.value.admin : [];
+  const derivedAdmins = Array.isArray(activeContact.value.groupMembers)
+    ? activeContact.value.groupMembers
+        .filter((member: any) => String(member?.role || "").toLowerCase() === "admin")
+        .map((member: any) => ({
+          ...member,
+          id: member.id ?? member.userId ?? member.user?.id,
+          name: member.name ?? member.nickname ?? member.username ?? "管理员",
+          role: "admin",
+        }))
+    : [];
 
   const ownerId =
     activeContact.value.groupOwnerId ||
     (activeContact.value.owner && String(activeContact.value.owner.id));
 
-  return activeContact.value.admin.filter(
-    (admin: any) => !ownerId || String(admin.id) !== String(ownerId),
-  );
+  const mergedAdmins = [...explicitAdmins, ...derivedAdmins];
+  return mergedAdmins.filter((admin: any) => {
+    const adminId = String(admin?.id ?? admin?.userId ?? admin?.user?.id ?? "");
+    return !ownerId || adminId !== String(ownerId);
+  });
 });
 
 // 计算属性 - 过滤出普通群成员（排除群主和管理员）
@@ -1617,23 +1828,31 @@ watch(
     isMuted.value = newVal.isMuted || false;
 
     if (newVal.isGroup) {
-      const groupId = String(newVal.id).replace("group_", "");
+      const groupId = String(newVal.id);
       try {
-        const response = await request.get(`/group/${groupId}`);
-        if (response.data) {
+        // 统一走 fetchGroupDetail：与列表刷新共用去重缓存，避免同一个群详情连发两次
+        const groupData = await fetchGroupDetail(groupId);
+        if (groupData) {
           const contactInList = props.contacts.find((c) => String(c.id) === String(newVal.id));
           if (contactInList) {
-            contactInList.muteAll = response.data.muteAll;
-            contactInList.role = response.data.role;
-            contactInList.groupRule = response.data.rule;
+            contactInList.muteAll = groupData.muteAll;
+            contactInList.role = groupData.role;
+            contactInList.groupRule = groupData.rule;
           }
         }
-      } catch (error) {
-        message.error(error.response.data.data.message);
+      } catch (error: any) {
+        // 打印接口与响应体，便于定位「切到群聊就提示操作失败」到底是哪一步失败
+        console.error(
+          "[群详情] GET /group/" + groupId + " 失败:",
+          error?.response?.status,
+          error?.response?.data,
+        );
+        message.error(getErrorMessage(error, "操作失败"));
       }
     }
 
     // 重置 UI 状态
+    resetBotThinking();
     showAllMembers.value = false;
     isEditingRule.value = false;
     tempGroupRule.value = newVal.groupRule || "";
@@ -1956,25 +2175,14 @@ const shouldShowTimeStamp = (message: ChatMessage, index: number): boolean => {
 
 // 页面显示判断 - 抽取所有v-if判断
 const showJoinGroupNotice = computed(() => {
-  // 只有在群聊中且存在 group_notification 类型的消息时才显示加入提示
+  // 只有在群聊中且存在入群记录时才显示
   if (!activeContact.value?.isGroup) return false;
 
-  // 检查消息列表中是否有 group_notification 类型的消息（用于标识邀请加入）
-  const hasInviteJoinMessage = activeContact.value.messages?.some((msg: any) => {
-    try {
-      if (!msg.content) return false;
-      const content = JSON.parse(msg.content);
-      // group_notification 类型且包含邀请相关信息
-      return (
-        (content.type === "group_notification" && content.inviter) ||
-        msg.messageType === "group_notification"
-      );
-    } catch {
-      return false;
-    }
-  });
-
-  return hasInviteJoinMessage && !!activeContact.value.joinMessages?.length;
+  // 以入群通知数量为准：
+  //   优先后端群详情的 joinNotices（含全部历史记录），回退前端反解的 joinMessages。
+  //   不要求「消息列表里存在 group_notification」——那是发给邀请者的，
+  //   被邀请进群的人消息列表里没有，加这个条件会导致被邀请者看不到入群通知。
+  return joinNoticeSource.value.length > 0;
 });
 const showGroupRuleSection = computed(
   () => activeContact.value?.isGroup && (activeContact.value.groupRule || tempGroupRule.value),
@@ -2063,6 +2271,18 @@ const handleDissolveGroupLocal = (groupId: string) => {
   showContactDrawer.value = false;
 };
 
+const handleQuitGroupLocal = (groupId: string | number) => {
+  console.log("handleQuitGroupLocal被调用:", groupId);
+  emit("quitGroup", String(groupId));
+  showContactDrawer.value = false;
+};
+
+const handleUpdateGroupRuleLocal = (groupId: string | number, rule: string) => {
+  console.log("handleUpdateGroupRuleLocal被调用:", { groupId, rule });
+  emit("updateGroupRule", String(groupId), rule);
+  showContactDrawer.value = false;
+};
+
 const handleDeleteTemporaryContactLocal = (contactId: string | number) => {
   console.log("handleDeleteTemporaryContactLocal被调用:", contactId);
   emit("deleteTemporaryContact", contactId);
@@ -2102,40 +2322,127 @@ const handleMessageRecall = async (message: any, originalContent?: string, recal
     if (!activeContact.value) return;
 
     // 查找对应的消息并更新为已撤回状态
+    // （id 在「乐观发送 temp_字符串」和「服务端数字 id」之间不统一，统一按字符串比较）
     const targetMessage = activeContact.value.messages.find(
-      (msg: ChatMessage) => msg.id === message.id,
+      (msg: ChatMessage) => String(msg.id) === String(message?.id),
     );
 
-    if (targetMessage) {
-      // 使用后端返回的时间，如果没有则使用当前时间
-      const recallTime = recalledAt || new Date().toISOString();
+    // 使用后端返回的时间，如果没有则使用当前时间
+    const recallTime = recalledAt || new Date().toISOString();
 
+    if (targetMessage) {
+      // 先做一次本地乐观更新，撤回提示立即出现，不用等网络
       targetMessage.isRecalled = true;
       targetMessage.recalledAt = recallTime;
       targetMessage.recalledContent = originalContent || message.content; // 保存原始内容
       targetMessage.content = ""; // 清空内容，避免渲染空气泡
-
-      // 关键修复：更新联系人的最后一条消息，确保联系人列表显示撤回提示
-      const senderName =
-        targetMessage.senderId === props.currentUserId ? "你" : targetMessage.senderName || "对方";
-      const recallMessage = `${senderName}撤回了消息`;
-      updateContactLastMessage(props.contacts, activeContact.value.id, recallMessage, recallTime);
-
-      // 发射 refreshContacts 事件，通知父组件更新联系人列表
-      emit("refreshContacts");
-
-      message.success("消息已撤回");
     }
+
+    // 更新联系人的最后一条消息，确保联系人列表显示撤回提示
+    // 用 formatMessageContent 生成与列表刷新后完全一致的撤回文案（走自定义撤回文案，且绝不泄漏原内容）
+    const recallMessage = formatMessageContent(
+      "text",
+      "",
+      !!activeContact.value.isGroup,
+      targetMessage?.sender ?? message?.sender,
+      true,
+      String(props.currentUserId),
+      targetMessage?.senderId ?? message?.senderId,
+    );
+    updateContactLastMessage(props.contacts, activeContact.value.id, recallMessage, recallTime);
+
+    // 🔥 以服务端为准重取一次聊天记录：
+    // 撤回后只靠本地 mutation 不保险（联系人对象/messages 数组会被后续刷新替换），
+    // 与「删除撤回消息」路径保持一致（MessageDisplay 里同时 emit refresh-messages + refresh-contacts）。
+    await refreshChatHistory();
+
+    // 发射 refreshContacts 事件，通知父组件更新联系人列表（forceRefresh 绕过缓存，避免摘要被旧缓存覆盖）
+    emit("refreshContacts", true);
+
+    message.success("消息已撤回");
   } catch (error: any) {
     console.error("撤回消息失败:", error);
     message.error(error.response?.data?.message || "撤回消息失败");
   }
 };
 
-const handleMessageForward = (message: any) => {
-  console.log("转发消息:", message);
-  // TODO: 打开联系人选择器，实现转发功能
-  message.info("转发功能开发中");
+// ==================== 转发 ====================
+const showForwardModal = ref(false);
+const forwarding = ref(false);
+/** 待转发的消息（单条右键转发长度为 1，多选批量转发为多条） */
+const forwardTargetMessages = ref<ChatMessage[]>([]);
+
+const openForwardModal = (list: ChatMessage[]) => {
+  if (!list.length) return;
+  forwardTargetMessages.value = list;
+  showForwardModal.value = true;
+};
+
+/** 右键菜单「转发」：单条转发 */
+const handleMessageForward = (msg: ChatMessage) => {
+  if (!msg) return;
+  openForwardModal([msg]);
+  // 弹窗打开后顺手关掉右键菜单，避免两层叠加
+  closeContextMenu();
+};
+
+/** 多选工具栏「转发」：批量转发 */
+const handleForwardMessages = (list: ChatMessage[]) => {
+  if (!list?.length) {
+    message.warning("请先选择要转发的消息");
+    return;
+  }
+  openForwardModal(list);
+};
+
+/** 确认转发：把所有待发消息发到选中的会话 */
+const handleForwardConfirm = async (targetIds: (string | number)[]) => {
+  const list = forwardTargetMessages.value;
+  if (!list.length || !targetIds.length) return;
+
+  forwarding.value = true;
+  try {
+    const { success, failed } = await forwardMessagesToTargets(list, targetIds, {
+      contacts: props.contacts,
+      currentUserId: props.currentUserId,
+      userStore,
+      rightChatAreaRef: { value: { scrollToBottom } },
+    });
+
+    if (success && !failed) {
+      message.success(
+        `已转发 ${list.length} 条消息到 ${targetIds.length} 个会话`,
+      );
+    } else if (success) {
+      message.warning(`转发完成：成功 ${success} 项，失败 ${failed} 项`);
+    } else {
+      message.error("转发失败，请稍后重试");
+    }
+
+    showForwardModal.value = false;
+    forwardTargetMessages.value = [];
+    // 批量转发结束后退出多选模式
+    if (list.length > 1) {
+      isMultiSelectMode.value = false;
+    }
+  } catch (e) {
+    console.error("转发失败:", e);
+    message.error("转发失败，请稍后重试");
+  } finally {
+    forwarding.value = false;
+  }
+};
+
+/** 群聊中 @Ta：把「@昵称 」插入输入框并聚焦 */
+const handleMentionUser = (displayName: string) => {
+  if (!displayName) return;
+  const inputArea = messageInputAreaRef.value;
+  // 先聚焦，保证 selection 落在输入框内，避免 @ 被插到别的位置
+  inputArea?.messageTextareaRef?.focus();
+  inputArea?.handleInsertEmoji?.(`@${displayName} `);
+  nextTick(() => {
+    inputArea?.messageTextareaRef?.focus();
+  });
 };
 
 const handleMessageDelete = async (message: any) => {
@@ -2169,8 +2476,8 @@ const handleMessageDelete = async (message: any) => {
         updateContactLastMessage(props.contacts, activeContact.value.id, "", "");
       }
 
-      // 发射 refreshContacts 事件，通知父组件更新联系人列表
-      emit("refreshContacts");
+      // 发射 refreshContacts 事件，通知父组件更新联系人列表（forceRefresh 绕过缓存，避免摘要被旧缓存覆盖）
+      emit("refreshContacts", true);
 
       message.success("消息已删除");
     }
@@ -2281,6 +2588,12 @@ const handleReEditVideo = async (videoUrl: string) => {
   }
 };
 
+// 处理引用（回复）消息 - 设置引用目标，输入区显示引用预览条
+const handleMessageReply = (message: ChatMessage) => {
+  if (!message) return;
+  replyTarget.value = message;
+};
+
 // 关闭右键菜单
 const closeContextMenu = () => {
   contextMenuVisible.value = false;
@@ -2337,12 +2650,11 @@ const handleReportFromProfile = (userId: number) => {
 // 🔥 文件预览相关处理函数
 
 // 处理文件消息点击 - 打开文件预览
-const handleFileMessageClick = (message: ChatMessage) => {
-  if (message.messageType !== "file") return;
+const handleFileMessageClick = (msg: ChatMessage) => {
+  if (msg.messageType !== "file") return;
 
   try {
-    const content =
-      typeof message.content === "string" ? JSON.parse(message.content) : message.content;
+    const content = typeof msg.content === "string" ? JSON.parse(msg.content) : msg.content;
 
     previewFileInfo.value = {
       url: content.url || "",
@@ -2386,4 +2698,103 @@ const getFileExtension = (filename: string): string => {
 
 <style lang="scss" scoped>
 @use "../assets/scss/rightchat.scss";
+
+/* ==================== 群聊风险提示横幅（QQ 式安全提醒） ==================== */
+.group-risk-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  padding: 8px 14px;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: #b45309;
+  background: rgba(245, 158, 11, 0.12);
+  border-bottom: 1px solid rgba(245, 158, 11, 0.22);
+
+  .risk-banner-icon {
+    flex-shrink: 0;
+    font-size: 14px;
+    color: #f59e0b;
+  }
+
+  .risk-banner-text {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .risk-banner-link {
+    flex-shrink: 0;
+    padding: 0;
+    font-size: 12.5px;
+    color: #d97706;
+    background: transparent;
+    border: none;
+    text-decoration: underline;
+    cursor: pointer;
+
+    &:hover {
+      color: #b45309;
+    }
+  }
+
+  .risk-banner-close {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    font-size: 12px;
+    color: #b45309;
+    background: transparent;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    opacity: 0.7;
+
+    &:hover {
+      opacity: 1;
+      background: rgba(180, 83, 9, 0.12);
+    }
+  }
+
+  /* 分级配色：风险越高越偏红 */
+  &.warning {
+    color: #c2410c;
+    background: rgba(249, 115, 22, 0.12);
+    border-bottom-color: rgba(249, 115, 22, 0.22);
+
+    .risk-banner-icon,
+    .risk-banner-link {
+      color: #f97316;
+    }
+  }
+
+  &.high {
+    color: #b91c1c;
+    background: rgba(239, 68, 68, 0.12);
+    border-bottom-color: rgba(239, 68, 68, 0.22);
+
+    .risk-banner-icon,
+    .risk-banner-link {
+      color: #ef4444;
+    }
+  }
+
+  &.severe {
+    color: #991b1b;
+    background: rgba(220, 38, 38, 0.14);
+    border-bottom-color: rgba(220, 38, 38, 0.26);
+
+    .risk-banner-icon,
+    .risk-banner-link {
+      color: #dc2626;
+    }
+  }
+}
 </style>

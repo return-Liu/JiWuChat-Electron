@@ -1,8 +1,10 @@
 <template>
+  <!-- 右键菜单统一交给外层 MessageDisplay 的 .message-content 冒泡处理，
+       不再 stopPropagation：这样群主 / 管理员权限（contacts、activeContactId）
+       由 RightChatArea 的菜单正确计算，也不会出现两套菜单实现。 -->
   <div
     class="group-system-message"
     :class="{ 'has-dynamic-bg': siderColorStore.hasDynamicBackground }"
-    @contextmenu.stop.prevent="handleCardRightClick"
   >
     <div
       class="msg-card"
@@ -34,31 +36,12 @@
         </div>
       </div>
     </div>
-
-    <Teleport to="body">
-      <MessageContextMenu
-        v-if="contextMenuVisible"
-        :visible="contextMenuVisible"
-        :position="contextMenuPosition"
-        :message="message"
-        :contacts="[]"
-        :active-contact-id="undefined"
-        :current-user-id="currentUserId"
-        @close="closeContextMenu"
-        @delete="handleDeleteMessage"
-        @recall="handleRecallMessage"
-        @copy="handleCopyMessage"
-        @reply="handleReplyMessage"
-        @forward="handleForwardMessage"
-        @multiSelect="handleMultiSelectMessage"
-      />
-    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from "vue";
-import { message } from "ant-design-vue";
+import { computed } from "vue";
+import { message as antMessage } from "ant-design-vue";
 import type { ChatMessage } from "../types/chatTypes";
 import { useSiderColor } from "../stores/siderColor";
 
@@ -80,16 +63,7 @@ interface Props {
 const props = defineProps<Props>();
 const emit = defineEmits<{
   openDetail: [message: ChatMessage];
-  delete: [message: ChatMessage];
-  recall: [message: ChatMessage, originalContent?: string, recalledAt?: string];
-  copy: [message: ChatMessage];
-  reply: [message: ChatMessage];
-  forward: [message: ChatMessage];
-  multiSelect: [message: ChatMessage];
 }>();
-
-const contextMenuVisible = ref(false);
-const contextMenuPosition = ref({ x: 0, y: 0 });
 
 // ✅ 安全解析消息内容
 const messageData = computed(() => {
@@ -152,52 +126,11 @@ function handleCardClick() {
   }
 
   if (messageType.value === "group_invite_pending" && isExpired.value) {
-    message.warning("该入群邀请已过期，无法查看详情");
+    antMessage.warning("该入群邀请已过期，无法查看详情");
     return;
   }
 
   emit("openDetail", props.message);
-}
-
-function handleCardRightClick(event: MouseEvent) {
-  event.preventDefault();
-  event.stopPropagation();
-  contextMenuPosition.value = { x: event.clientX, y: event.clientY };
-  contextMenuVisible.value = true;
-}
-
-function closeContextMenu() {
-  contextMenuVisible.value = false;
-}
-
-function handleDeleteMessage(msg: ChatMessage) {
-  emit("delete", msg);
-  closeContextMenu();
-}
-
-function handleRecallMessage(msg: ChatMessage, originalContent?: string, recalledAt?: string) {
-  emit("recall", msg, originalContent, recalledAt);
-  closeContextMenu();
-}
-
-function handleCopyMessage(msg: ChatMessage) {
-  emit("copy", msg);
-  closeContextMenu();
-}
-
-function handleReplyMessage(msg: ChatMessage) {
-  emit("reply", msg);
-  closeContextMenu();
-}
-
-function handleForwardMessage(msg: ChatMessage) {
-  emit("forward", msg);
-  closeContextMenu();
-}
-
-function handleMultiSelectMessage(msg: ChatMessage) {
-  emit("multiSelect", msg);
-  closeContextMenu();
 }
 </script>
 
@@ -208,9 +141,9 @@ function handleMultiSelectMessage(msg: ChatMessage) {
 
 .msg-card {
   width: 230px;
-  background: #fff;
+  background: var(--card-bg);
   border-radius: 12px;
-  border: 1px solid #e5e5e5;
+  border: 1px solid var(--border-color);
   overflow: hidden;
   cursor: pointer;
   transition: all 0.25s ease;
@@ -224,15 +157,13 @@ function handleMultiSelectMessage(msg: ChatMessage) {
   -webkit-backdrop-filter: blur(8px);
 }
 .group-system-message.has-dynamic-bg .msg-title {
-  color: #fff;
-  text-shadow:
-    0 1px 3px rgba(0, 0, 0, 0.75),
-    0 0 8px rgba(0, 0, 0, 0.5);
+  color: var(--dt-text);
+  text-shadow: var(--dt-text-shadow);
 }
 .group-system-message.has-dynamic-bg .msg-subtitle,
 .group-system-message.has-dynamic-bg .status-text {
   color: rgba(255, 255, 255, 0.85);
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75);
+  text-shadow: var(--dt-text-shadow);
 }
 .group-system-message.has-dynamic-bg .card-divider {
   background: rgba(255, 255, 255, 0.25);
@@ -265,7 +196,7 @@ function handleMultiSelectMessage(msg: ChatMessage) {
   border-radius: 6px;
   overflow: hidden;
   flex-shrink: 0;
-  background: #f5f5f5;
+  background: var(--bg-tertiary);
 }
 
 .card-avatar img {
@@ -283,7 +214,7 @@ function handleMultiSelectMessage(msg: ChatMessage) {
 .msg-title {
   font-size: 13px;
   font-weight: 500;
-  color: #1a1a1a;
+  color: var(--text-primary);
   line-height: 1.3;
 }
 
@@ -300,7 +231,7 @@ function handleMultiSelectMessage(msg: ChatMessage) {
 
 .card-divider {
   height: 1px;
-  background: #f0f0f0;
+  background: var(--bg-tertiary);
 }
 
 .card-footer {

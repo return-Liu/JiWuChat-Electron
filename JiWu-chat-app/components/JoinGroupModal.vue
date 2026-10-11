@@ -13,7 +13,7 @@
             @click="handleClose"
             :disabled="isSubmitting"
           >
-            ✕
+            <CloseOutlined />
           </button>
         </div>
 
@@ -21,6 +21,7 @@
         <div class="modal-body">
           <!-- 搜索区域 -->
           <div class="search-panel">
+            <!-- 与「添加好友」保持一致的输入框外观（原生 input + .form-input 同款样式） -->
             <input
               v-model="groupNumber"
               type="text"
@@ -35,15 +36,15 @@
               v-if="groupNumber || groupNumberError || isSearching"
             >
               <div v-if="isSearching" class="searching">
-                <span class="loading-spinner small"></span>
+                <LoadingOutlined class="small-spin" />
                 <span>正在搜索群聊信息…</span>
               </div>
               <div v-else-if="groupNumberError" class="error">
-                <span class="error-icon">!</span>
+                <ExclamationCircleFilled class="feedback-icon error-icon" />
                 <span>{{ groupNumberError }}</span>
               </div>
               <div v-else-if="selectedGroupInfo" class="success">
-                <span class="success-icon">✓</span>
+                <CheckCircleFilled class="feedback-icon success-icon" />
                 <span>找到群聊：{{ selectedGroupInfo.name }}</span>
               </div>
             </div>
@@ -95,12 +96,6 @@
                       >
                     </div>
                   </div>
-                </div>
-                <div
-                  v-if="selectedGroupInfo?.id === item.id"
-                  class="checked-icon"
-                >
-                  ✓
                 </div>
               </div>
             </div>
@@ -195,7 +190,7 @@
         <!-- 底部操作 -->
         <div class="modal-footer">
           <div class="alert-tip">
-            <span class="alert-icon">!</span>
+            <ExclamationCircleFilled class="alert-icon" />
             <span>提交加入申请即表示您同意遵守该群的相关规定</span>
           </div>
           <div class="action-row">
@@ -222,9 +217,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onUnmounted, computed } from "vue";
+import { getErrorMessage } from "../untils/errorMessage";
+import { ref, watch, onUnmounted } from "vue";
 import request from "../untils/request";
 import { message } from "ant-design-vue";
+import {
+  CloseOutlined,
+  LoadingOutlined,
+  CheckCircleFilled,
+  ExclamationCircleFilled,
+} from "@ant-design/icons-vue";
 
 interface GroupInfo {
   id: number | string;
@@ -369,7 +371,7 @@ const handleSubmit = async () => {
     emit("success");
     resetForm();
   } catch (err: any) {
-    message.error(err.response?.data?.data?.message || "操作失败");
+    message.error(getErrorMessage(err, "操作失败"));
   }
 };
 
@@ -395,7 +397,7 @@ onUnmounted(() => {
   width: 100%;
   max-width: 600px;
   max-height: 85vh;
-  background: #fff;
+  background: var(--dt-panel-solid, var(--card-bg));
   border-radius: 12px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
   display: flex;
@@ -408,20 +410,20 @@ onUnmounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 20px 24px;
-  border-bottom: 1px solid #f0f0f0;
-  background: #fff;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--dt-panel-solid, var(--card-bg));
 
   .header-left {
     .title {
       margin: 0 0 4px;
       font-size: 20px;
       font-weight: 600;
-      color: #1d2129;
+      color: var(--text-primary);
     }
     .desc {
       margin: 0;
       font-size: 13px;
-      color: #86909c;
+      color: var(--text-tertiary);
     }
   }
 
@@ -431,8 +433,8 @@ onUnmounted(() => {
     border-radius: 50%;
     background: transparent;
     border: none;
-    font-size: 18px;
-    color: #86909c;
+    font-size: 16px;
+    color: var(--text-tertiary);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -440,8 +442,8 @@ onUnmounted(() => {
     transition: background 0.2s;
 
     &:hover {
-      background: #f2f3f5;
-      color: #1d2129;
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
     }
   }
 }
@@ -453,7 +455,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 20px;
-  background: #fff;
+  background: var(--dt-panel-solid, var(--card-bg));
 }
 
 .search-panel {
@@ -465,11 +467,16 @@ onUnmounted(() => {
 .search-input {
   width: 100%;
   padding: 10px 12px;
-  border: 1px solid #e5e6eb;
-  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
   font-size: 14px;
-  background: #fff;
+  color: var(--text-primary);
+  background: var(--dt-panel-solid, var(--card-bg));
   transition: border-color 0.2s;
+
+  &::placeholder {
+    color: var(--text-tertiary);
+  }
 
   &:focus {
     outline: none;
@@ -477,7 +484,8 @@ onUnmounted(() => {
   }
 
   &.input-error {
-    border-color: #f53f3f;
+    border-color: var(--error-color);
+    background: var(--error-bg);
   }
 }
 
@@ -488,46 +496,34 @@ onUnmounted(() => {
   gap: 6px;
 
   .searching {
-    color: #86909c;
+    color: var(--text-tertiary);
     display: flex;
     align-items: center;
     gap: 6px;
   }
 
   .error {
-    color: #f53f3f;
+    color: var(--error-color);
     display: flex;
     align-items: center;
     gap: 6px;
   }
 
   .success {
-    color: #00b42a;
+    color: var(--success-color);
     display: flex;
     align-items: center;
     gap: 6px;
   }
 }
 
-.error-icon,
-.success-icon {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px;
+.feedback-icon {
+  font-size: 14px;
 }
 
-.error-icon {
-  background: #f53f3f;
-  color: #fff;
-}
-
-.success-icon {
-  background: #00b42a;
-  color: #fff;
+.small-spin {
+  font-size: 12px;
+  color: #4080ff;
 }
 
 .group-list-panel {
@@ -538,7 +534,7 @@ onUnmounted(() => {
       margin: 0;
       font-size: 14px;
       font-weight: 600;
-      color: #1d2129;
+      color: var(--text-primary);
     }
   }
 
@@ -557,11 +553,11 @@ onUnmounted(() => {
     transition: background 0.2s;
 
     &:hover {
-      background: #f5f6f7;
+      background: var(--bg-tertiary);
     }
 
     &.active {
-      background: #f0f7ff;
+      background: var(--color-primary-light);
     }
   }
 
@@ -588,7 +584,7 @@ onUnmounted(() => {
       right: -2px;
       width: 16px;
       height: 16px;
-      background: #ff9800;
+      background: var(--warning-color);
       border-radius: 50%;
     }
   }
@@ -606,7 +602,7 @@ onUnmounted(() => {
     .name {
       font-size: 14px;
       font-weight: 500;
-      color: #1d2129;
+      color: var(--text-primary);
     }
 
     .tags {
@@ -620,12 +616,12 @@ onUnmounted(() => {
       border-radius: 4px;
 
       &.private {
-        background: #fff3e0;
-        color: #ff9800;
+        background: var(--warning-bg);
+        color: var(--warning-color);
       }
 
       &.approval {
-        background: #e6f7ff;
+        background: var(--color-primary-light);
         color: #4080ff;
       }
     }
@@ -635,23 +631,11 @@ onUnmounted(() => {
     display: flex;
     justify-content: space-between;
     font-size: 11px;
-    color: #86909c;
+    color: var(--text-tertiary);
 
     .count {
-      color: #86909c;
+      color: var(--text-tertiary);
     }
-  }
-
-  .checked-icon {
-    width: 20px;
-    height: 20px;
-    background: #4080ff;
-    color: #fff;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 12px;
   }
 }
 
@@ -660,11 +644,11 @@ onUnmounted(() => {
     margin: 0 0 12px;
     font-size: 14px;
     font-weight: 600;
-    color: #1d2129;
+    color: var(--text-primary);
   }
 
   .detail-card {
-    background: #f8f9fa;
+    background: var(--bg-tertiary);
     border-radius: 12px;
     padding: 16px;
   }
@@ -675,7 +659,7 @@ onUnmounted(() => {
     gap: 14px;
     padding-bottom: 14px;
     margin-bottom: 14px;
-    border-bottom: 1px solid #e5e6eb;
+    border-bottom: 1px solid var(--border-color);
 
     .detail-avatar {
       width: 56px;
@@ -689,13 +673,13 @@ onUnmounted(() => {
         margin: 0 0 4px;
         font-size: 16px;
         font-weight: 500;
-        color: #1d2129;
+        color: var(--text-primary);
       }
 
       .group-number {
         margin: 0 0 8px;
         font-size: 12px;
-        color: #86909c;
+        color: var(--text-tertiary);
       }
 
       .detail-tags {
@@ -709,17 +693,17 @@ onUnmounted(() => {
         border-radius: 4px;
 
         &.private {
-          background: #fff3e0;
-          color: #ff9800;
+          background: var(--warning-bg);
+          color: var(--warning-color);
         }
 
         &.public {
-          background: #e6f7ff;
+          background: var(--color-primary-light);
           color: #4080ff;
         }
 
         &.approval {
-          background: #e6f7ff;
+          background: var(--color-primary-light);
           color: #4080ff;
         }
       }
@@ -739,12 +723,12 @@ onUnmounted(() => {
 
       .info-label {
         font-size: 11px;
-        color: #86909c;
+        color: var(--text-tertiary);
       }
 
       .info-value {
         font-size: 13px;
-        color: #1d2129;
+        color: var(--text-primary);
       }
     }
   }
@@ -754,17 +738,17 @@ onUnmounted(() => {
       font-size: 13px;
       font-weight: 500;
       margin-bottom: 8px;
-      color: #1d2129;
+      color: var(--text-primary);
     }
 
     .announce-content {
-      background: #fff;
+      background: var(--dt-panel-solid, var(--card-bg));
       border-radius: 8px;
       padding: 10px 12px;
       font-size: 12px;
-      color: #4e5969;
+      color: var(--text-secondary);
       line-height: 1.5;
-      border: 1px solid #e5e6eb;
+      border: 1px solid var(--border-color);
     }
   }
 }
@@ -778,49 +762,42 @@ onUnmounted(() => {
 
   .guide-icon {
     font-size: 48px;
-    color: #c9cdd4;
+    color: var(--text-tertiary);
   }
 
   h4 {
     margin: 0 0 8px;
     font-size: 15px;
-    color: #4e5969;
+    color: var(--text-secondary);
     font-weight: 500;
   }
 
   p {
     margin: 0;
     font-size: 13px;
-    color: #86909c;
+    color: var(--text-tertiary);
   }
 }
 
 .modal-footer {
   padding: 16px 24px;
-  border-top: 1px solid #f0f0f0;
-  background: #fff;
+  border-top: 1px solid var(--border-color);
+  background: var(--dt-panel-solid, var(--card-bg));
 
   .alert-tip {
     display: flex;
     align-items: center;
     gap: 8px;
     padding: 10px 12px;
-    background: #f8f9fa;
+    background: var(--bg-tertiary);
     border-radius: 6px;
     margin-bottom: 16px;
     font-size: 12px;
-    color: #86909c;
+    color: var(--text-tertiary);
 
     .alert-icon {
-      width: 16px;
-      height: 16px;
-      background: #86909c;
-      color: #fff;
-      border-radius: 50%;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 11px;
+      font-size: 14px;
+      color: var(--text-tertiary);
     }
   }
 
@@ -840,11 +817,11 @@ onUnmounted(() => {
     transition: background 0.2s;
 
     &.btn-cancel {
-      background: #f2f3f5;
-      color: #4e5969;
+      background: var(--bg-tertiary);
+      color: var(--text-secondary);
 
       &:hover {
-        background: #e5e6eb;
+        background: var(--border-color);
       }
     }
 
@@ -857,7 +834,7 @@ onUnmounted(() => {
       }
 
       &:disabled {
-        background: #c7c7c7;
+        background: var(--text-tertiary);
         cursor: not-allowed;
       }
     }
@@ -874,13 +851,6 @@ onUnmounted(() => {
   display: inline-block;
   margin-right: 6px;
   vertical-align: middle;
-}
-
-.loading-spinner.small {
-  width: 12px;
-  height: 12px;
-  border: 2px solid #e5e6eb;
-  border-top-color: #4080ff;
 }
 
 @keyframes spin {

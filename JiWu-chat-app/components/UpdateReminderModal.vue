@@ -118,7 +118,7 @@ const handleUpdate = () => {
   }
   emit("update:visible", false);
   setTimeout(() => {
-    router.push("/updateLogs");
+    router.push("/versions/latest");
   }, 200);
 };
 
@@ -198,7 +198,7 @@ onMounted(async () => {
 .modal-container {
   width: 520px;
   max-width: 92%;
-  background: #ffffff;
+  background: var(--dt-panel-solid, var(--card-bg));
   border-radius: 16px;
   box-shadow: 0 8px 40px rgba(0, 0, 0, 0.18);
   overflow: hidden;
@@ -222,7 +222,7 @@ onMounted(async () => {
   align-items: center;
   justify-content: space-between;
   padding: 20px 24px 16px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .header-left {
@@ -234,7 +234,7 @@ onMounted(async () => {
 .header-title {
   font-size: 18px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--text-primary);
 }
 
 .close-btn {
@@ -243,7 +243,7 @@ onMounted(async () => {
   border: none;
   background: transparent;
   font-size: 22px;
-  color: #bbb;
+  color: var(--text-tertiary);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -253,8 +253,8 @@ onMounted(async () => {
 }
 
 .close-btn:hover {
-  background: #f5f5f5;
-  color: #333;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
 }
 
 /* 内容区域 */
@@ -289,13 +289,13 @@ onMounted(async () => {
   justify-content: center;
   padding: 50px 20px;
   gap: 14px;
-  color: #999;
+  color: var(--text-tertiary);
 }
 
 .loading-spinner {
   width: 36px;
   height: 36px;
-  border: 3px solid #f0f0f0;
+  border: 3px solid var(--border-color);
   border-top-color: #1890ff;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
@@ -334,23 +334,23 @@ onMounted(async () => {
 
 .update-time {
   font-size: 13px;
-  color: #aaa;
+  color: var(--text-tertiary);
 }
 
 .update-title {
   font-size: 20px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--text-primary);
   line-height: 1.6;
   margin: 2px 0;
 }
 
 .update-summary {
   font-size: 14px;
-  color: #666;
+  color: var(--text-secondary);
   line-height: 1.8;
   padding: 12px 16px;
-  background: #f8f9fa;
+  background: var(--bg-tertiary);
   border-radius: 10px;
   margin: 4px 0;
 }
@@ -362,16 +362,16 @@ onMounted(async () => {
 .details-title {
   font-size: 14px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--text-primary);
   margin-bottom: 10px;
   padding-bottom: 8px;
-  border-bottom: 2px solid #f0f0f0;
+  border-bottom: 2px solid var(--border-color);
 }
 
 /* ============ 更新内容样式 ============ */
 .details-content {
   font-size: 14px;
-  color: #333;
+  color: var(--text-primary);
   line-height: 1.8;
 }
 
@@ -379,7 +379,7 @@ onMounted(async () => {
 .details-content :deep(h3) {
   font-size: 18px;
   font-weight: 700;
-  color: #1a1a1a;
+  color: var(--text-primary);
   padding: 16px 0 10px;
   margin: 8px 0 12px;
   border-bottom: 2px solid #e8ecf0;
@@ -408,6 +408,69 @@ onMounted(async () => {
   margin: 6px 0;
 }
 
+/* ============ Markdown 表格样式 ============ */
+.details-content :deep(table) {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0;
+  font-size: 13px;
+  table-layout: fixed; /* 关键：固定布局，防止长文件名撑爆 */
+  word-break: break-all; /* 关键：长英文/文件名强制换行 */
+}
+
+.details-content :deep(thead) {
+  background: var(--bg-tertiary);
+}
+
+.details-content :deep(th) {
+  padding: 10px 12px;
+  text-align: left;
+  font-weight: 600;
+  color: var(--text-primary);
+  border: 1px solid #e8ecf0;
+  white-space: nowrap; /* 表头尽量不换行 */
+}
+
+.details-content :deep(td) {
+  padding: 10px 12px;
+  color: #444;
+  border: 1px solid #e8ecf0;
+  line-height: 1.6;
+  vertical-align: top;
+  word-break: break-all; /* 文件名太长时换行 */
+}
+
+/* 斑马纹，提升可读性 */
+.details-content :deep(tbody tr:nth-child(even)) {
+  background: #fafbfc;
+}
+
+.details-content :deep(tbody tr:hover) {
+  background: #f0f7ff;
+}
+
+/* 列宽控制：第一列平台名窄一点，第二列安装包宽一点 */
+.details-content :deep(th:first-child),
+.details-content :deep(td:first-child) {
+  width: 34%;
+}
+
+.details-content :deep(th:last-child),
+.details-content :deep(td:last-child) {
+  width: 66%;
+}
+
+/* 文件名用 code 包裹时的样式 */
+.details-content :deep(td code) {
+  background: #f0f2f5;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #d63384;
+  word-break: break-all;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+}
+
 /* 空状态 */
 .empty-state {
   display: flex;
@@ -421,7 +484,7 @@ onMounted(async () => {
 .empty-state p {
   margin: 0;
   font-size: 14px;
-  color: #aaa;
+  color: var(--text-tertiary);
 }
 
 /* 底部按钮 */
@@ -430,8 +493,8 @@ onMounted(async () => {
   justify-content: flex-end;
   gap: 12px;
   padding: 14px 24px 18px;
-  border-top: 1px solid #f0f0f0;
-  background: #fafafa;
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
 }
 
 .btn-default,
@@ -446,12 +509,12 @@ onMounted(async () => {
 }
 
 .btn-default {
-  background: #f0f0f0;
-  color: #666;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
 }
 
 .btn-default:hover {
-  background: #e5e5e5;
+  background: var(--bg-secondary);
 }
 
 .btn-primary {
@@ -535,6 +598,32 @@ onMounted(async () => {
 
   .details-content .content-list {
     padding-left: 16px;
+  }
+
+  /* ============ 移动端表格适配 ============ */
+  .details-content :deep(table) {
+    font-size: 12px;
+    margin: 10px 0;
+  }
+
+  .details-content :deep(th),
+  .details-content :deep(td) {
+    padding: 8px 8px;
+  }
+
+  .details-content :deep(th:first-child),
+  .details-content :deep(td:first-child) {
+    width: 38%;
+  }
+
+  .details-content :deep(th:last-child),
+  .details-content :deep(td:last-child) {
+    width: 62%;
+  }
+
+  .details-content :deep(td code) {
+    font-size: 11px;
+    padding: 1px 4px;
   }
 }
 </style>

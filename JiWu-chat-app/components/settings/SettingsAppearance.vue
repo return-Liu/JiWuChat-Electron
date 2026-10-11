@@ -1,5 +1,5 @@
 <template>
-  <div class="tab-content">
+  <div class="tab-content" :class="{ 'has-dynamic-bg': hasDynamicBackground }">
     <div class="content-header">
       <div>
         <h3 class="content-title">外观</h3>
@@ -365,11 +365,15 @@ import { computed } from "vue";
 import { useUiSettings } from "../../stores/uiSettings";
 import { useTheme } from "../../composables/useTheme";
 import { useSiderColor } from "../../stores/siderColor";
+import { useDynamicBackground } from "../../composables/useDynamicBackground";
 import FontPreview from "../FontPreview.vue";
 
 const uiSettingsStore = useUiSettings();
 const { setThemeMode, toggleTheme, themeMode: currentThemeMode } = useTheme();
 const siderColorStore = useSiderColor();
+
+// 是否处于个性装扮（动态壁纸）环境 —— 仅用于文字颜色切换
+const { hasDynamicBackground } = useDynamicBackground();
 
 // 系统主题预览卡片配色（日间使用基础调色板，不受夜间状态影响）
 const sysLightPalette = computed(() => siderColorStore.baseLightPalette);
@@ -385,13 +389,17 @@ const sysDarkPalette = computed(() => ({
 }));
 
 // ===== 主题相关 =====
-// currentThemeMode 直接复用 useTheme 的共享状态：其它页面切换主题后这里同步高亮
+// 日间 / 夜间：用带动画的 toggleTheme(event, targetDark)（显式目标，非翻转语义），
+// 与首页一致，带圆形裁剪扩散动画；
+// 跟随系统：目标是动态的（取决于系统偏好），无法确定裁剪终点，直接 setThemeMode。
 const handleThemeModeChange = (val: "light" | "dark" | "system", event?: MouseEvent) => {
   if (val === "system") {
     setThemeMode("system");
-  } else {
-    toggleTheme(event, val === "dark");
+    return;
   }
+  // 已经处于目标模式时无需切换（toggleTheme 内部也会判等，这里提前返回避免无谓动画）
+  if (currentThemeMode.value === val) return;
+  toggleTheme(event, val === "dark");
 };
 
 // ===== 字体设置 =====
@@ -411,3 +419,59 @@ const fontSettings = computed({
   },
 });
 </script>
+
+<style lang="scss" scoped>
+/* ===== 只改文字颜色：布局、尺寸、间距全部保持原样 ===== */
+
+/* 标题 / 描述：跟随主题变量，dark 模式自动变白 */
+.content-title {
+  color: var(--text-primary);
+}
+
+.content-desc {
+  color: var(--text-tertiary);
+}
+
+.group-title {
+  color: var(--text-primary);
+}
+
+.group-desc {
+  color: var(--text-tertiary);
+}
+
+/* 预览卡片下方的文字标签 */
+.tpc-label {
+  color: var(--text-secondary);
+}
+
+/* ===== 选中态：不加额外内边距，尺寸与未选中一致，只用边框/阴影区分 ===== */
+.theme-preview-card {
+  /* 未选中 = 已选中 使用同一套 padding，切换时不跳动 */
+  /* 如果你原来的样式里已有 padding，这里不要重复设置，保持原值即可 */
+}
+
+.theme-preview-card.active {
+  /* 不改变 padding，只强调边框和光晕 */
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 3px var(--color-brand-light, rgba(22, 119, 255, 0.16));
+}
+
+/* 个性装扮（动态壁纸）环境下：文字转白，保证可读性 */
+.tab-content.has-dynamic-bg {
+  .content-title,
+  .content-desc,
+  .group-title,
+  .group-desc,
+  .tpc-label {
+    color: var(--dt-text);
+    text-shadow: var(--dt-text-shadow);
+  }
+
+  /* 描述类文字稍微降低不透明度，保持主次层级 */
+  .content-desc,
+  .group-desc {
+    color: rgba(255, 255, 255, 0.82);
+  }
+}
+</style>

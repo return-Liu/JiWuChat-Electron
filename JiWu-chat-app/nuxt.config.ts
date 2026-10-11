@@ -12,6 +12,9 @@ export default defineNuxtConfig({
   runtimeConfig: {
     public: {
       appVersion: pkg.version,
+      // 壁纸资源远程基址：桌面端打包时由 NUXT_PUBLIC_WALLPAPER_BASE 注入（如 https://jiwuchat.com），
+      // 运行时拼接为 CDN 地址，安装包不再含视频；不设置则使用本地 /theme。
+      wallpaperBase: process.env.NUXT_PUBLIC_WALLPAPER_BASE || "",
     },
   },
 
@@ -29,6 +32,10 @@ export default defineNuxtConfig({
     baseURL: "/",
     head: {
       title: "极物聊天",
+      link: [
+        { rel: "icon", type: "image/png", href: "/logo.png" },
+        { rel: "apple-touch-icon", href: "/logo.png" },
+      ],
       script: [
         {
           innerHTML: `

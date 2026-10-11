@@ -251,7 +251,7 @@ const confirmClear = () => {
   height: 100vh;
   display: flex;
   flex-direction: column;
-  background: #f5f5f5;
+  background: var(--bg-tertiary);
   overflow: hidden;
 }
 
@@ -260,14 +260,14 @@ const confirmClear = () => {
   justify-content: space-between;
   align-items: center;
   padding: 12px 16px;
-  background: #fff;
-  border-bottom: 1px solid #e5e5e5;
+  background: var(--card-bg);
+  border-bottom: 1px solid var(--border-color);
 
   h2 {
     margin: 0;
     font-size: 18px;
     font-weight: 500;
-    color: #1a1a1a;
+    color: var(--text-primary);
   }
 
   .header-actions {
@@ -277,14 +277,14 @@ const confirmClear = () => {
 
   .action-btn {
     padding: 5px 12px;
-    background: #f5f5f5;
+    background: var(--bg-tertiary);
     border: none;
     border-radius: 4px;
     font-size: 12px;
     cursor: pointer;
 
     &:hover {
-      background: #e5e5e5;
+      background: var(--bg-secondary);
     }
 
     &.danger {
@@ -302,8 +302,8 @@ const confirmClear = () => {
   align-items: center;
   gap: 16px;
   padding: 10px 16px;
-  background: #fff;
-  border-bottom: 1px solid #e5e5e5;
+  background: var(--card-bg);
+  border-bottom: 1px solid var(--border-color);
   flex-wrap: wrap;
 }
 
@@ -314,7 +314,7 @@ const confirmClear = () => {
 
   .filter-label {
     font-size: 13px;
-    color: #666;
+    color: var(--text-secondary);
   }
 }
 
@@ -325,14 +325,14 @@ const confirmClear = () => {
 
 .radio-btn {
   padding: 4px 10px;
-  background: #f5f5f5;
+  background: var(--bg-tertiary);
   border: none;
   border-radius: 4px;
   font-size: 12px;
   cursor: pointer;
 
   &:hover {
-    background: #e5e5e5;
+    background: var(--bg-secondary);
   }
 
   &.active {
@@ -347,7 +347,7 @@ const confirmClear = () => {
 
 .search-input {
   padding: 5px 10px;
-  border: 1px solid #e5e5e5;
+  border: 1px solid var(--border-color);
   border-radius: 6px;
   font-size: 12px;
   width: 180px;
@@ -362,8 +362,8 @@ const confirmClear = () => {
   display: flex;
   justify-content: space-between;
   padding: 8px 16px;
-  background: #fff;
-  border-bottom: 1px solid #e5e5e5;
+  background: var(--card-bg);
+  border-bottom: 1px solid var(--border-color);
   font-size: 12px;
   color: #8e8e93;
 
@@ -402,14 +402,14 @@ const confirmClear = () => {
   align-items: center;
   gap: 12px;
   padding: 12px;
-  background: #fff;
+  background: var(--card-bg);
   border-radius: 8px;
   margin-bottom: 8px;
   cursor: pointer;
   border: 1px solid transparent;
 
   &:hover {
-    border-color: #e5e5e5;
+    border-color: var(--border-color);
   }
 
   &.unread {
@@ -427,7 +427,7 @@ const confirmClear = () => {
   height: 40px;
   border-radius: 50%;
   object-fit: cover;
-  background: #e5e5e5;
+  background: var(--bg-secondary);
 }
 
 .unread-badge {
@@ -455,18 +455,22 @@ const confirmClear = () => {
   .name {
     font-size: 14px;
     font-weight: 500;
-    color: #1a1a1a;
+    color: var(--text-primary);
   }
 
   .time {
     font-size: 11px;
     color: #8e8e93;
+    padding: 2px 8px;
+    background: rgba(0, 0, 0, 0.05);
+    border-radius: 10px;
+    white-space: nowrap;
   }
 }
 
 .message {
   font-size: 13px;
-  color: #666;
+  color: var(--text-secondary);
   line-height: 1.4;
   white-space: nowrap;
   overflow: hidden;
@@ -479,14 +483,14 @@ const confirmClear = () => {
 
 .read-btn {
   padding: 4px 10px;
-  background: #f5f5f5;
+  background: var(--bg-tertiary);
   border: none;
   border-radius: 4px;
   font-size: 11px;
   cursor: pointer;
 
   &:hover {
-    background: #e5e5e5;
+    background: var(--bg-secondary);
   }
 }
 
@@ -505,7 +509,7 @@ const confirmClear = () => {
 
 .modal-card {
   width: 360px;
-  background: #fff;
+  background: var(--card-bg);
   border-radius: 12px;
   overflow: hidden;
 }
@@ -515,7 +519,7 @@ const confirmClear = () => {
   justify-content: space-between;
   align-items: center;
   padding: 14px 16px;
-  border-bottom: 1px solid #e5e5e5;
+  border-bottom: 1px solid var(--border-color);
 
   h3 {
     margin: 0;
@@ -534,7 +538,7 @@ const confirmClear = () => {
     color: #8e8e93;
 
     &:hover {
-      background: #f5f5f5;
+      background: var(--bg-tertiary);
     }
   }
 }
@@ -545,7 +549,7 @@ const confirmClear = () => {
   p {
     margin: 0 0 12px;
     font-size: 13px;
-    color: #1a1a1a;
+    color: var(--text-primary);
   }
 }
 
@@ -561,7 +565,7 @@ const confirmClear = () => {
   gap: 8px;
   cursor: pointer;
   font-size: 13px;
-  color: #1a1a1a;
+  color: var(--text-primary);
 
   input {
     margin: 0;
@@ -572,7 +576,7 @@ const confirmClear = () => {
   display: flex;
   gap: 10px;
   padding: 12px 16px;
-  border-top: 1px solid #e5e5e5;
+  border-top: 1px solid var(--border-color);
 }
 
 .modal-btn {
@@ -584,11 +588,11 @@ const confirmClear = () => {
   cursor: pointer;
 
   &.cancel {
-    background: #f5f5f5;
-    color: #1a1a1a;
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
 
     &:hover {
-      background: #e5e5e5;
+      background: var(--bg-secondary);
     }
   }
 

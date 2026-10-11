@@ -1,4 +1,3 @@
-<!-- 群通知：右栏内联面板（替代原「群聊申请记录 / 群申请管理」两个弹窗） -->
 <template>
   <div class="notice-panel" :class="{ 'has-dynamic-bg': isDynamic }" :style="panelStyle">
     <div class="panel-header">
@@ -10,11 +9,7 @@
     </div>
 
     <div class="panel-tabs">
-      <button
-        class="tab-btn"
-        :class="{ active: activeTab === 'mine' }"
-        @click="activeTab = 'mine'"
-      >
+      <button class="tab-btn" :class="{ active: activeTab === 'mine' }" @click="activeTab = 'mine'">
         我申请的群聊
       </button>
       <button
@@ -38,20 +33,31 @@
           <p class="empty-hint">你还没申请加入任何群聊</p>
         </div>
         <div v-else class="list">
-          <div v-for="app in myApplications" :key="app.id" class="card">
+          <div v-for="app in myApplications" :key="app.id" class="card mine-card">
             <img :src="app.avatar" :alt="app.groupName" class="avatar" />
             <div class="info">
+              <!-- 群名 + 申请时间（右上角） -->
               <div class="name-row">
                 <span class="name">{{ app.groupName }}</span>
-                <span class="status-badge" :class="`status-${app.status}`">
-                  {{ statusText(app.status) }}
-                </span>
+                <span class="time">{{ app.createdAt }}</span>
               </div>
-              <div class="meta">群号：{{ app.groupNumber }}</div>
-              <div class="meta">申请时间：{{ app.createdAt }}</div>
+
+              <!-- 群号 -->
+              <div class="meta-row">
+                <span class="meta">群号：{{ app.groupNumber }}</span>
+              </div>
+
+              <!-- 申请备注 -->
               <div v-if="app.message" class="remark">
                 <span class="remark-label">申请备注：</span>
                 <span class="remark-text">{{ app.message }}</span>
+              </div>
+
+              <!-- 状态徽章：独立一行，右对齐 -->
+              <div class="status-row">
+                <span class="status-badge" :class="`status-${app.status}`">
+                  {{ statusText(app.status) }}
+                </span>
               </div>
             </div>
           </div>
@@ -68,11 +74,7 @@
           <div class="group-selector">
             <span class="selector-label">选择群聊</span>
             <select v-model="selectedGroupId" class="selector">
-              <option
-                v-for="g in manageableGroups"
-                :key="g.originalId"
-                :value="g.originalId"
-              >
+              <option v-for="g in manageableGroups" :key="g.originalId" :value="g.originalId">
                 {{ g.name }}
               </option>
             </select>
@@ -87,7 +89,7 @@
             <p class="empty-hint">还没人申请加入这个群</p>
           </div>
           <div v-else class="list">
-            <div v-for="app in manageApplications" :key="app.id" class="card">
+            <div v-for="app in manageApplications" :key="app.id" class="card manage-card">
               <img :src="app.avatar" :alt="app.username" class="avatar" />
               <div class="info">
                 <div class="name-row">
@@ -98,17 +100,19 @@
                   <span class="remark-label">申请备注：</span>
                   <span class="remark-text">{{ app.message }}</span>
                 </div>
+
+                <!-- 待审核：操作按钮区 -->
                 <div v-if="app.status === 'pending'" class="actions">
-                  <button class="action accept" @click="handleApprove(Number(app.id))">
-                    同意
-                  </button>
-                  <button class="action reject" @click="handleReject(Number(app.id))">
-                    拒绝
-                  </button>
+                  <button class="action reject" @click="handleReject(Number(app.id))">拒绝</button>
+                  <button class="action accept" @click="handleApprove(Number(app.id))">同意</button>
                 </div>
-                <span v-else class="status-badge" :class="`status-${app.status}`">
-                  {{ statusText(app.status) }}
-                </span>
+
+                <!-- 已处理：状态徽章 -->
+                <div v-else class="status-row">
+                  <span class="status-badge" :class="`status-${app.status}`">
+                    {{ statusText(app.status) }}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
@@ -119,6 +123,7 @@
 </template>
 
 <script setup lang="ts">
+import { getErrorMessage } from "../untils/errorMessage";
 import { ref, computed, watch } from "vue";
 import request from "../untils/request";
 import { message } from "ant-design-vue";
@@ -194,7 +199,7 @@ const loadMyApplications = async () => {
     const res = await request.get("/group/my-applications");
     myApplications.value = res.data.applications || [];
   } catch (error: any) {
-    message.error(error.response?.data?.data?.message || "加载申请记录失败");
+    message.error(getErrorMessage(error, "加载申请记录失败"));
   } finally {
     loading.value = false;
   }
@@ -210,7 +215,7 @@ const loadManageApplications = async () => {
     const res = await request.get(`/group/${selectedGroupId.value}/applications`);
     manageApplications.value = res.data.applications || [];
   } catch (error: any) {
-    message.error(error.response?.data?.data?.message || "加载申请记录失败");
+    message.error(getErrorMessage(error, "加载申请记录失败"));
   } finally {
     loading.value = false;
   }
@@ -223,7 +228,7 @@ const handleApprove = async (applicationId: number) => {
     await loadManageApplications();
     emit("refresh");
   } catch (error: any) {
-    message.error(error.response?.data?.data?.message || "操作失败");
+    message.error(getErrorMessage(error, "操作失败"));
   }
 };
 
@@ -234,7 +239,7 @@ const handleReject = async (applicationId: number) => {
     await loadManageApplications();
     emit("refresh");
   } catch (error: any) {
-    message.error(error.response?.data?.data?.message || "操作失败");
+    message.error(getErrorMessage(error, "操作失败"));
   }
 };
 
@@ -290,9 +295,7 @@ watch(selectedGroupId, (val) => {
     .empty-title,
     .empty-hint,
     .selector-label {
-      text-shadow:
-        0 1px 3px rgba(0, 0, 0, 0.7),
-        0 0 8px rgba(0, 0, 0, 0.45);
+      text-shadow: var(--dt-text-shadow);
     }
 
     .card {
@@ -316,7 +319,7 @@ watch(selectedGroupId, (val) => {
   justify-content: space-between;
   gap: 12px;
   padding: 12px 0;
-  border-bottom: 1px solid var(--notice-card-border, var(--border-color, #f0f0f0));
+  border-bottom: 1px solid var(--notice-card-border, var(--border-color, var(--border-color)));
 
   .panel-title {
     margin: 0 0 2px;
@@ -337,7 +340,7 @@ watch(selectedGroupId, (val) => {
     font-size: 13px;
     color: var(--notice-text-2, var(--text-secondary, #666));
     background: transparent;
-    border: 1px solid var(--notice-card-border, var(--border-color, #e5e5e5));
+    border: 1px solid var(--notice-card-border, var(--border-color, var(--border-color)));
     border-radius: 4px;
     cursor: pointer;
     transition: all 0.15s;
@@ -361,7 +364,7 @@ watch(selectedGroupId, (val) => {
     color: var(--notice-text-2, var(--text-secondary, #666));
     background: var(--notice-soft-bg, var(--bg-tertiary, #f5f5f5));
     border: none;
-    border-radius: 20px;
+    border-radius: 6px; /* 小圆角 */
     cursor: pointer;
     transition: all 0.2s;
 
@@ -400,7 +403,7 @@ watch(selectedGroupId, (val) => {
       font-size: 13px;
       color: var(--notice-text, var(--text-primary, #1f1f1f));
       background: var(--notice-card-bg, var(--card-bg, #fff));
-      border: 1px solid var(--notice-card-border, var(--border-color, #e5e5e5));
+      border: 1px solid var(--notice-card-border, var(--border-color, var(--border-color)));
       border-radius: 4px;
       outline: none;
 
@@ -423,7 +426,7 @@ watch(selectedGroupId, (val) => {
     .spinner {
       width: 24px;
       height: 24px;
-      border: 2px solid var(--notice-card-border, var(--border-color, #f0f0f0));
+      border: 2px solid var(--notice-card-border, var(--border-color, var(--border-color)));
       border-top-color: var(--notice-accent, var(--purple-color, #8b5cf6));
       border-radius: 50%;
       animation: spin 0.8s linear infinite;
@@ -456,8 +459,12 @@ watch(selectedGroupId, (val) => {
     gap: 12px;
     padding: 14px;
     background: var(--notice-card-bg, var(--card-bg, #fafafa));
-    border: 1px solid var(--notice-card-border, var(--border-color, #f0f0f0));
+    border: 1px solid var(--notice-card-border, var(--border-color, var(--border-color)));
     border-radius: 10px;
+
+    &.manage-card {
+      padding-bottom: 12px;
+    }
   }
 
   .avatar {
@@ -466,16 +473,20 @@ watch(selectedGroupId, (val) => {
     border-radius: 50%;
     object-fit: cover;
     flex-shrink: 0;
-    background: #e8e8e8;
+    background: var(--bg-secondary);
   }
 
   .info {
     flex: 1;
     min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
 
+    /* 群名 + 时间：时间在最右上角 */
     .name-row {
       display: flex;
-      align-items: center;
+      align-items: baseline;
       justify-content: space-between;
       gap: 8px;
       margin-bottom: 4px;
@@ -490,7 +501,16 @@ watch(selectedGroupId, (val) => {
         font-size: 11px;
         color: var(--notice-text-3, var(--text-tertiary, #999));
         flex-shrink: 0;
+        padding: 2px 8px;
+        background: var(--notice-tag-bg, rgba(0, 0, 0, 0.05));
+        border-radius: 10px;
+        white-space: nowrap;
       }
+    }
+
+    .meta-row {
+      display: flex;
+      align-items: center;
     }
 
     .meta {
@@ -505,7 +525,7 @@ watch(selectedGroupId, (val) => {
       background: var(--notice-soft-bg, var(--bg-tertiary, #f0f0f0));
       padding: 6px 10px;
       border-radius: 4px;
-      margin-top: 4px;
+      margin-top: 6px;
 
       .remark-label {
         font-weight: 500;
@@ -514,38 +534,65 @@ watch(selectedGroupId, (val) => {
     }
   }
 
+  /* 操作按钮区：右对齐、独立成行 */
   .actions {
     display: flex;
-    gap: 8px;
-    margin-top: 6px;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--notice-card-border, var(--border-color, var(--border-color)));
 
     .action {
-      padding: 5px 14px;
+      min-width: 72px;
+      padding: 6px 18px;
       font-size: 13px;
-      border: none;
-      border-radius: 4px;
+      border-radius: 6px;
       cursor: pointer;
       font-weight: 500;
-      transition: all 0.2s;
+      transition: all 0.18s ease;
+      line-height: 1.4;
 
+      /* 同意：蓝色实心 */
       &.accept {
-        background: var(--notice-accent, var(--purple-color, #8b5cf6));
+        background: #1677ff;
         color: #fff;
+        border: 1px solid transparent;
+        box-shadow: 0 2px 6px rgba(22, 119, 255, 0.25);
 
         &:hover {
-          opacity: 0.85;
+          background: #4096ff;
+          transform: translateY(-1px);
+          box-shadow: 0 4px 10px rgba(22, 119, 255, 0.3);
+        }
+
+        &:active {
+          background: #0958d9;
+          transform: translateY(0);
+          box-shadow: 0 1px 3px rgba(22, 119, 255, 0.2);
         }
       }
 
+      /* 拒绝：描边弱化 */
       &.reject {
-        background: var(--notice-soft-bg, var(--bg-tertiary, #f5f5f5));
+        background: transparent;
         color: var(--notice-text-2, var(--text-secondary, #666));
+        border: 1px solid var(--notice-card-border, var(--border-color, var(--border-color)));
 
         &:hover {
-          background: var(--notice-soft-bg-2, var(--bg-hover, #e8e8e8));
+          color: var(--notice-danger, #cf1322);
+          border-color: var(--notice-danger, #cf1322);
+          background: rgba(207, 19, 34, 0.06);
         }
       }
     }
+  }
+
+  /* 状态徽章单独一行，右对齐 */
+  .status-row {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 8px;
   }
 
   .status-badge {
@@ -556,7 +603,7 @@ watch(selectedGroupId, (val) => {
     font-weight: 500;
 
     &.status-pending {
-      background: #fff7e6;
+      background: var(--warning-bg);
       color: #d46b00;
     }
 
@@ -567,12 +614,12 @@ watch(selectedGroupId, (val) => {
     }
 
     &.status-rejected {
-      background: #fff2f0;
+      background: var(--error-bg);
       color: #cf1322;
     }
 
     &.status-blocked {
-      background: #f5f5f5;
+      background: var(--bg-tertiary);
       color: #8c8c8c;
     }
   }

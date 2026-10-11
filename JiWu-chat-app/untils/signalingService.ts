@@ -13,7 +13,6 @@
 
 import { message } from "ant-design-vue";
 import Cookies from "js-cookie";
-import type { SignalingMessage } from "../types/untilsTypes";
 
 /**
  * 信令服务配置接口

@@ -341,7 +341,7 @@ defineExpose({});
 .modal-card {
   width: 900px;
   max-height: 85vh;
-  background: #fff;
+  background: var(--dt-panel-solid, var(--card-bg));
   border-radius: 12px;
   display: flex;
   flex-direction: column;
@@ -351,7 +351,7 @@ defineExpose({});
 
 .modal-header {
   padding: 16px 20px;
-  border-bottom: 1px solid #e5e5e5;
+  border-bottom: 1px solid var(--border-color);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -393,7 +393,7 @@ defineExpose({});
 }
 
 .modal-close-btn:hover {
-  background: #f5f5f5;
+  background: var(--bg-tertiary);
 }
 
 .modal-body {
@@ -409,7 +409,7 @@ defineExpose({});
 }
 
 .form-section {
-  background: #fff;
+  background: var(--dt-panel-solid, var(--card-bg));
 }
 
 .section-heading {
@@ -418,7 +418,7 @@ defineExpose({});
   color: #1d2129;
   margin: 0 0 16px;
   padding-bottom: 8px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border-color);
   line-height: 1.4;
 }
 
@@ -461,7 +461,7 @@ defineExpose({});
   border-radius: 8px;
   font-size: 14px;
   font-family: inherit;
-  background: #fff;
+  background: var(--dt-panel-solid, var(--card-bg));
   color: #1d2129;
 }
 
@@ -525,7 +525,7 @@ defineExpose({});
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #fafafa;
+  background: var(--bg-tertiary);
   overflow: hidden;
 }
 
@@ -620,7 +620,7 @@ defineExpose({});
     left: 2px;
     width: 20px;
     height: 20px;
-    background: #fff;
+    background: var(--dt-panel-solid, var(--card-bg));
     border-radius: 50%;
     transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     transform: translateX(0);
@@ -655,7 +655,7 @@ defineExpose({});
 .modal-footer {
   padding: 16px 20px;
   border-top: 1px solid #e5e6eb;
-  background: #fff;
+  background: var(--dt-panel-solid, var(--card-bg));
 }
 
 .footer-notice {

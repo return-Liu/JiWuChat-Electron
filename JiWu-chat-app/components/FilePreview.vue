@@ -561,7 +561,7 @@ watch(
   max-width: 1200px;
   height: 88vh;
   max-height: 820px;
-  background: #fff;
+  background: var(--dt-panel-solid, var(--card-bg));
   border-radius: 16px;
   overflow: hidden;
   box-shadow: 0 12px 48px rgba(0, 0, 0, 0.3);
@@ -586,7 +586,7 @@ watch(
   align-items: center;
   justify-content: space-between;
   padding: 18px 24px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border-color);
   background: #fafbfc;
 }
 
@@ -611,7 +611,7 @@ watch(
   border: none;
   background: transparent;
   cursor: pointer;
-  color: #666;
+  color: var(--text-secondary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -652,8 +652,8 @@ watch(
   display: flex;
   align-items: center;
   padding: 20px;
-  border-bottom: 1px solid #f0f0f0;
-  background: #fafafa;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
   gap: 16px;
 }
 
@@ -759,7 +759,7 @@ watch(
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f7f8fa;
+  background: var(--bg-tertiary);
   padding: 24px;
 }
 .image-preview img {
@@ -789,13 +789,13 @@ watch(
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f7f8fa;
+  background: var(--bg-tertiary);
   padding: 40px;
 }
 .audio-container {
   width: 100%;
   max-width: 600px;
-  background: #fff;
+  background: var(--dt-panel-solid, var(--card-bg));
   border-radius: 16px;
   padding: 36px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
@@ -874,7 +874,7 @@ watch(
 }
 .office-tip {
   font-size: 14px;
-  color: #666;
+  color: var(--text-secondary);
 }
 .office-error {
   font-size: 14px;
@@ -885,14 +885,14 @@ watch(
   flex: 1;
   overflow: auto;
   padding: 24px;
-  background: #f7f8fa;
+  background: var(--bg-tertiary);
 }
 .text-preview pre {
   margin: 0;
   font-family: Consolas, Monaco, monospace;
   font-size: 14px;
   line-height: 1.7;
-  color: #333;
+  color: var(--text-primary);
   white-space: pre-wrap;
   word-wrap: break-word;
 }
@@ -951,13 +951,13 @@ watch(
   justify-content: center;
   gap: 20px;
   padding: 14px 24px;
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid var(--border-color);
   background: #fafbfc;
 }
 .switch-btn {
   padding: 8px 20px;
   border: 1px solid #e5e6eb;
-  background: #fff;
+  background: var(--dt-panel-solid, var(--card-bg));
   border-radius: 8px;
   font-size: 14px;
   cursor: pointer;
@@ -974,7 +974,7 @@ watch(
 }
 .switch-index {
   font-size: 14px;
-  color: #666;
+  color: var(--text-secondary);
   min-width: 60px;
   text-align: center;
 }

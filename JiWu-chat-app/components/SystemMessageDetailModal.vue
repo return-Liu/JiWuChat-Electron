@@ -161,6 +161,7 @@
 </template>
 
 <script setup lang="ts">
+import { getErrorMessage } from "../untils/errorMessage";
 import { computed, ref, provide } from "vue";
 import { message } from "ant-design-vue";
 import type { ChatMessage } from "../types/chatTypes";
@@ -334,7 +335,7 @@ async function handleAccept() {
     ) {
       handleAlreadyInGroup();
     } else {
-      message.error(error.response?.data?.data?.message || "操作失败");
+      message.error(getErrorMessage(error, "操作失败"));
     }
   }
 }
@@ -377,7 +378,7 @@ async function handleReject() {
     ) {
       handleAlreadyInGroup();
     } else {
-      message.error(error.response?.data?.data?.message || "操作失败");
+      message.error(getErrorMessage(error, "操作失败"));
     }
   }
 }
@@ -422,7 +423,7 @@ async function handleReject() {
   left: 0;
   width: 100vw;
   height: 100vh;
-  background: #fff;
+  background: var(--dt-panel-solid, var(--card-bg));
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -433,8 +434,8 @@ async function handleReject() {
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
-  border-bottom: 1px solid #e5e5e5;
-  background: #fff;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--dt-panel-solid, var(--card-bg));
   flex-shrink: 0;
 }
 
@@ -465,7 +466,7 @@ async function handleReject() {
   margin: 0;
   font-size: 16px;
   font-weight: 500;
-  color: #1a1a1a;
+  color: var(--text-primary);
 }
 
 .panel-subtitle {
@@ -484,7 +485,7 @@ async function handleReject() {
   flex: 1;
   overflow-y: auto;
   padding: 12px 0;
-  background: #fff;
+  background: var(--dt-panel-solid, var(--card-bg));
 }
 
 .detail-container {
@@ -509,11 +510,11 @@ async function handleReject() {
   margin: 0;
   font-size: 14px;
   font-weight: 500;
-  color: #1a1a1a;
+  color: var(--text-primary);
 }
 
 .info-list {
-  background: #f8f8f8;
+  background: var(--bg-tertiary);
   border-radius: 8px;
   overflow: hidden;
 }
@@ -523,9 +524,9 @@ async function handleReject() {
   justify-content: space-between;
   align-items: center;
   padding: 10px 12px;
-  background: #fff;
+  background: var(--dt-panel-solid, var(--card-bg));
   font-size: 13px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .info-item:last-child {
@@ -537,7 +538,7 @@ async function handleReject() {
 }
 
 .info-item .value {
-  color: #1a1a1a;
+  color: var(--text-primary);
 }
 
 .info-item.announcement {
@@ -550,9 +551,9 @@ async function handleReject() {
 .value-box {
   width: 100%;
   padding: 8px 10px;
-  background: #f8f8f8;
+  background: var(--bg-tertiary);
   border-radius: 6px;
-  color: #666;
+  color: var(--text-secondary);
   font-size: 12px;
   line-height: 1.5;
 }
@@ -586,8 +587,8 @@ async function handleReject() {
 }
 
 .detail-footer {
-  border-top: 1px solid #e5e5e5;
-  background: #fff;
+  border-top: 1px solid var(--border-color);
+  background: var(--dt-panel-solid, var(--card-bg));
   padding: 12px 16px;
   flex-shrink: 0;
 }
@@ -615,15 +616,15 @@ async function handleReject() {
 .btn-refuse {
   flex: 1;
   padding: 10px;
-  background: #f5f5f5;
-  border: 1px solid #e5e5e5;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   font-size: 14px;
-  color: #1a1a1a;
+  color: var(--text-primary);
   cursor: pointer;
 }
 
 .btn-refuse:hover {
-  background: #e5e5e5;
+  background: var(--bg-secondary);
 }
 </style>

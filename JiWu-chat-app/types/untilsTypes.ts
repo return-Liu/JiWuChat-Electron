@@ -1,6 +1,8 @@
 import type { Ref } from "vue";
 import type { ChatMessage, Contact, SelectedImage, SelectedVideo } from "./chatTypes";
 
+export type { SelectedImage, SelectedVideo } from "./chatTypes";
+
 export interface SelectedVoice {
     id: string;
     file: File;
@@ -31,6 +33,28 @@ export interface FileHandlerOptions {
     lastFileSelectionTime: Ref<number | null>;
     lastFileSendTime: Ref<number | null>;
     activeContact: Ref<any>;
+}
+
+export interface ImageHandlerOptions {
+    selectedMedias: Ref<SelectedImage[]>;
+    lastMediaSelectionTime: Ref<number | null>;
+    lastMediaSendTime?: Ref<number | null>;
+    activeContact: Ref<any>;
+    showMediaPreview: Ref<boolean>;
+    previewMedias: Ref<Array<string | { url: string; type: string }>>;
+    currentPreviewIndex: Ref<number>;
+    lastRemoveMediaTime?: Ref<number | null>;
+}
+
+export interface VideoHandlerOptions {
+    selectedMedias: Ref<SelectedVideo[]>;
+    lastMediaSelectionTime: Ref<number | null>;
+    lastMediaSendTime?: Ref<number | null>;
+    activeContact: Ref<any>;
+    showMediaPreview: Ref<boolean>;
+    previewMedias: Ref<Array<string | { url: string; type: string }>>;
+    currentPreviewIndex: Ref<number>;
+    lastRemoveMediaTime?: Ref<number | null>;
 }
 
 export interface FriendRequest {

@@ -642,7 +642,7 @@ function getComparisonClass(value: boolean | string) {
   }
 
   &.card-base {
-    border-color: #e0e0e0;
+    border-color: var(--border-color);
     .home-dark & {
       border-color: #2a2a2a;
     }
@@ -705,7 +705,7 @@ function getComparisonClass(value: boolean | string) {
 // ============================================================
 .card-title {
   &-base {
-    color: #222;
+    color: var(--text-primary);
     .home-dark & {
       color: #fff;
     }
@@ -768,7 +768,7 @@ function getComparisonClass(value: boolean | string) {
   &-base,
   &-business,
   &-flagship {
-    color: #222;
+    color: var(--text-primary);
     .home-dark & {
       color: #fff;
     }
@@ -785,7 +785,7 @@ function getComparisonClass(value: boolean | string) {
   &-base,
   &-business,
   &-flagship {
-    color: #222;
+    color: var(--text-primary);
     .home-dark & {
       color: #fff;
     }
@@ -832,17 +832,17 @@ function getComparisonClass(value: boolean | string) {
   }
 
   &-base {
-    background: #f0f0f0;
-    color: #555;
-    border: 1.5px solid #e0e0e0;
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    border: 1.5px solid var(--border-color);
 
     &:hover {
-      background: #e8e8e8;
+      background: var(--bg-secondary);
       border-color: #ccc;
     }
     .home-dark & {
       background: #2a2a2a;
-      color: #aaa;
+      color: var(--text-tertiary);
       border-color: #3a3a3a;
       &:hover {
         background: #333;
@@ -934,9 +934,9 @@ function getComparisonClass(value: boolean | string) {
 }
 
 .feature-text-disabled {
-  color: #bbb;
+  color: var(--text-tertiary);
   .home-dark & {
-    color: #555;
+    color: var(--text-secondary);
   }
 }
 
@@ -995,9 +995,9 @@ function getComparisonClass(value: boolean | string) {
     font-size: 13px;
 
     &.comparison-col-base {
-      color: #888;
+      color: var(--text-tertiary);
       .home-dark & {
-        color: #999;
+        color: var(--text-tertiary);
       }
     }
     &.comparison-col-business {

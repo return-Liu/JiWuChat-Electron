@@ -4,27 +4,7 @@
     :class="{ 'has-dynamic-bg': hasDynamicBackground }"
     :style="dynamicThemeStyle"
   >
-    <!-- 个性装扮：动态背景层（视频 / 图片壁纸，铺满整个账户中心） -->
-    <div v-if="hasDynamicBackground" class="safe-dynamic-bg">
-      <video
-        v-if="chatBgType === 'video' && chatBgVideo"
-        ref="chatBgVideoRef"
-        class="safe-dynamic-bg-media"
-        :src="encodeURI(chatBgVideo)"
-        muted
-        loop
-        autoplay
-        playsinline
-        preload="auto"
-      ></video>
-      <img
-        v-else-if="chatBgType === 'image' && chatBgImage"
-        class="safe-dynamic-bg-media"
-        :src="chatBgImage"
-        alt=""
-      />
-      <div class="safe-dynamic-bg-overlay" :style="{ background: chatBgOverlay }"></div>
-    </div>
+    <DynamicBackground />
 
     <!-- 侧边栏导航（与其他主页面保持一致） -->
     <Sidebar :current-area="'user'" />
@@ -43,30 +23,24 @@
             <div class="hero-chips">
               <span class="chip">注册于 {{ registerDate || "--" }}</span>
               <span class="chip" :class="{ ok: isQQBound }">
+                <i class="chip-dot"></i>
                 QQ {{ isQQBound ? "已绑定" : "未绑定" }}
               </span>
-              <span class="chip">{{ mergedDevices.length }} 台设备</span>
+              <span class="chip">
+                <i class="chip-dot neutral"></i>
+                {{ mergedDevices.length }} 台设备
+              </span>
             </div>
           </div>
 
           <button class="hero-edit" @click="handleEditProfile">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.7"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M4 20h4L18.5 9.5a2.1 2.1 0 0 0-3-3L5 17v3z" />
-              <path d="M13.5 6.5l3 3" />
-            </svg>
+            <EditOutlined />
             编辑资料
           </button>
         </header>
 
-        <!-- ========== 全屏：账号安全评分 ========== -->
-        <section class="score-bar">
+        <!-- ========== 账号安全评分卡片 ========== -->
+        <section class="score-card">
           <div class="score-ring">
             <svg viewBox="0 0 80 80">
               <circle class="ring-track" cx="40" cy="40" :r="RING_RADIUS" />
@@ -86,25 +60,22 @@
           <div class="score-text">
             <div class="score-title">
               账号安全评分
-              <em :style="{ color: securityColor }">{{ securityLevelText }}</em>
+              <em :style="{ color: securityColor, background: securityColorSoft }">
+                {{ securityLevelText }}
+              </em>
             </div>
             <p class="score-desc">{{ securitySummary }}</p>
-          </div>
 
-          <div class="score-items">
-            <span
-              v-for="item in securityItems"
-              :key="item.key"
-              class="score-pill"
-              :class="{ done: item.done }"
-            >
-              <i class="pill-dot"></i>
-              {{ item.label }}
-            </span>
+            <!-- 只显示待办项；全部完成时不渲染 -->
+            <p v-if="securityTodoLabels.length" class="score-todo">
+              <span class="score-todo-label">待完善</span>
+              <span class="score-todo-items">{{ securityTodoLabels.join(" · ") }}</span>
+              <button class="score-todo-link" @click="activeTab = 'account'">去完善</button>
+            </p>
           </div>
         </section>
 
-        <!-- ========== 分段导航 ========== -->
+        <!-- ========== 分段导航（胶囊 Tab） ========== -->
         <nav class="seg">
           <button
             v-for="tab in tabs"
@@ -113,65 +84,23 @@
             :class="{ active: activeTab === tab.key }"
             @click="activeTab = tab.key"
           >
-            <svg
-              v-if="tab.key === 'account'"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.7"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <circle cx="12" cy="8.5" r="3.5" />
-              <path d="M5 19.5a7 7 0 0 1 14 0" />
-            </svg>
-            <svg
-              v-else-if="tab.key === 'security'"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.7"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M12 3.5l7 2.5v6c0 4-3 6.8-7 8.5-4-1.7-7-4.5-7-8.5v-6l7-2.5z" />
-            </svg>
-            <svg
-              v-else
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.7"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <rect x="6" y="6" width="12" height="12" rx="2.5" />
-              <path d="M10 3v3M14 3v3M10 18v3M14 18v3M3 10h3M3 14h3M18 10h3M18 14h3" />
-            </svg>
+            <UserOutlined v-if="tab.key === 'account'" />
+            <SafetyCertificateOutlined v-else-if="tab.key === 'security'" />
+            <SettingOutlined v-else />
             {{ tab.label }}
           </button>
         </nav>
 
         <!-- ========== 账号 ========== -->
         <section v-show="activeTab === 'account'" class="panel">
-          <div class="block">
+          <div class="card">
             <div class="block-head">
               <span class="block-title">安全设置</span>
             </div>
 
             <div class="row">
               <span class="row-icon">
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="1.7"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <rect x="4.5" y="10.5" width="15" height="10" rx="2.5" />
-                  <path d="M8.5 10.5V7.5a3.5 3.5 0 0 1 7 0v3" />
-                </svg>
+                <LockOutlined />
               </span>
               <span class="row-text">
                 <span class="row-title">登录密码</span>
@@ -185,79 +114,52 @@
 
             <div class="row">
               <span class="row-icon">
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="1.7"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <rect x="7" y="3" width="10" height="18" rx="2.5" />
-                  <path d="M11 18.5h2" />
-                </svg>
+                <MobileOutlined />
               </span>
               <span class="row-text">
                 <span class="row-title">手机号</span>
                 <span class="row-desc">用于登录和找回密码</span>
               </span>
               <span class="row-side">
-                <span class="row-value">{{ phone || "未绑定" }}</span>
+                <span class="row-value" :class="{ 'is-empty': !phone }">
+                  {{ phone || "未绑定" }}
+                </span>
                 <button class="act" @click="handleChangePhone">修改</button>
               </span>
             </div>
 
             <div class="row">
               <span class="row-icon">
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="1.7"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <rect x="3" y="5.5" width="18" height="13" rx="2.5" />
-                  <path d="m3.8 7.4 7.3 5.3a1.6 1.6 0 0 0 1.9 0L20.2 7.4" />
-                </svg>
+                <MailOutlined />
               </span>
               <span class="row-text">
                 <span class="row-title">邮箱地址</span>
                 <span class="row-desc">用于接收通知</span>
               </span>
               <span class="row-side">
-                <span class="row-value">{{ email || "未绑定" }}</span>
+                <span class="row-value" :class="{ 'is-empty': !email }">
+                  {{ email || "未绑定" }}
+                </span>
                 <button class="act" @click="handleChangeEmail">修改</button>
               </span>
             </div>
           </div>
 
-          <div class="block">
+          <div class="card">
             <div class="block-head">
               <span class="block-title">第三方绑定</span>
             </div>
 
             <div class="row">
               <span class="row-icon">
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="1.7"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <path d="M9.5 14.5l5-5" />
-                  <path d="M13 7l1.8-1.8a3.6 3.6 0 0 1 5.1 5.1L18.5 11.7" />
-                  <path d="M11 17l-1.8 1.8a3.6 3.6 0 0 1-5.1-5.1L5 12.3" />
-                </svg>
+                <LinkOutlined />
               </span>
               <span class="row-text">
                 <span class="row-title">QQ 账号</span>
                 <span class="row-desc">使用 QQ 快速登录</span>
               </span>
               <span class="row-side">
-                <span class="row-value" :class="{ ok: isQQBound }">
+                <span class="row-value" :class="{ ok: isQQBound, 'is-empty': !isQQBound }">
                   {{ isQQBound ? "已绑定" : "未绑定" }}
                 </span>
                 <button
@@ -273,41 +175,21 @@
             </div>
           </div>
 
-          <div class="block">
+          <!-- 危险操作独立卡片 -->
+          <div class="card card-danger">
             <div class="block-head">
               <span class="block-title">账号操作</span>
             </div>
             <div class="row row-danger" role="button" @click="handleLogout">
               <span class="row-icon">
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="1.7"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <path
-                    d="M15 8V6.5A2.5 2.5 0 0 0 12.5 4h-6A2.5 2.5 0 0 0 4 6.5v11A2.5 2.5 0 0 0 6.5 20h6a2.5 2.5 0 0 0 2.5-2.5V16"
-                  />
-                  <path d="M10 12h10m0 0l-3-3m3 3l-3 3" />
-                </svg>
+                <LogoutOutlined />
               </span>
               <span class="row-text">
                 <span class="row-title">退出登录</span>
                 <span class="row-desc">退出后需要使用密码重新登录</span>
               </span>
               <span class="row-icon row-chevron">
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="1.8"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <path d="m9 5 7 7-7 7" />
-                </svg>
+                <RightOutlined />
               </span>
             </div>
           </div>
@@ -315,7 +197,7 @@
 
         <!-- ========== 安全管理 ========== -->
         <section v-show="activeTab === 'security'" class="panel">
-          <div class="block">
+          <div class="card">
             <div class="block-head">
               <span class="block-title">登录设备</span>
               <span class="block-extra">
@@ -327,69 +209,46 @@
               </span>
             </div>
 
-            <!-- 被踢设备又回来了：说明后端还没让它真正下线 -->
             <p v-if="reappearedHint" class="offline-hint">
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.7"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <circle cx="12" cy="12" r="9" />
-                <path d="M12 8v5M12 16h.01" />
-              </svg>
+              <ExclamationCircleOutlined />
               {{ reappearedHint }}
             </p>
 
             <div v-if="!mergedDevices.length" class="empty">
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.5"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <rect x="3" y="4.5" width="18" height="12" rx="2.5" />
-                <path d="M8.5 20.5h7M12 16.5v4" />
-              </svg>
+              <DesktopOutlined />
               <p>还没有其他登录设备</p>
             </div>
 
             <div
               v-for="device in mergedDevices"
               :key="device.key"
-              class="row row-static"
+              class="device-row"
               :class="{ 'is-current': device.isCurrentDevice }"
             >
-              <span class="row-icon">
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="1.7"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <rect x="3" y="4.5" width="18" height="12" rx="2.5" />
-                  <path d="M8.5 20.5h7M12 16.5v4" />
-                </svg>
+              <span class="device-icon">
+                <DesktopOutlined />
               </span>
-              <span class="row-text">
-                <span class="row-title">
-                  {{ device.deviceName }}
+
+              <div class="device-info">
+                <div class="device-name">
+                  <span class="device-name-text">{{ device.deviceName }}</span>
                   <em v-if="device.sessionCount > 1" class="session-badge">
                     {{ device.sessionCount }} 个会话
                   </em>
-                </span>
-                <span class="row-desc"> {{ device.os }} · {{ device.browser }} </span>
-                <span class="row-desc">
-                  登录于 {{ device.loginTime }} · {{ device.location }}
-                </span>
-              </span>
-              <span class="row-side">
+                </div>
+                <div class="device-meta">
+                  <span>{{ device.os }}</span>
+                  <i class="meta-dot"></i>
+                  <span>{{ device.browser }}</span>
+                </div>
+                <div class="device-meta is-sub">
+                  <span>登录于 {{ device.loginTime }}</span>
+                  <i class="meta-dot"></i>
+                  <span>{{ device.location }}</span>
+                </div>
+              </div>
+
+              <div class="device-action">
                 <span v-if="device.isCurrentDevice" class="current-text">当前设备</span>
                 <button
                   v-else
@@ -399,14 +258,14 @@
                 >
                   {{ deviceKicking === device.key ? "踢出中..." : "踢出" }}
                 </button>
-              </span>
+              </div>
             </div>
           </div>
         </section>
 
         <!-- ========== 系统 ========== -->
         <section v-show="activeTab === 'system'" class="panel">
-          <div class="block">
+          <div class="card">
             <div class="block-head">
               <span class="block-title">电池状态</span>
               <span class="block-extra" :class="{ ok: batteryCharging }">
@@ -468,19 +327,26 @@ import { useDynamicBackground } from "../../composables/useDynamicBackground";
 import { useDynamicThemeVars } from "../../composables/useDynamicThemeVars";
 import { message, Modal } from "ant-design-vue";
 import request from "../../untils/request";
+import {
+  EditOutlined,
+  UserOutlined,
+  SafetyCertificateOutlined,
+  SettingOutlined,
+  LockOutlined,
+  MobileOutlined,
+  MailOutlined,
+  LinkOutlined,
+  LogoutOutlined,
+  RightOutlined,
+  ExclamationCircleOutlined,
+  DesktopOutlined,
+} from "@ant-design/icons-vue";
 
 const router = useRouter();
 const userStore = useUserStore();
 
 // 个性装扮：动态背景（视频 / 图片壁纸）+ 从壁纸吸取主色
-const {
-  hasDynamicBackground,
-  chatBgType,
-  chatBgVideo,
-  chatBgImage,
-  chatBgOverlay,
-  chatBgVideoRef,
-} = useDynamicBackground();
+const { hasDynamicBackground } = useDynamicBackground();
 
 // 个性装扮下：面板透明透出壁纸、文字转白、主色改用壁纸吸取色
 const { dynamicThemeStyle } = useDynamicThemeVars("light");
@@ -547,9 +413,13 @@ const securityColor = computed(() => {
   return "#f87171";
 });
 
-const securityTodoLabels = computed(() =>
-  securityItems.value.filter((i) => !i.done).map((i) => i.label),
-);
+// 评分标签柔和底色
+const securityColorSoft = computed(() => {
+  const score = securityScore.value;
+  if (score >= 75) return "rgba(34, 197, 94, 0.12)";
+  if (score >= 50) return "rgba(251, 191, 36, 0.14)";
+  return "rgba(248, 113, 113, 0.14)";
+});
 
 const securitySummary = computed(() => {
   const score = securityScore.value;
@@ -558,6 +428,12 @@ const securitySummary = computed(() => {
   if (score >= 50) return "您的账号存在安全隐患，建议及时完善安全设置";
   return "您的账号存在严重安全隐患，请立即完善安全设置";
 });
+
+// 只保留未完成项
+const securityTodoLabels = computed(() =>
+  securityItems.value.filter((i) => !i.done).map((i) => i.label),
+);
+
 const ringDashoffset = computed(() => RING_CIRCUMFERENCE * (1 - securityScore.value / 100));
 
 // ========== 设备管理 ==========
@@ -894,7 +770,7 @@ onMounted(() => {
   overflow: hidden;
 
   /* 个性装扮（动态背景）时，内容层浮在壁纸之上 */
-  &.has-dynamic-bg > :not(.safe-dynamic-bg) {
+  &.has-dynamic-bg > :not(.dynamic-bg-layer) {
     position: relative;
     z-index: 1;
   }
@@ -904,34 +780,6 @@ onMounted(() => {
     z-index: 2;
   }
 
-  /* ===== 动态背景层（视频 / 图片壁纸） ===== */
-  .safe-dynamic-bg {
-    position: absolute;
-    inset: 0;
-    z-index: 0;
-    overflow: hidden;
-    pointer-events: none;
-    /* 独立合成层 + 硬件加速；不使用 contain / will-change，避免视频循环时合成层重建导致闪动 */
-    transform: translateZ(0);
-  }
-
-  .safe-dynamic-bg-media {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    object-position: center;
-    user-select: none;
-    transform: translateZ(0);
-    backface-visibility: hidden;
-  }
-
-  .safe-dynamic-bg-overlay {
-    position: absolute;
-    inset: 0;
-    z-index: 1;
-  }
 }
 
 .safe-main {
@@ -942,11 +790,13 @@ onMounted(() => {
   overflow-x: hidden;
 }
 
-/* 全屏铺开：不再限定宽度，也不做水平居中 */
+/* 全屏铺开 + 大厂常用留白 */
 .safe-shell {
   width: 100%;
+  max-width: 1080px;
   min-width: 0;
-  padding: 40px 48px 72px;
+  margin: 0 auto;
+  padding: 40px 48px 80px;
 }
 
 /* ========== 顶部身份区 ========== */
@@ -954,16 +804,21 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 20px;
-  padding-bottom: 28px;
+  margin-bottom: 24px;
 }
 
 .hero-avatar {
-  width: 78px;
-  height: 78px;
+  width: 76px;
+  height: 76px;
   border-radius: 50%;
   overflow: hidden;
   flex-shrink: 0;
-  box-shadow: 0 0 0 1px var(--border-color);
+  /* 极细的白色边框（2px），移除原来粗重的 box-shadow 描边 */
+  border: 2px solid #ffffff;
+  /* 保留轻微外发光以增强在深色背景下的立体感，但不再造成粗边 */
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.08),
+    0 2px 8px rgba(0, 0, 0, 0.12);
 
   img {
     width: 100%;
@@ -973,6 +828,14 @@ onMounted(() => {
   }
 }
 
+/* 动态背景下的头像边框：更亮白，微光更明显，确保清晰可见 */
+.account-safe-page.has-dynamic-bg .hero-avatar {
+  border-color: var(--dt-text);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.2),
+    0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
 .hero-text {
   flex: 1;
   min-width: 0;
@@ -980,14 +843,14 @@ onMounted(() => {
 
 .hero-name {
   margin: 0;
-  font-size: 26px;
+  font-size: 24px;
   font-weight: 700;
-  letter-spacing: -0.4px;
+  letter-spacing: -0.3px;
   color: var(--text-primary);
 }
 
 .hero-sub {
-  margin: 5px 0 0;
+  margin: 6px 0 0;
   font-size: 13px;
   color: var(--text-tertiary);
 }
@@ -996,26 +859,43 @@ onMounted(() => {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: 12px;
+  margin-top: 14px;
 }
 
 .chip {
   display: inline-flex;
   align-items: center;
+  gap: 6px;
   flex-shrink: 0;
-  padding: 4px 12px;
+  padding: 4px 12px 4px 10px;
   border-radius: 999px;
   font-size: 12px;
-  line-height: 1.5;
+  line-height: 1.6;
   white-space: nowrap;
   color: var(--text-secondary);
   background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
+  border: 1px solid transparent;
+  transition: all 0.18s;
+
+  .chip-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #c9cdd4;
+    flex-shrink: 0;
+  }
+
+  .chip-dot.neutral {
+    background: #94a3b8;
+  }
 
   &.ok {
     color: #16a34a;
-    border-color: rgba(34, 197, 94, 0.35);
     background: rgba(34, 197, 94, 0.1);
+
+    .chip-dot {
+      background: #22c55e;
+    }
   }
 }
 
@@ -1024,44 +904,60 @@ onMounted(() => {
   align-items: center;
   gap: 6px;
   flex-shrink: 0;
-  padding: 9px 16px;
+  padding: 8px 16px;
   border: 1px solid var(--border-color);
-  border-radius: 12px;
-  background: transparent;
+  border-radius: 10px;
+  background: var(--bg-primary);
   color: var(--text-secondary);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.18s;
 
-  svg {
-    width: 15px;
-    height: 15px;
+  /* ✅ 图标调小：15px → 13px */
+  .anticon {
+    font-size: 13px;
   }
 
   &:hover {
     color: var(--color-brand);
     border-color: var(--color-brand);
-    background: var(--color-brand-light, rgba(59, 130, 246, 0.06));
+    background: var(--color-brand-light, rgba(22, 119, 255, 0.04));
   }
 }
 
-/* ========== 全屏：账号安全评分 ========== */
-.score-bar {
+/* ========== 卡片（大厂通用） ========== */
+.card {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 8px 22px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+
+  &.card-danger {
+    border-color: rgba(239, 68, 68, 0.22);
+    background: rgba(239, 68, 68, 0.02);
+  }
+}
+
+/* ========== 安全评分卡片 ========== */
+.score-card {
   display: flex;
   align-items: center;
   gap: 22px;
-  width: 100%;
-  padding: 18px 0;
-  border-top: 1px solid var(--border-color);
-  border-bottom: 1px solid var(--border-color);
-  margin-bottom: 26px;
+  padding: 22px 26px;
+  margin-bottom: 20px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
 }
 
 .score-ring {
   position: relative;
-  width: 84px;
-  height: 84px;
+  width: 80px;
+  height: 80px;
   flex-shrink: 0;
 
   svg {
@@ -1096,7 +992,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 25px;
+  font-size: 24px;
   font-weight: 700;
   letter-spacing: -0.8px;
 }
@@ -1109,95 +1005,93 @@ onMounted(() => {
 .score-title {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   font-size: 15px;
   font-weight: 600;
   color: var(--text-primary);
 
   em {
-    padding: 2px 9px;
-    border-radius: 8px;
+    padding: 3px 10px;
+    border-radius: 6px;
     font-size: 12px;
     font-style: normal;
     font-weight: 500;
-    background: var(--bg-secondary);
   }
 }
 
 .score-desc {
-  margin: 5px 0 0;
+  margin: 6px 0 0;
   font-size: 12.5px;
   color: var(--text-tertiary);
 }
 
-.score-items {
+/* 待完善提示（替代原来的 4 个胶囊） */
+.score-todo {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 8px;
-  flex: 0 1 auto;
-  min-width: 0;
-}
-
-.score-pill {
-  display: inline-flex;
   align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
-  padding: 5px 13px;
-  border-radius: 999px;
-  font-size: 12px;
-  color: var(--text-tertiary);
-  border: 1px solid var(--border-color);
-  white-space: nowrap;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0 0;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+}
 
-  &.done {
-    color: #16a34a;
-    border-color: rgba(34, 197, 94, 0.35);
+.score-todo-label {
+  padding: 2px 8px;
+  border-radius: 5px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: #d97706;
+  background: rgba(251, 191, 36, 0.14);
+}
+
+.score-todo-items {
+  color: var(--text-secondary);
+}
+
+.score-todo-link {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--color-brand);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+
+  &:hover {
+    text-decoration: underline;
   }
 }
 
-.pill-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--error-color);
-  flex-shrink: 0;
-
-  .score-pill.done & {
-    background: #22c55e;
-  }
-}
-
-/* ========== 分段导航（下划线式，去掉胶囊） ========== */
+/* ========== 分段导航（胶囊 Tab） ========== */
 .seg {
-  position: relative;
-  display: flex;
-  gap: 28px;
-  width: fit-content;
-  margin-bottom: 30px;
-  border-bottom: 1px solid var(--border-color);
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  margin-bottom: 20px;
+  border-radius: 12px;
+  background: var(--bg-secondary);
 }
 
 .seg-btn {
-  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 12px 4px;
+  padding: 8px 18px;
   white-space: nowrap;
   border: none;
+  border-radius: 9px;
   background: transparent;
   color: var(--text-secondary);
-  font-size: 14.5px;
+  font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  transition: color 0.2s;
+  transition: all 0.2s;
 
-  svg {
-    width: 16px;
-    height: 16px;
+  /* ✅ 图标调小：16px → 14px */
+  .anticon {
+    font-size: 14px;
   }
 
   &:hover {
@@ -1206,32 +1100,10 @@ onMounted(() => {
 
   &.active {
     color: var(--color-brand);
+    background: var(--bg-primary);
     font-weight: 600;
-
-    // 底部下划线
-    &::after {
-      content: "";
-      position: absolute;
-      left: 0;
-      right: 0;
-      bottom: -1px;
-      height: 2px;
-      border-radius: 2px;
-      background: var(--color-brand);
-    }
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   }
-}
-
-.seg-badge {
-  min-width: 18px;
-  padding: 0 6px;
-  font-size: 11px;
-  font-style: normal;
-  font-weight: 600;
-  line-height: 18px;
-  color: #fff;
-  background: var(--error-color);
-  border-radius: 9px;
 }
 
 /* ========== 区块 ========== */
@@ -1250,28 +1122,19 @@ onMounted(() => {
   }
 }
 
-.block {
-  margin-bottom: 34px;
-
-  &:last-child {
-    margin-bottom: 0;
-  }
-}
-
 .block-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--border-color);
+  padding: 14px 0 10px;
 }
 
 .block-title {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   letter-spacing: 0.2px;
-  color: var(--text-secondary);
+  color: var(--text-primary);
 }
 
 .block-extra {
@@ -1284,44 +1147,44 @@ onMounted(() => {
   }
 }
 
-/* ========== 通栏列表行 ========== */
+/* ========== 通用列表行 ========== */
 .row {
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 14px 12px;
-  margin: 0 -12px;
-  border-radius: 12px;
-  transition: background 0.18s;
+  padding: 14px 0;
 
-  // 行分隔线：贴在下一行顶部，避免最后一行多出一条线
   & + .row {
-    box-shadow: inset 0 1px 0 var(--border-color);
+    border-top: 1px solid var(--border-color);
   }
-
-  &:hover {
-    background: var(--bg-hover);
-  }
-}
-
-.row-static:hover {
-  background: transparent;
 }
 
 .row-icon {
   display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
   flex-shrink: 0;
-  color: var(--text-tertiary);
+  border-radius: 10px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
 
-  svg {
-    width: 19px;
-    height: 19px;
+  /* ✅ 图标调小：18px → 16px */
+  .anticon {
+    font-size: 16px;
   }
 }
 
-.row-chevron svg {
-  width: 16px;
-  height: 16px;
+.row-chevron {
+  width: auto;
+  height: auto;
+  background: transparent;
+
+  /* ✅ 右侧箭头也调小：16px → 13px */
+  .anticon {
+    font-size: 13px;
+  }
 }
 
 .row-text {
@@ -1361,19 +1224,134 @@ onMounted(() => {
     color: #16a34a;
     font-weight: 500;
   }
+
+  &.is-empty {
+    color: var(--text-tertiary);
+  }
 }
 
-// 「当前设备」：无边框无背景，只有文字，水平垂直居中于右侧操作位
+/* 危险行：退出登录（无 hover 效果） */
+.row-danger {
+  cursor: pointer;
+
+  .row-icon,
+  .row-title {
+    color: var(--error-color);
+  }
+
+  .row-icon {
+    background: rgba(239, 68, 68, 0.1);
+  }
+}
+
+/* ========== 设备行（专门优化） ========== */
+.device-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 0;
+
+  & + .device-row {
+    border-top: 1px solid var(--border-color);
+  }
+
+  &.is-current {
+    .device-name-text {
+      color: #fff;
+    }
+
+    .device-icon {
+      color: #fff;
+      background: rgba(0, 0, 0, 0.32);
+    }
+  }
+}
+
+.device-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+
+  /* ✅ 图标调小：20px → 17px */
+  .anticon {
+    font-size: 17px;
+  }
+}
+
+.device-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.device-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* 设备名：加粗 + 白色文字，长主机名不再糊成一团 */
+.device-name-text {
+  font-size: 14.5px;
+  font-weight: 600;
+  letter-spacing: 0.1px;
+  color: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+/* 元信息：小字、浅灰、用「·」分隔 */
+.device-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+
+  &.is-sub {
+    color: var(--text-tertiary);
+  }
+}
+
+.meta-dot {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.45;
+  flex-shrink: 0;
+}
+
+.device-action {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 92px;
+}
+
+/* 当前设备：仅文字，无边框、无背景、无圆点 */
 .current-text {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  // 与「踢出」按钮等宽，保证各行右端对齐
-  min-width: 76px;
-  padding: 6px 4px;
+  padding: 0;
   font-size: 13px;
   font-weight: 500;
-  color: var(--color-brand);
+  color: #fff;
   background: transparent;
   border: none;
   white-space: nowrap;
@@ -1389,6 +1367,7 @@ onMounted(() => {
   border: 1px solid var(--border-color);
   border-radius: 8px;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 /* 设备被踢后又回来：说明后端没让它真正下线 */
@@ -1396,7 +1375,7 @@ onMounted(() => {
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  margin: 14px 0 0;
+  margin: 4px 0 12px;
   padding: 12px 14px;
   border-radius: 12px;
   font-size: 12.5px;
@@ -1405,30 +1384,12 @@ onMounted(() => {
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
 
-  svg {
-    width: 16px;
-    height: 16px;
+  /* ✅ 提示图标也调小：16px → 14px */
+  .anticon {
+    font-size: 14px;
     flex-shrink: 0;
     margin-top: 2px;
     color: var(--error-color);
-  }
-}
-
-.row.is-current .row-title {
-  color: var(--color-brand);
-}
-
-/* 危险行：退出登录 */
-.row-danger {
-  cursor: pointer;
-
-  .row-icon,
-  .row-title {
-    color: var(--error-color);
-  }
-
-  &:hover {
-    background: rgba(239, 68, 68, 0.06);
   }
 }
 
@@ -1437,7 +1398,7 @@ onMounted(() => {
   padding: 6px 15px;
   border: 1px solid var(--border-color);
   border-radius: 10px;
-  background: transparent;
+  background: var(--bg-primary);
   color: var(--text-secondary);
   font-size: 13px;
   font-weight: 500;
@@ -1447,7 +1408,7 @@ onMounted(() => {
   &:hover {
     color: var(--color-brand);
     border-color: var(--color-brand);
-    background: var(--color-brand-light, rgba(59, 130, 246, 0.06));
+    background: var(--color-brand-light, rgba(22, 119, 255, 0.06));
   }
 
   &.primary {
@@ -1469,6 +1430,7 @@ onMounted(() => {
   &.danger {
     border-color: var(--error-color);
     color: var(--error-color);
+    background: transparent;
 
     &:hover {
       color: var(--error-color);
@@ -1486,9 +1448,9 @@ onMounted(() => {
   padding: 44px 0;
   color: var(--text-tertiary);
 
-  svg {
-    width: 34px;
-    height: 34px;
+  /* ✅ 空状态图标调小：34px → 28px */
+  .anticon {
+    font-size: 28px;
     opacity: 0.55;
   }
 
@@ -1500,8 +1462,7 @@ onMounted(() => {
 
 /* ========== 电池 ========== */
 .batt {
-  padding: 18px 12px 4px;
-  margin: 0 -12px;
+  padding: 6px 0 10px;
 }
 
 .batt-head {
@@ -1618,7 +1579,7 @@ onMounted(() => {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 11px 0;
+  padding: 12px 0;
   box-shadow: inset 0 1px 0 var(--border-color);
 
   &:first-of-type {
@@ -1688,42 +1649,67 @@ onMounted(() => {
   .score-num,
   .score-title,
   .score-desc,
-  .score-pill,
+  .score-todo,
+  .device-name-text,
+  .device-meta,
   .current-text {
-    text-shadow:
-      0 1px 3px rgba(0, 0, 0, 0.75),
-      0 0 8px rgba(0, 0, 0, 0.5);
+    text-shadow: var(--dt-text-shadow);
   }
 
-  // 评分环 + 胶囊：换成半透明深底，保证在壁纸上看得清
-  .ring-track {
-    stroke: rgba(255, 255, 255, 0.24);
-  }
-
-  .score-title em,
-  .score-pill {
-    background: rgba(0, 0, 0, 0.28);
-    border-color: rgba(255, 255, 255, 0.26);
+  // 卡片 / 容器：改用半透明深底，保证在壁纸上看得清
+  .card,
+  .score-card,
+  .seg,
+  .chip,
+  .batt-tag,
+  .row-icon,
+  .device-icon,
+  .score-title em {
+    background: rgba(0, 0, 0, 0.32);
+    border-color: rgba(255, 255, 255, 0.2);
     color: rgba(255, 255, 255, 0.92);
   }
 
-  .score-pill.done {
-    color: #86efac;
-    border-color: rgba(134, 239, 172, 0.45);
+  .card.card-danger {
+    background: rgba(239, 68, 68, 0.14);
+    border-color: rgba(248, 113, 113, 0.4);
+  }
+
+  .seg-btn.active {
+    background: rgba(255, 255, 255, 0.16);
+    color: #fff;
+    box-shadow: none;
+  }
+
+  .score-todo-label {
+    color: #fcd34d;
+    background: rgba(251, 191, 36, 0.2);
+  }
+
+  /* 动态背景下：设备名 + 当前设备文字全部白字 */
+  .device-name-text {
+    color: #fff;
+  }
+
+  .device-row.is-current {
+    .device-name-text {
+      color: #fff;
+    }
+
+    .device-icon {
+      color: #fff;
+      background: rgba(0, 0, 0, 0.32);
+    }
+  }
+
+  .current-text {
+    color: #fff;
   }
 
   .session-badge,
   .offline-hint {
-    background: rgba(0, 0, 0, 0.28);
-    border-color: rgba(255, 255, 255, 0.26);
-    color: rgba(255, 255, 255, 0.92);
-  }
-
-  // 容器不再用浅色卡片，改用半透明深底
-  .chip,
-  .batt-tag {
-    background: rgba(0, 0, 0, 0.28);
-    border-color: rgba(255, 255, 255, 0.26);
+    background: rgba(0, 0, 0, 0.32);
+    border-color: rgba(255, 255, 255, 0.2);
     color: rgba(255, 255, 255, 0.92);
   }
 
@@ -1734,51 +1720,58 @@ onMounted(() => {
     color: #86efac;
   }
 
-  .act,
-  .hero-edit {
-    background: rgba(0, 0, 0, 0.26);
-    border-color: rgba(255, 255, 255, 0.28);
-    color: rgba(255, 255, 255, 0.92);
-
-    &:hover {
-      background: rgba(0, 0, 0, 0.4);
-      border-color: rgba(255, 255, 255, 0.55);
-      color: #fff;
-    }
-  }
-
-  .act.primary:hover {
-    background: rgba(0, 0, 0, 0.45);
+  .ring-track {
+    stroke: rgba(255, 255, 255, 0.24);
   }
 
   .batt-bar {
     background: rgba(0, 0, 0, 0.3);
   }
 
-  .row-danger:hover {
-    background: rgba(248, 113, 113, 0.22);
+  .act,
+  .hero-edit {
+    background: rgba(0, 0, 0, 0.28);
+    border-color: rgba(255, 255, 255, 0.28);
+    color: rgba(255, 255, 255, 0.92);
+
+    &:hover {
+      background: rgba(0, 0, 0, 0.42);
+      border-color: rgba(255, 255, 255, 0.55);
+      color: #fff;
+    }
   }
 
-  .row:hover,
-  .row.is-current:hover {
-    background: rgba(255, 255, 255, 0.12);
+  .act.primary {
+    background: var(--color-brand);
+    color: #fff;
+
+    &:hover {
+      background: var(--color-brand-hover);
+    }
+  }
+
+  .act.danger {
+    background: rgba(239, 68, 68, 0.16);
+    border-color: rgba(248, 113, 113, 0.5);
+    color: #fca5a5;
+
+    &:hover {
+      background: rgba(239, 68, 68, 0.28);
+      color: #fecaca;
+    }
+  }
+
+  .row + .row,
+  .device-row + .device-row {
+    border-top-color: rgba(255, 255, 255, 0.14);
+  }
+
+  .kv {
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
   }
 }
 
 /* ========== 响应式 ========== */
-@media (max-width: 1100px) {
-  .score-bar {
-    flex-wrap: wrap;
-  }
-
-  .score-items {
-    justify-content: flex-start;
-    max-width: none;
-    width: 100%;
-    padding-left: 106px;
-  }
-}
-
 @media (max-width: 900px) {
   .safe-shell {
     padding: 28px 22px 56px;
@@ -1796,22 +1789,19 @@ onMounted(() => {
   }
 
   .seg {
+    display: flex;
     width: 100%;
   }
 
   .seg-btn {
     min-width: 0;
     flex: 1;
-    padding: 10px 8px;
+    padding: 8px 8px;
     font-size: 13px;
   }
 
-  .seg-btn svg {
+  .seg-btn .anticon {
     display: none;
-  }
-
-  .score-items {
-    padding-left: 0;
   }
 
   .row {
@@ -1821,7 +1811,18 @@ onMounted(() => {
   .row-side {
     width: 100%;
     justify-content: flex-end;
-    padding-left: 33px;
+    padding-left: 50px;
+  }
+
+  .device-row {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .device-action {
+    width: 100%;
+    justify-content: flex-end;
+    padding-left: 54px;
   }
 
   .batt-num {

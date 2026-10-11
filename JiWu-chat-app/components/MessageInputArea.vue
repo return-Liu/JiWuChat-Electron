@@ -43,25 +43,33 @@
           <!-- 左侧工具按钮 -->
           <InputToolButtons
             :disabled="readonly || shouldShowMuteAllHint || isBlockedComputed"
+            :hide-voice="isBotContact"
+            :hide-media-tools="isBotContact"
             @click="handleToggleEmojiPicker"
             @select-media="handleSelectMedia"
             @voice-message="handleVoiceMessage"
             @select-file="handleSelectFile"
             @screen-capture="handleScreenCapture"
           />
-
-          <!-- 右侧工具按钮 -->
-          <div class="input-tools-right">
-            <a-tooltip content="聊天记录" placement="top">
-              <div class="input-tool-btn clickable-text" @click="handleOpenChatHistoryModal">
-                <i class="iconfont icon-a-9 menu-icon tool-icon"></i>
-              </div>
-            </a-tooltip>
-          </div>
         </div>
 
         <!-- 文本输入区域 -->
-        <div class="message-input-wrapper">
+        <div ref="inputWrapperRef" class="message-input-wrapper">
+          <!-- 引用回复预览条 -->
+          <div v-if="replyTarget" class="reply-preview-bar">
+            <div class="reply-preview-content">
+              <span class="reply-preview-label">回复 {{ replySenderName }}：</span>
+              <span class="reply-preview-text">{{ replyPreviewText }}</span>
+            </div>
+            <button
+              class="reply-preview-close"
+              type="button"
+              @click="emit('cancel-reply')"
+            >
+              ✕
+            </button>
+          </div>
+
           <!-- 图片/截图预览列表 -->
           <ImagePreviewList :images="selectedImages" @preview="handlePreviewTempImage" />
 
@@ -82,10 +90,50 @@
               class="message-input-content"
               :contenteditable="!(readonly || shouldShowMuteAllHint || isBlockedComputed)"
               @keydown="handleKeyDown"
+              @keyup="handleInputKeyUp"
               @input="handleInput"
               @focus="handleFocus"
+              @blur="handleInputBlur"
+              @mouseup="handleCaretMoved"
               @paste="handlePaste"
             ></div>
+          </div>
+
+          <!-- @ 提及：群成员选择面板 -->
+          <div
+            v-if="showMentionPanel"
+            class="mention-panel"
+            :class="{ 'is-dark': isDarkMode }"
+            :style="mentionPanelStyle"
+            @mousedown.prevent
+          >
+            <div class="mention-panel-title">选择要提醒的成员</div>
+            <div class="mention-list">
+              <div v-if="mentionCandidates.length === 0" class="mention-empty">
+                {{ mentionLoading ? "成员加载中…" : "没有匹配的成员" }}
+              </div>
+              <div
+                v-for="(member, index) in mentionCandidates"
+                :key="`${member.id}-${index}`"
+                class="mention-item"
+                :class="{ active: index === mentionActiveIndex }"
+                @mouseenter="mentionActiveIndex = index"
+                @click.stop="insertMention(member)"
+              >
+                <a-avatar :size="24" :src="member.avatar" class="mention-avatar">
+                  <template #fallback>{{ memberDisplayName(member).charAt(0) }}</template>
+                </a-avatar>
+                <span class="mention-name">{{ memberDisplayName(member) }}</span>
+                <span
+                  v-if="memberRoleLabel(member)"
+                  class="mention-role"
+                  :class="`tone-${resolveMentionRole(member)}`"
+                  >{{ memberRoleLabel(member) }}</span
+                >
+                <span v-if="isBotMember(member)" class="mention-role tone-bot">机器人</span>
+                <span v-if="isSelfMember(member)" class="mention-role tone-self">我</span>
+              </div>
+            </div>
           </div>
 
           <!-- 发送提示 -->
@@ -128,10 +176,8 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick, type Ref } from "vue";
 import { useUiSettings } from "../stores/uiSettings";
 import { useSiderColor } from "../stores/siderColor";
-import type { Contact } from "../types/chatTypes";
+import type { Contact, SelectedImage, SelectedVideo, ChatMessage } from "../types/chatTypes";
 import { message } from "ant-design-vue";
-import type { SelectedImage as ImportedSelectedImage } from "../untils/imageHandler";
-import type { SelectedVideo as ImportedSelectedVideo } from "../untils/videoHandler";
 import { AudioRecorder, getAudioDuration } from "../untils/audioHandler";
 
 const siderColorStore = useSiderColor();
@@ -151,9 +197,6 @@ interface ColorPalette {
   active: string;
 }
 
-type SelectedImage = ImportedSelectedImage;
-type SelectedVideo = ImportedSelectedVideo;
-
 interface SelectedFileItem {
   id: string;
   file: File;
@@ -169,6 +212,7 @@ interface Props {
   theyBlockedMe?: boolean;
   noContentTip?: string;
   activeContact: Contact | null;
+  replyTarget?: ChatMessage | null;
   currentColorPalette: ColorPalette;
   selectedImages: SelectedImage[];
   selectedVideos: SelectedVideo[];
@@ -181,10 +225,10 @@ interface Props {
   rightChatAreaRef?: any;
   scrollToBottom?: () => void;
   messagesContainerRef?: HTMLElement | null;
-  lastTextSendTime?: Ref<number | null>;
-  lastImageSendTime?: Ref<number | null>;
-  lastVideoSendTime?: Ref<number | null>;
-  lastFileSendTime?: Ref<number | null>;
+  lastTextSendTime?: number | null;
+  lastImageSendTime?: number | null;
+  lastVideoSendTime?: number | null;
+  lastFileSendTime?: number | null;
   getOptions?: any;
 }
 
@@ -197,6 +241,7 @@ const props = withDefaults(defineProps<Props>(), {
   selectedFiles: () => [],
   currentUserId: "",
   contacts: () => [],
+  replyTarget: null,
 });
 
 const emit = defineEmits<{
@@ -224,11 +269,14 @@ const emit = defineEmits<{
   (e: "preview-file", file: SelectedFileItem): void;
   (e: "play-video-on-hover", event: MouseEvent): void;
   (e: "pause-video-on-leave", event: MouseEvent): void;
-  (e: "open-chat-history-modal"): void;
   (e: "update:new-message", value: string): void;
   (e: "add-screenshot", screenshot: SelectedImage): void;
   (e: "update:show-emoji-picker", value: boolean): void;
+  (e: "cancel-reply"): void;
 }>();
+
+/** 机器人（AI 助手）会话：输入框只保留输入相关工具（隐藏语音等） */
+const isBotContact = computed(() => props.activeContact?.isBot === true);
 
 // 添加响应式变量用于控制表情包选择器的显示
 const showEmojiPicker = ref(props.showEmojiPicker);
@@ -254,6 +302,7 @@ const messageTextareaRef = ref<HTMLElement | null>(null);
 watch(
   () => props.activeContact,
   async (newVal) => {
+    closeMentionPanel();
     if (newVal && messageTextareaRef.value) {
       await nextTick();
       messageTextareaRef.value.focus();
@@ -273,6 +322,33 @@ const handleKeyDown = (event: KeyboardEvent) => {
   if (props.readonly || shouldShowMuteAllHint.value || isBlockedComputed.value) {
     event.preventDefault();
     return;
+  }
+
+  // @ 提及面板打开时优先消费按键（输入法组合中不拦截）
+  if (showMentionPanel.value && !event.isComposing) {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      moveMentionActive(1);
+      return;
+    }
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      moveMentionActive(-1);
+      return;
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeMentionPanel();
+      return;
+    }
+    if (event.key === "Enter" || event.key === "Tab") {
+      const target = mentionCandidates.value[mentionActiveIndex.value];
+      if (target) {
+        event.preventDefault();
+        insertMention(target);
+        return;
+      }
+    }
   }
 
   // 处理回车键
@@ -340,7 +416,7 @@ const handlePaste = (event: ClipboardEvent) => {
   const items = event.clipboardData?.items;
   if (!items) return;
 
-  for (const item of items) {
+  for (const item of Array.from(items)) {
     if (item.type.startsWith("image/")) {
       event.preventDefault();
       const file = item.getAsFile();
@@ -404,6 +480,23 @@ const hexToRgb = (hex: string): string => {
     ? `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}`
     : "22, 93, 255";
 };
+
+// ==================== 引用回复预览 ====================
+
+const replySenderName = computed(() => {
+  const t = props.replyTarget;
+  if (!t) return "";
+  return t.sender?.nickname || t.sender?.username || t.senderName || "";
+});
+
+const replyPreviewText = computed(() => {
+  const t = props.replyTarget;
+  if (!t) return "";
+  if (t.messageType === "image") return "[图片]";
+  if (t.messageType === "video") return "[视频]";
+  if (t.messageType === "file") return "[文件]";
+  return t.content || "";
+});
 
 // ==================== 工具按钮事件 ====================
 
@@ -609,10 +702,6 @@ const handleSelectFile = () => {
   input.click();
 };
 
-const handleOpenChatHistoryModal = () => {
-  emit("open-chat-history-modal");
-};
-
 // ==================== 文本提取和输入处理 ====================
 
 const extractPureTextContent = (): string => {
@@ -627,6 +716,354 @@ const handleInput = (e: InputEvent) => {
     emit("update:new-message", text);
     sendTypingStatus(text.length > 0);
   }
+  updateMentionState();
+};
+
+// ==================== @ 提及群成员 ====================
+
+type GroupMember = NonNullable<Contact["groupMembers"]>[number];
+
+const inputWrapperRef = ref<HTMLElement | null>(null);
+const showMentionPanel = ref(false);
+const mentionQuery = ref("");
+const mentionActiveIndex = ref(0);
+const mentionPanelStyle = ref<Record<string, string>>({ left: "8px", bottom: "0px" });
+const mentionLoading = ref(false);
+/** 已按需补拉过成员的群ID（避免反复请求空结果的群） */
+const mentionLoadedGroupIds = new Set<string>();
+/** 补拉到的成员本地兜底（父级 contact 非响应式时也能刷新面板） */
+const mentionFallbackMembers = ref<GroupMember[]>([]);
+const mentionFallbackGroupId = ref("");
+
+/** 夜间模式：面板切换为深色 */
+const isDarkMode = computed(() => !!siderColorStore.systemPrefersDark);
+
+const memberDisplayName = (member: GroupMember): string =>
+  member.nickname || member.name || "";
+
+const memberKey = (member: any): string =>
+  String(member?.id ?? member?.userId ?? member?.user?.id ?? "").trim();
+
+/** 群ID：优先 groupOwnerId，其次 owner.id，最后成员里的 role==='owner' */
+const ownerIds = computed<Set<string>>(() => {
+  const contact = props.activeContact;
+  const ids = new Set<string>();
+  const add = (value: any) => {
+    const id = String(value ?? "").trim();
+    if (id) ids.add(id);
+  };
+  add((contact as any)?.groupOwnerId);
+  add((contact as any)?.owner?.id);
+  (contact?.groupMembers || []).forEach((m: any) => {
+    if (String(m?.role || "").toLowerCase() === "owner") add(memberKey(m));
+  });
+  return ids;
+});
+
+/** 管理员ID：contact.admin（后端权威） ∪ 成员里 role==='admin' */
+const adminIds = computed<Set<string>>(() => {
+  const contact = props.activeContact;
+  const ids = new Set<string>();
+  ((contact as any)?.admin || []).forEach((a: any) => {
+    const id = memberKey(a);
+    if (id) ids.add(id);
+  });
+  (contact?.groupMembers || []).forEach((m: any) => {
+    if (String(m?.role || "").toLowerCase() === "admin") {
+      const id = memberKey(m);
+      if (id) ids.add(id);
+    }
+  });
+  return ids;
+});
+
+/** 机器人判定：成员带 isBot / category='robot' / tags 含机器人 */
+const isBotMember = (member: any): boolean =>
+  member?.isBot === true ||
+  member?.category === "robot" ||
+  (Array.isArray(member?.tags) &&
+    member.tags.some((tag: any) => /机器人|robot/i.test(String(tag ?? ""))));
+
+type MentionRole = "owner" | "admin" | "bot" | "member";
+
+const resolveMentionRole = (member: GroupMember): MentionRole => {
+  const id = memberKey(member);
+  const role = String(member.role || "").toLowerCase();
+  if (role === "owner" || (id && ownerIds.value.has(id))) return "owner";
+  if (role === "admin" || (id && adminIds.value.has(id))) return "admin";
+  if (isBotMember(member)) return "bot";
+  return "member";
+};
+
+const memberRoleLabel = (member: GroupMember): string => {
+  const role = resolveMentionRole(member);
+  if (role === "owner") return "群主";
+  if (role === "admin") return "管理员";
+  return "";
+};
+
+/** 当前登录用户自己（列表里不去掉，只加「我」徽标，避免看到「没有管理员」的困惑） */
+const isSelfMember = (member: GroupMember): boolean => {
+  const selfId = String(props.currentUserId || "").trim();
+  return !!selfId && memberKey(member) === selfId;
+};
+
+/** 候选成员：群成员 + 仅存在于 contact.admin/owner 的角色成员，按角色排序后过滤 */
+const mentionCandidates = computed<GroupMember[]>(() => {
+  const contact = props.activeContact;
+  if (!contact?.isGroup) return [];
+  const source = contact.groupMembers?.length
+    ? contact.groupMembers
+    : mentionFallbackGroupId.value === String(contact.id)
+      ? mentionFallbackMembers.value
+      : [];
+  const members: GroupMember[] = [...source];
+
+  const exists = (id: string) => !!id && members.some((m) => memberKey(m) === id);
+  const mergeRoleMember = (raw: any, role: "owner" | "admin") => {
+    const id = memberKey(raw);
+    if (!id || exists(id)) return;
+    members.push({
+      id,
+      name: raw?.name ?? raw?.nickname ?? (role === "owner" ? "群主" : "管理员"),
+      avatar: raw?.avatar ?? "",
+      nickname: raw?.nickname ?? null,
+      role,
+    } as GroupMember);
+  };
+  ((contact as any).admin || []).forEach((a: any) => mergeRoleMember(a, "admin"));
+  if ((contact as any).owner) mergeRoleMember((contact as any).owner, "owner");
+
+  const keyword = mentionQuery.value.trim().toLowerCase();
+  const filtered = members.filter(
+    (m) =>
+      !keyword ||
+      memberDisplayName(m).toLowerCase().includes(keyword) ||
+      memberKey(m) === keyword,
+  );
+
+  const weight: Record<MentionRole, number> = { owner: 0, admin: 1, bot: 2, member: 3 };
+  filtered.sort((a, b) => weight[resolveMentionRole(a)] - weight[resolveMentionRole(b)]);
+  return filtered.slice(0, 50);
+});
+
+/** 光标前命中「@ + 关键字」的匹配规则（关键字内不含空格） */
+const MENTION_TAIL_RE = /@([^\s@\u3000]{0,20})$/;
+
+/**
+ * 群成员按需补拉：联系人列表缓存会剥离 groupMembers，
+ * 首屏从缓存渲染时群成员可能为空，打开 @ 面板时补一次。
+ */
+const ensureGroupMembers = async () => {
+  const contact = props.activeContact;
+  if (!contact?.isGroup) return;
+  const groupId = String(contact.id);
+  if (Array.isArray(contact.groupMembers) && contact.groupMembers.length > 0) return;
+  if (mentionLoading.value || mentionLoadedGroupIds.has(groupId)) return;
+
+  mentionLoadedGroupIds.add(groupId);
+  mentionLoading.value = true;
+  try {
+    const { fetchGroupDetail } = await import("../untils/messageManager");
+    const data = await fetchGroupDetail(groupId);
+    if (Array.isArray(data?.members) && data.members.length > 0) {
+      const members: GroupMember[] = data.members.map((m: any) => ({
+        id: String(m.id ?? m.userId ?? m.user?.id ?? ""),
+        name: m.name,
+        avatar: m.avatar,
+        role: m.role,
+        joinTime: m.joinTime,
+        nickname: m.nickname || null,
+        tags: m.tags || [],
+        chatLevel: m.chatLevel || 1,
+        messageCount: m.messageCount || 0,
+        groupTitle: m.groupTitle || null,
+        isBot: m.isBot === true || undefined,
+        category: m.category,
+      }));
+      contact.groupMembers = members;
+      mentionFallbackGroupId.value = groupId;
+      mentionFallbackMembers.value = members;
+      if (!contact.memberCount) {
+        contact.memberCount = data.memberCount ?? data.members.length;
+      }
+      // 角色兜底：后端可能只在 admin/owner 字段返回角色，@ 面板据此标注
+      const contactAny = contact as any;
+      if (Array.isArray(data.admin) && data.admin.length > 0 && !contactAny.admin?.length) {
+        contactAny.admin = data.admin;
+      }
+      if (data.owner) {
+        if (!contactAny.owner) contactAny.owner = data.owner;
+        if (!contactAny.groupOwnerId && data.owner.id) {
+          contactAny.groupOwnerId = String(data.owner.id);
+        }
+      }
+    }
+  } catch (error) {
+    mentionLoadedGroupIds.delete(groupId);
+    console.warn("[MessageInputArea] 拉取群成员失败:", error);
+  } finally {
+    mentionLoading.value = false;
+  }
+};
+
+/** 取光标前的纯文本（textContent 语义，不含隐式换行） */
+const getTextBeforeCaret = (): string | null => {
+  const el = messageTextareaRef.value;
+  if (!el) return null;
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0) return null;
+  const range = selection.getRangeAt(0);
+  if (!range.collapsed || !el.contains(range.startContainer)) return null;
+  const preRange = range.cloneRange();
+  preRange.selectNodeContents(el);
+  preRange.setEnd(range.startContainer, range.startOffset);
+  return preRange.toString();
+};
+
+/** 命中「@ + 关键字」时打开面板 */
+const updateMentionState = () => {
+  if (props.readonly || shouldShowMuteAllHint.value || isBlockedComputed.value) {
+    closeMentionPanel();
+    return;
+  }
+  if (!props.activeContact?.isGroup) {
+    closeMentionPanel();
+    return;
+  }
+  const before = getTextBeforeCaret();
+  if (before === null) return;
+  const match = MENTION_TAIL_RE.exec(before);
+  if (!match) {
+    closeMentionPanel();
+    return;
+  }
+  mentionQuery.value = match[1];
+  mentionActiveIndex.value = 0;
+  showMentionPanel.value = true;
+  nextTick(positionMentionPanel);
+  if (!props.activeContact.groupMembers?.length) {
+    void ensureGroupMembers();
+  }
+};
+
+const closeMentionPanel = () => {
+  if (!showMentionPanel.value) return;
+  showMentionPanel.value = false;
+  mentionQuery.value = "";
+  mentionActiveIndex.value = 0;
+};
+
+/** 面板跟随光标定位（在 .message-input-wrapper 内绝对定位） */
+const positionMentionPanel = () => {
+  const el = messageTextareaRef.value;
+  const wrapper = inputWrapperRef.value;
+  if (!el || !wrapper) return;
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0) return;
+  const range = selection.getRangeAt(0).cloneRange();
+  range.collapse(true);
+  let rect = range.getBoundingClientRect();
+  if (!rect || (!rect.width && !rect.height && !rect.top && !rect.left)) {
+    rect = el.getBoundingClientRect();
+  }
+  const wrapperRect = wrapper.getBoundingClientRect();
+  const panelWidth = 220;
+  const left = Math.min(
+    Math.max(rect.left - wrapperRect.left, 8),
+    Math.max(wrapperRect.width - panelWidth - 8, 8),
+  );
+  mentionPanelStyle.value = {
+    left: `${left}px`,
+    bottom: `${Math.max(wrapperRect.bottom - rect.top + 6, 28)}px`,
+  };
+};
+
+/** 把光标前的「@关键字」替换为「@昵称 」 */
+const insertMention = (member: GroupMember) => {
+  const el = messageTextareaRef.value;
+  const selection = window.getSelection();
+  if (!el || !selection || selection.rangeCount === 0) {
+    closeMentionPanel();
+    return;
+  }
+  const before = getTextBeforeCaret();
+  if (before === null) {
+    closeMentionPanel();
+    return;
+  }
+  const match = MENTION_TAIL_RE.exec(before);
+  if (!match) {
+    closeMentionPanel();
+    return;
+  }
+  const caret = selection.getRangeAt(0);
+  const startOffset = before.length - match[1].length - 1;
+  const startPos = locateTextOffset(el, startOffset);
+  if (!startPos) {
+    closeMentionPanel();
+    return;
+  }
+  const range = document.createRange();
+  range.setStart(startPos.node, startPos.offset);
+  range.setEnd(caret.startContainer, caret.startOffset);
+  range.deleteContents();
+  const textNode = document.createTextNode(`@${memberDisplayName(member)} `);
+  range.insertNode(textNode);
+  const after = document.createRange();
+  after.setStart(textNode, textNode.data.length);
+  after.collapse(true);
+  selection.removeAllRanges();
+  selection.addRange(after);
+  closeMentionPanel();
+  el.focus();
+  syncInputState();
+};
+
+/** 在元素 textContent 中定位偏移量对应的文本节点位置 */
+const locateTextOffset = (
+  el: HTMLElement,
+  offset: number,
+): { node: Text; offset: number } | null => {
+  const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  let consumed = 0;
+  let node = walker.nextNode() as Text | null;
+  while (node) {
+    const length = node.data.length;
+    if (consumed + length >= offset) return { node, offset: offset - consumed };
+    consumed += length;
+    node = walker.nextNode() as Text | null;
+  }
+  return null;
+};
+
+const syncInputState = () => {
+  const text = extractPureTextContent();
+  currentInputText.value = text;
+  emit("update:new-message", text);
+  sendTypingStatus(text.length > 0);
+};
+
+const moveMentionActive = (step: number) => {
+  const total = mentionCandidates.value.length;
+  if (total === 0) return;
+  mentionActiveIndex.value = (mentionActiveIndex.value + step + total) % total;
+};
+
+/** 左右方向键 / Home / End 改变光标位置后重新判断面板 */
+const handleInputKeyUp = (event: KeyboardEvent) => {
+  if (!showMentionPanel.value) return;
+  if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
+    updateMentionState();
+  }
+};
+
+const handleCaretMoved = () => {
+  if (showMentionPanel.value) updateMentionState();
+};
+
+const handleInputBlur = () => {
+  closeMentionPanel();
 };
 
 // ==================== 发送消息 ====================
@@ -677,6 +1114,7 @@ const handleSendMessage = async () => {
     messageTextareaRef.value.innerText = "";
     currentInputText.value = "";
   }
+  closeMentionPanel();
 
   if (props.scrollToBottom) {
     await nextTick();
@@ -863,18 +1301,208 @@ defineExpose({
 
 /* 动态主题（个性装扮）下图标用壁纸吸色渲染，跟随壁纸主色而非固定白色 */
 .message-input-area.has-dynamic-bg .tool-icon {
-  color: v-bind("siderColorStore.dynamicAccentIcon");
+  color: var(--dt-accent-icon, #ffffff);
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45));
 }
 
 .message-input-area.has-dynamic-bg .input-tool-btn:hover {
-  background-color: v-bind("siderColorStore.dynamicAccentBg");
+  background-color: var(--dt-accent-bg, transparent);
 }
 
 .message-input-wrapper {
   position: relative;
   flex: 1;
   margin-top: 8px;
+}
+
+.reply-preview-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  margin-bottom: 8px;
+  background: var(--theme-light, rgba(0, 0, 0, 0.05));
+  border-left: 3px solid var(--theme-primary-rgb, #165dff);
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.reply-preview-content {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.reply-preview-label {
+  color: var(--text-primary, #1a1a2e);
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.reply-preview-text {
+  color: var(--text-secondary, #666);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.reply-preview-close {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--text-secondary, #999);
+  font-size: 14px;
+  line-height: 1;
+  padding: 2px 4px;
+}
+
+.reply-preview-close:hover {
+  color: var(--danger-color, #ff3b30);
+}
+
+/* ==================== @ 提及成员面板 ==================== */
+.mention-panel {
+  position: absolute;
+  z-index: 1002;
+  width: 220px;
+  max-height: 240px;
+  display: flex;
+  flex-direction: column;
+  background: var(--dt-panel-solid, var(--card-bg, #fff));
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 10px;
+  box-shadow:
+    0 6px 24px -6px rgba(0, 0, 0, 0.18),
+    0 2px 6px rgba(0, 0, 0, 0.06);
+  overflow: hidden;
+}
+
+.mention-panel.is-dark {
+  background: #2c2c2e;
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 6px 24px -6px rgba(0, 0, 0, 0.5),
+    0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.mention-panel-title {
+  flex-shrink: 0;
+  padding: 7px 10px;
+  font-size: 11px;
+  color: #9ca3af;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.mention-panel.is-dark .mention-panel-title {
+  color: #8e8e93;
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
+.mention-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.mention-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.mention-list::-webkit-scrollbar-thumb {
+  background: var(--theme-light, rgba(0, 0, 0, 0.15));
+  border-radius: 2px;
+}
+
+.mention-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #1f2937;
+  user-select: none;
+}
+
+.mention-item.active {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.mention-panel.is-dark .mention-item {
+  color: #e5e7eb;
+}
+
+/* 动态壁纸下保持可读：命中块用半透明深底 */
+.message-input-area.has-dynamic-bg .mention-item.active,
+.message-input-area.has-dynamic-bg .mention-item:hover {
+  background: rgba(0, 0, 0, 0.28);
+}
+
+.mention-panel.is-dark .mention-item.active {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.mention-avatar {
+  flex-shrink: 0;
+}
+
+.mention-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.mention-role {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  font-size: 11px;
+  border-radius: 4px;
+}
+
+.mention-role.tone-owner {
+  color: #e5484d;
+  background: rgba(229, 72, 77, 0.12);
+}
+
+.mention-role.tone-admin {
+  color: #165dff;
+  background: rgba(22, 93, 255, 0.1);
+}
+
+.mention-role.tone-bot {
+  color: #8b5cf6;
+  background: rgba(139, 92, 246, 0.12);
+}
+
+.mention-role.tone-self {
+  color: #6b7280;
+  background: rgba(107, 114, 128, 0.14);
+}
+
+.mention-empty {
+  padding: 12px 8px;
+  text-align: center;
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+/* 动态主题（个性装扮）下引用条转半透明深底 + 白字 */
+.message-input-area.has-dynamic-bg .reply-preview-bar {
+  background: rgba(0, 0, 0, 0.28);
+  border-left-color: rgba(255, 255, 255, 0.6);
+}
+.message-input-area.has-dynamic-bg .reply-preview-label,
+.message-input-area.has-dynamic-bg .reply-preview-text {
+  color: var(--dt-text);
+  text-shadow: var(--dt-text-shadow);
 }
 
 .message-input-container {
@@ -897,7 +1525,7 @@ defineExpose({
 /* 空状态占位 */
 .message-input-content:empty::before {
   content: attr(data-placeholder);
-  color: #aaa;
+  color: var(--text-tertiary);
   pointer-events: none;
 }
 
@@ -918,11 +1546,11 @@ defineExpose({
 
 .send-hint-text {
   user-select: none;
-  color: #000;
+  color: var(--text-primary);
 }
 
 .send-hint-divider {
-  color: #000;
+  color: var(--text-primary);
 }
 
 .emoji-picker {

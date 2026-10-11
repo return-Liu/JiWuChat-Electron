@@ -1,4 +1,5 @@
 import { ref, unref, type Ref } from "vue";
+import { resolveWallpaperUrl } from "~/utils/wallpaper";
 
 /**
  * 个性装扮壁纸预览：加载状态 + 悬停播放 + 错误处理。
@@ -92,14 +93,14 @@ export const useWallpaperPreview = (source: WallpaperSource<PreviewWallpaper[]>)
     if (!item) return undefined;
     const raw = item.type === "video" ? item.poster : item.url;
     if (!raw) return undefined;
-    return withAttempt(encodeUrl(raw), index);
+    return withAttempt(encodeUrl(resolveWallpaperUrl(raw)), index);
   };
 
   /** 视频地址：有封面时仅在悬停激活后返回，无封面时直接加载（保底） */
   const videoSrcOf = (item: PreviewWallpaper | undefined, index: number) => {
     if (!item || item.type !== "video") return undefined;
     if (item.poster && !activatedMap.value[index]) return undefined;
-    return withAttempt(encodeUrl(item.url), index);
+    return withAttempt(encodeUrl(resolveWallpaperUrl(item.url)), index);
   };
 
   /**

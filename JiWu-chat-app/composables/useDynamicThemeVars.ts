@@ -35,7 +35,7 @@ export const useDynamicThemeVars = (
   const siderColorStore = useSiderColor();
 
   const dynamicThemeStyle = computed<Record<string, string>>(() => {
-    if (!siderColorStore.hasDynamicBackground) return {};
+    if (!siderColorStore.hasDynamicBackground) return {} as Record<string, string>;
 
     const accent = siderColorStore.dynamicAccent;
     const dark = surface === "dark";
@@ -49,6 +49,9 @@ export const useDynamicThemeVars = (
       "--bg-tertiary": dark ? "rgba(0, 0, 0, 0.28)" : panelSoft,
       "--bg-hover": panelHover,
       "--card-bg": panel,
+      // 弹窗 / 抽屉的卡面：不透明实底。
+      // 半透明卡面叠在壁纸上会透出花纹，文字对比也不稳定（体验差）。
+      "--dt-panel-solid": "#1b1b20",
       "--border-color": "rgba(255, 255, 255, 0.3)",
       "--text-primary": "#ffffff",
       "--text-secondary": "rgba(255, 255, 255, 0.85)",

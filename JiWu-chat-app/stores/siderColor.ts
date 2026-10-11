@@ -1,5 +1,9 @@
 import { defineStore } from "pinia";
-import { ref, computed, readonly } from "vue";
+import { ref, computed, readonly, watch } from "vue";
+import {
+  extractColorFromVideo,
+  extractColorFromUrl,
+} from "../untils/colorExtractor";
 import {
   broadcastThemeSettings,
   onThemeSettingsChanged,
@@ -9,6 +13,8 @@ import {
   isClient,
   safeGetStorage,
   safeSetStorage,
+  setThemeStorageUid,
+  withThemeUid,
   readCSSVar,
   hexToRgb,
   hexToRgba,
@@ -16,6 +22,8 @@ import {
   darkenColor,
   createUnifiedGradient,
   createSidebarShadow,
+  parseColor,
+  luminanceOf,
 } from "./theme/utils";
 
 // 保持类型 re-export，兼容可能存在的跨文件引用
@@ -41,8 +49,9 @@ const buildDarkPaletteFromCSSVars = (): ColorPalette => {
     sidebarShadow: "none",
     sidebarBorder: "1px solid #2a2a2a",
 
-    sidebarHoverBg: "#262626",
-    sidebarActiveBg: "#1f1f1f",
+    sidebarHoverBg: "rgba(139, 92, 246, 0.04)",
+    // 夜间选中态：与悬浮态一致
+    sidebarActiveBg: "rgba(139, 92, 246, 0.04)",
 
     chatBgGradient:
       "linear-gradient(135deg, #0d0d0d 0%, #141414 50%, #0d0d0d 100%)",
@@ -81,8 +90,9 @@ const buildDarkPaletteFromCSSVars = (): ColorPalette => {
     scrollbarThumb: "#404040",
 
     contactItemBg: "#1f1f1f",
-    contactItemHover: "#262626",
-    contactItemActive: "#1f1f1f",
+    contactItemHover: "rgba(139, 92, 246, 0.12)",
+    // 夜间选中态：比悬浮态略深，突出当前项
+    contactItemActive: "rgba(139, 92, 246, 0.16)",
 
     dividerLineColor: "#2a2a2a",
     dividerLineWidth: "1px",
@@ -245,7 +255,7 @@ const BASE_LIGHT_PALETTE: ColorPalette = {
   contactItemHover: "#F0F0F0",
   contactItemActive: "#E8E8E8",
 
-  dividerLineColor: "#ebe1e1",
+  dividerLineColor: "#d9d9d9",
   dividerLineWidth: "1px",
   dividerLineStyle: "solid",
   dividerLineShadow: "none",
@@ -265,6 +275,7 @@ const DEFAULT_LIGHT_PALETTE: ColorPalette = BASE_LIGHT_PALETTE;
 export type { DynamicWallpaper } from "./dynamicWallpapers.generated";
 export { DYNAMIC_WALLPAPERS } from "./dynamicWallpapers.generated";
 import { DYNAMIC_WALLPAPERS } from "./dynamicWallpapers.generated";
+import { resolveWallpaperUrl } from "~/utils/wallpaper";
 
 /** 默认个性装扮壁纸路径（兼容旧引用） */
 const DEFAULT_DYNAMIC_URL = DYNAMIC_WALLPAPERS[0].url;
@@ -289,10 +300,13 @@ const buildDynamicPalette = (index: number = 0): ColorPalette => {
     chatBgType: wallpaper.type,
     chatBgAnimation: "",
     chatBgPattern: "",
-    chatBgVideo: wallpaper.type === "video" ? wallpaper.url : undefined,
-    chatBgImage: wallpaper.type === "image" ? wallpaper.url : undefined,
+    chatBgVideo: wallpaper.type === "video" ? resolveWallpaperUrl(wallpaper.url) : undefined,
+    chatBgImage: wallpaper.type === "image" ? resolveWallpaperUrl(wallpaper.url) : undefined,
     // 封面：视频用抽帧生成的 poster，图片用自身；缺省时空串，前端退化为透明
-    chatBgPoster: wallpaper.type === "video" ? (wallpaper.poster || "") : wallpaper.url,
+    chatBgPoster:
+      wallpaper.type === "video"
+        ? resolveWallpaperUrl(wallpaper.poster || "")
+        : resolveWallpaperUrl(wallpaper.url),
     chatBgOverlay: "transparent",
   };
 };
@@ -321,14 +335,9 @@ const buildDarkPaletteFromLight = (light: ColorPalette): ColorPalette => {
     sidebarShadow: "none",
     sidebarBorder: "1px solid #2a2a2a",
 
-    sidebarHoverBg: darkenColor(
-      light.sidebarHoverBg || light.sidebarActiveBg || "#F0F0F0",
-      0.16,
-    ),
-    sidebarActiveBg: darkenColor(
-      light.sidebarActiveBg || light.sidebarHoverBg || "#E8E8E8",
-      0.12,
-    ),
+    sidebarHoverBg: `rgba(${hexToRgb(themeColor)}, 0.04)`,
+    // 夜间选中态：与悬浮态一致
+    sidebarActiveBg: `rgba(${hexToRgb(themeColor)}, 0.04)`,
 
     chatBgGradient: `linear-gradient(135deg, ${darkenColor(
       light.chatBgStart || "#FEFEFE",
@@ -382,14 +391,9 @@ const buildDarkPaletteFromLight = (light: ColorPalette): ColorPalette => {
       light.contactItemBg || light.sidebarActiveBg || "#E8E8E8",
       0.12,
     ),
-    contactItemHover: darkenColor(
-      light.contactItemHover || light.sidebarHoverBg || "#F0F0F0",
-      0.16,
-    ),
-    contactItemActive: darkenColor(
-      light.contactItemActive || light.sidebarActiveBg || "#E8E8E8",
-      0.12,
-    ),
+    contactItemHover: `rgba(${hexToRgb(themeColor)}, 0.12)`,
+    // 夜间选中态：比悬浮态略深，突出当前项
+    contactItemActive: `rgba(${hexToRgb(themeColor)}, 0.16)`,
 
     dividerLineColor: "#2a2a2a",
     dividerLineWidth: "1px",
@@ -430,6 +434,129 @@ const buildDarkPaletteFromLight = (light: ColorPalette): ColorPalette => {
 const DYNAMIC_WALLPAPER_ALLOWED_IN_DARK = false;
 
 // ============================================================
+// 🔥 壁纸亮度采样：用于动态计算面板暗化值
+// ============================================================
+
+/**
+ * 采样图片平均亮度。
+ * 缩到 32x32 后用 Rec.709 亮度公式算加权平均。
+ * @returns 0~1，0 全黑，1 全白
+ */
+function sampleImageBrightness(url: string): Promise<number> {
+  return new Promise((resolve) => {
+    if (!isClient()) return resolve(0.5);
+
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      try {
+        const SIZE = 32;
+        const canvas = document.createElement("canvas");
+        canvas.width = SIZE;
+        canvas.height = SIZE;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return resolve(0.5);
+
+        ctx.drawImage(img, 0, 0, SIZE, SIZE);
+        const { data } = ctx.getImageData(0, 0, SIZE, SIZE);
+
+        let total = 0;
+        for (let i = 0; i < data.length; i += 4) {
+          const r = data[i];
+          const g = data[i + 1];
+          const b = data[i + 2];
+          total += (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+        }
+        resolve(total / (data.length / 4));
+      } catch {
+        resolve(0.5);
+      }
+    };
+    img.onerror = () => resolve(0.5);
+    img.src = url;
+  });
+}
+
+/**
+ * 采样视频平均亮度。
+ * 加载元数据 → seek 到 0.5s（或时长中点，取较小者）→ 抽帧画到 canvas。
+ * @returns 0~1
+ */
+function sampleVideoBrightness(url: string): Promise<number> {
+  return new Promise((resolve) => {
+    if (!isClient()) return resolve(0.5);
+
+    const video = document.createElement("video");
+    video.crossOrigin = "anonymous";
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = "metadata";
+
+    let settled = false;
+    const finish = (value: number) => {
+      if (settled) return;
+      settled = true;
+      try {
+        video.src = "";
+      } catch {
+        /* ignore */
+      }
+      resolve(value);
+    };
+
+    video.addEventListener("loadedmetadata", () => {
+      try {
+        const duration = isFinite(video.duration) ? video.duration : 1;
+        video.currentTime = Math.min(0.5, duration / 2);
+      } catch {
+        finish(0.5);
+      }
+    });
+
+    video.addEventListener("seeked", () => {
+      try {
+        const SIZE = 32;
+        const canvas = document.createElement("canvas");
+        canvas.width = SIZE;
+        canvas.height = SIZE;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return finish(0.5);
+
+        ctx.drawImage(video, 0, 0, SIZE, SIZE);
+        const { data } = ctx.getImageData(0, 0, SIZE, SIZE);
+
+        let total = 0;
+        for (let i = 0; i < data.length; i += 4) {
+          const r = data[i];
+          const g = data[i + 1];
+          const b = data[i + 2];
+          total += (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+        }
+        finish(total / (data.length / 4));
+      } catch {
+        finish(0.5);
+      }
+    });
+
+    video.addEventListener("error", () => finish(0.5));
+
+    // 兜底超时：3 秒内没拿到就按中间亮度走
+    setTimeout(() => finish(0.5), 3000);
+
+    video.src = url;
+  });
+}
+
+/**
+ * 根据壁纸 URL 类型选择采样方式，写入亮度。
+ */
+async function sampleWallpaperBrightness(url: string): Promise<number> {
+  if (!url) return 0.5;
+  const isVideo = /\.(mp4|webm|mov|m4v)(\?.*)?$/i.test(url);
+  return isVideo ? sampleVideoBrightness(url) : sampleImageBrightness(url);
+}
+
+// ============================================================
 // Store 定义
 // ============================================================
 export const useSiderColor = defineStore("siderColor", () => {
@@ -447,17 +574,108 @@ export const useSiderColor = defineStore("siderColor", () => {
     previewThemeMode.value = mode;
   };
 
+  // ---- 壁纸亮度：动态计算面板暗化值 ----
+  /**
+   * 壁纸平均亮度 0~1，默认 0.5（中间值）。
+   * 图片/视频壁纸在启用时异步采样一次，结果缓存。
+   */
+  const wallpaperBrightness = ref(0.5);
+  /** 采样进行中标记（避免重复触发） */
+  const wallpaperBrightnessSampling = ref(false);
+  /** 当前已采样的 URL，避免同一 URL 重复采样 */
+  const sampledUrl = ref<string>("");
+  /** 最新一个待采样目标：采样期间用户又切了壁纸时，记为「下一个要采的」而不是丢弃 */
+  const pendingSampleUrl = ref<string>("");
+
+  /**
+   * 面板暗化透明度：亮度越高，暗化越强。
+   * 0（全黑壁纸） → 0.05
+   * 1（全白壁纸） → 0.35
+   * 线性插值。
+   */
+  const dynamicOverlayOpacity = computed(() => {
+    const b = Math.max(0, Math.min(1, wallpaperBrightness.value));
+    return 0.05 + b * 0.3;
+  });
+
+  /** 面板背景（rgba 字符串，可直接用于 CSS） */
+  const dynamicOverlayBg = computed(
+    () => `rgba(0, 0, 0, ${dynamicOverlayOpacity.value.toFixed(3)})`,
+  );
+
+  /**
+   * 触发壁纸亮度采样。
+   * - 已采样过的 URL 直接跳过
+   * - 采样中重复调用直接忽略
+   * - 采样失败按 0.5 兜底
+   */
+  const ensureWallpaperBrightness = async (url: string) => {
+    if (!url) return;
+    if (sampledUrl.value === url && !wallpaperBrightnessSampling.value) return;
+
+    // 记录最新目标：采样进行中再切壁纸时不再被丢掉
+    pendingSampleUrl.value = url;
+    if (wallpaperBrightnessSampling.value) return;
+
+    wallpaperBrightnessSampling.value = true;
+    try {
+      // 循环采「最新目标」：期间用户切了壁纸就接着采新的，
+      // 保证最终亮度一定对应最后选中的那张，而不是采样开始时的那张。
+      while (pendingSampleUrl.value && pendingSampleUrl.value !== sampledUrl.value) {
+        const target = pendingSampleUrl.value;
+        const value = await sampleWallpaperBrightness(target);
+        if (pendingSampleUrl.value !== target) continue; // 已过期，采下一个
+        wallpaperBrightness.value = value;
+        sampledUrl.value = target;
+      }
+    } catch (err) {
+      console.warn("[壁纸亮度] 采样失败，回退中间值 0.5:", err);
+      wallpaperBrightness.value = 0.5;
+    } finally {
+      wallpaperBrightnessSampling.value = false;
+    }
+  };
+
   // ---- 系统主题监听 ----
   let mediaQuery: MediaQueryList | null = null;
   let mediaHandler: ((e: MediaQueryListEvent) => void) | null = null;
+  let domThemeObserver: MutationObserver | null = null;
+
+  /**
+   * 当前是否夜间：以 `<html class="dark">` 为唯一真相。
+   *
+   * 应用内主题（日间 / 夜间 / 跟随系统）最终都落在 html.dark 上，
+   * 而系统媒体查询只在「跟随系统」时才是依据。
+   * 之前直接写 mediaQuery.matches，会导致「应用内切夜间 + 系统是亮色」
+   * 时这里被判成日间，于是联系人列表 / 侧边栏整套调色板仍是日间配色。
+   */
+  const syncDarkFromDom = () => {
+    if (!isClient()) return;
+    const dark = document.documentElement.classList.contains("dark");
+    if (systemPrefersDark.value !== dark) systemPrefersDark.value = dark;
+  };
 
   const initSystemThemeListener = () => {
     if (!isClient() || mediaQuery) return;
-    mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
-    systemPrefersDark.value = mediaQuery.matches;
 
-    mediaHandler = (e: MediaQueryListEvent) => {
-      systemPrefersDark.value = e.matches;
+    syncDarkFromDom();
+
+    // 主题切换（含跨窗口广播）都会改动 html.dark，直接跟随它
+    domThemeObserver = new MutationObserver(syncDarkFromDom);
+    domThemeObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+
+    mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    mediaHandler = () => {
+      // 跟随系统模式下 useDark 随后会同步改动 html.dark，延后一拍再读；
+      // 固定主题模式下 html.dark 不受系统影响，读到的仍是应用设定。
+      if (typeof requestAnimationFrame === "function") {
+        requestAnimationFrame(syncDarkFromDom);
+      } else {
+        syncDarkFromDom();
+      }
     };
     mediaQuery.addEventListener("change", mediaHandler);
   };
@@ -468,6 +686,9 @@ export const useSiderColor = defineStore("siderColor", () => {
     }
     mediaQuery = null;
     mediaHandler = null;
+
+    domThemeObserver?.disconnect();
+    domThemeObserver = null;
   };
 
   const updateSystemPrefersDark = (isDark: boolean) => {
@@ -484,6 +705,18 @@ export const useSiderColor = defineStore("siderColor", () => {
       return buildDarkPaletteFromCSSVars();
     }
 
+    return DEFAULT_LIGHT_PALETTE;
+  };
+
+  /** 解析当前应使用的"日间调色板" */
+  const resolveLightPalette = (type: ThemeType): ColorPalette => {
+    if (type === "custom") {
+      return customPalette.value ?? DEFAULT_LIGHT_PALETTE;
+    }
+    if (type === "dynamic") {
+      return buildDynamicPalette(currentPaletteIndex.value);
+    }
+    // base（默认）及历史保存的 classic / inkWash 统一使用基础配色
     return DEFAULT_LIGHT_PALETTE;
   };
 
@@ -512,18 +745,6 @@ export const useSiderColor = defineStore("siderColor", () => {
     return lightPalette;
   });
 
-  /** 解析当前应使用的"日间调色板" */
-  const resolveLightPalette = (type: ThemeType): ColorPalette => {
-    if (type === "custom") {
-      return customPalette.value ?? DEFAULT_LIGHT_PALETTE;
-    }
-    if (type === "dynamic") {
-      return buildDynamicPalette(currentPaletteIndex.value);
-    }
-    // base（默认）及历史保存的 classic / inkWash 统一使用基础配色
-    return DEFAULT_LIGHT_PALETTE;
-  };
-
   /** 日间基础调色板（不受夜间状态影响，供外观页日间预览使用） */
   const baseLightPalette = computed(() =>
     resolveLightPalette(currentThemeType.value),
@@ -533,27 +754,21 @@ export const useSiderColor = defineStore("siderColor", () => {
   const currentColor = computed(
     () => currentColorPalette.value.color || DEFAULT_COLOR,
   );
-  const bubbleBg = computed(() => {
-    // 个性装扮（动态背景）时，气泡无背景，直接显示动态主题背景
-    if (hasDynamicBackground.value) {
-      return "transparent";
-    }
-    return currentColorPalette.value.bubbleBg || "#FFFFFF";
-  });
-  const bubbleBorder = computed(() => {
-    // 个性装扮（动态背景）时，气泡无背景但保留白色半透明边框（勾勒气泡轮廓）
-    if (hasDynamicBackground.value) {
-      return "1px solid rgba(255, 255, 255, 0.45)";
-    }
-    return currentColorPalette.value.bubbleBorder || "none";
-  });
+  // 气泡底色 / 描边 / 文字。
+  // 动态壁纸主题下气泡不要底色（壁纸直接透出），文字用动态主题文字色。
+  const bubbleBg = computed(() =>
+    hasDynamicBackground.value
+      ? "transparent"
+      : currentColorPalette.value.bubbleBg || "#FFFFFF",
+  );
+  const bubbleBorder = computed(() =>
+    hasDynamicBackground.value
+      ? "1px solid var(--dt-divider, rgba(255, 255, 255, 0.55))"
+      : currentColorPalette.value.bubbleBorder || "none",
+  );
   const bubbleTextColor = computed(() => {
-    // 个性装扮（动态背景）时，气泡文字用白色 + 阴影（在 MessageDisplay 中处理）
-    if (hasDynamicBackground.value) {
-      return "#ffffff";
-    }
+    if (hasDynamicBackground.value) return "#ffffff";
     const bg = currentColorPalette.value.bubbleBg || "#FFFFFF";
-    // 浅底→接近纯黑，深底→纯白，保证气泡文字足够"深"、清晰可读
     return isLightColor(bg) ? "#0A0A0A" : "#F5F5F5";
   });
   const bubbleShadow = computed(
@@ -564,19 +779,50 @@ export const useSiderColor = defineStore("siderColor", () => {
   const sidebarTextColor = computed(
     () => currentColorPalette.value.sidebarText || "#1E293B",
   );
-  const sidebarIconColor = computed(
-    () => currentColorPalette.value.sidebarIcon || "#94A3B8",
+  // 动态主题下侧边栏图标（含选中态）跟随壁纸吸色；
+  // 否则沿用调色板图标色（极简白的 #D0D0D0 / 选中 #C8C8C8 在壁纸上几乎看不见）。
+  const sidebarIconColor = computed(() =>
+    hasDynamicBackground.value
+      ? dynamicAccentIcon.value
+      : currentColorPalette.value.sidebarIcon || "#94A3B8",
   );
-  const sidebarIconHoverColor = computed(
-    () => currentColorPalette.value.hover || "#CBD5E1",
+  const sidebarIconHoverColor = computed(() =>
+    hasDynamicBackground.value
+      ? dynamicAccentIcon.value
+      : currentColorPalette.value.hover || "#CBD5E1",
   );
-  const sidebarIconActiveColor = computed(
-    () => currentColorPalette.value.active || "#64748B",
+  const sidebarIconActiveColor = computed(() =>
+    hasDynamicBackground.value
+      ? dynamicAccentIcon.value
+      : currentColorPalette.value.active || "#64748B",
   );
+  // ---- 动态主题主色（从壁纸吸取）----
+  /** 从当前壁纸（图片/视频）吸取到的主色，空字符串表示尚未取到 */
+  const dynamicAccentColor = ref<string>("");
+  const setDynamicAccentColor = (color: string) => {
+    dynamicAccentColor.value = color || "";
+  };
+
+
+  /**
+   * 动态主题下 hover / active 的叠加透明度。
+   *
+   * 侧边栏与联系人列表共用同一组值：同一吸色主色在不同区域必须是同一个深浅，
+   * 否则「侧边栏选中」和「联系人选中」看起来像两套配色。
+   */
+  const DYNAMIC_OVERLAY_HOVER = 0.34;
+  const DYNAMIC_OVERLAY_ACTIVE = 0.58;
+
+  /**
+   * 动态主题下 hover/active 的叠加色：**一律使用壁纸吸色主色**（accent）。
+   * 不做「亮壁纸黑 / 暗壁纸白」的黑白兜底 —— 兜底色看起来就是「变回默认主题」。
+   */
+  const dynamicItemOverlay = (alpha: number): string =>
+    hexToRgba(dynamicAccent.value, alpha);
+
   const sidebarItemHoverBg = computed(() => {
-    // 个性装扮（动态背景）时，用从背景吸取的主色生成半透明悬停色
-    if (hasDynamicBackground.value && dynamicAccentColor.value) {
-      return hexToRgba(dynamicAccentColor.value, 0.25);
+    if (hasDynamicBackground.value) {
+      return dynamicItemOverlay(DYNAMIC_OVERLAY_HOVER);
     }
     return (
       currentColorPalette.value.sidebarHoverBg ||
@@ -584,9 +830,9 @@ export const useSiderColor = defineStore("siderColor", () => {
     );
   });
   const sidebarItemActiveBg = computed(() => {
-    // 个性装扮（动态背景）时，用从背景吸取的主色生成半透明选中色
-    if (hasDynamicBackground.value && dynamicAccentColor.value) {
-      return hexToRgba(dynamicAccentColor.value, 0.45);
+    if (hasDynamicBackground.value) {
+      // 选中态：比悬浮更重，突出当前项
+      return dynamicItemOverlay(DYNAMIC_OVERLAY_ACTIVE);
     }
     return (
       currentColorPalette.value.sidebarActiveBg ||
@@ -594,9 +840,8 @@ export const useSiderColor = defineStore("siderColor", () => {
     );
   });
   const contactItemHoverBg = computed(() => {
-    // 个性装扮（动态背景）时，用从背景吸取的主色生成半透明悬停色
-    if (hasDynamicBackground.value && dynamicAccentColor.value) {
-      return hexToRgba(dynamicAccentColor.value, 0.25);
+    if (hasDynamicBackground.value) {
+      return dynamicItemOverlay(DYNAMIC_OVERLAY_HOVER);
     }
     return (
       currentColorPalette.value.contactItemHover ||
@@ -604,9 +849,9 @@ export const useSiderColor = defineStore("siderColor", () => {
     );
   });
   const contactItemActiveBg = computed(() => {
-    // 个性装扮（动态背景）时，用从背景吸取的主色生成半透明选中色
-    if (hasDynamicBackground.value && dynamicAccentColor.value) {
-      return hexToRgba(dynamicAccentColor.value, 0.45);
+    if (hasDynamicBackground.value) {
+      // 选中态：叠加 accent 色调，既醒目又跟随壁纸配色（加深一点，仍保持半透明不厚重）
+      return dynamicItemOverlay(DYNAMIC_OVERLAY_ACTIVE);
     }
     return (
       currentColorPalette.value.contactItemActive ||
@@ -637,6 +882,10 @@ export const useSiderColor = defineStore("siderColor", () => {
   );
   const dangerColorValue = computed(
     () => currentColorPalette.value.dangerColor || DEFAULT_DANGER_COLOR,
+  );
+  /** 成功色（在线状态 / 已同步等正向提示） */
+  const successColorValue = computed(
+    () => currentColorPalette.value.successColor || "#22c55e",
   );
   const highlightBgColor = computed(
     () => currentColorPalette.value.highlightBg || DEFAULT_HIGHLIGHT_BG,
@@ -674,23 +923,31 @@ export const useSiderColor = defineStore("siderColor", () => {
   );
 
   /**
-   * 面板分割线颜色（侧边栏 / 联系人列表 / 输入框统一使用）
-   * 个性装扮（动态背景）时使用从壁纸吸取主色的加深版，保证深浅壁纸下都清晰可见；
-   * 提取失败时回退到白色半透明（深色壁纸下可见）。
+   * 动态主题下的分割线 / 边框色：**跟着壁纸主色走**，不是固定白。
+   * 主色偏暗时按亮度向白色提亮，保证在花哨壁纸上仍然看得清。
    */
-  const panelDividerColor = computed(() =>
-    hasDynamicBackground.value
-      ? (dynamicAccentDeep.value || "rgba(255, 255, 255, 0.3)")
-      : dividerLineColorValue.value,
-  );
+  const dynamicDividerColor = computed(() => {
+    const accent = dynamicAccent.value || "#94A3B8";
+    const rgb = parseColor(accent);
+    if (!rgb) return "rgba(255, 255, 255, 0.6)";
 
-  /**
-   * 动态背景（个性装扮）时的面板背景色（不透明）
-   * 使用主题专属色（bgPrimary / color），避免半透明层在视频循环时重新合成导致闪动。
-   */
+    const lum = luminanceOf(accent);
+    // 越暗越往白色靠（幅度收着来，分割线要「看得清」而不是「很亮」）
+    const ratio = lum < 140 ? 0.3 : lum < 200 ? 0.15 : 0;
+    const [r, g, b] = rgb.map((c) => Math.round(c + (255 - c) * ratio));
+    return `rgba(${r}, ${g}, ${b}, 0.45)`;
+  });
+
+  const panelDividerColor = computed(() => {
+    if (!hasDynamicBackground.value) {
+      return dividerLineColorValue.value;
+    }
+    // 动态主题：分割线取壁纸主色（更实，避免 0.22 那种几乎看不见的半透明）
+    return dynamicDividerColor.value;
+  });
+
   const dynamicPanelBg = computed(() => {
     const p = currentColorPalette.value;
-    // 取主题背景色（bgPrimary），回退到主题色
     const base = p.bgPrimary || p.color || "#FFFFFF";
     const rgb = hexToRgb(base);
     return `rgb(${rgb})`;
@@ -800,14 +1057,7 @@ export const useSiderColor = defineStore("siderColor", () => {
     () => currentColorPalette.value.chatBgOverlay || "transparent",
   );
 
-  /**
-   * 是否显示个性装扮（动态壁纸）背景。
-   *
-   * 这里是全站唯一的开关，关掉后 Sidebar / ContactList / MessageDisplay /
-   * 消息页 / 好友页 / 设置中心的 `has-dynamic-bg` 样式与动态配色都会自动失效。
-   */
   const hasDynamicBackground = computed(() => {
-    // 夜间是否允许壁纸由模块级策略常量决定（单一开关，避免逻辑散落）
     if (systemPrefersDark.value && !DYNAMIC_WALLPAPER_ALLOWED_IN_DARK) {
       return false;
     }
@@ -817,34 +1067,212 @@ export const useSiderColor = defineStore("siderColor", () => {
     );
   });
 
-  /**
-   * 从动态背景（视频/图片）吸取的主色调
-   * 用于动态主题下的选中态配色（联系人选中、悬停等）。
-   */
-  const dynamicAccentColor = ref<string>("");
-  const setDynamicAccentColor = (color: string) => {
-    dynamicAccentColor.value = color || "";
+  // ---- 动态背景取色（唯一实现放在 store，页面 / 组件不再各取一次）----
+  /** 渲染中的壁纸视频元素，由 <DynamicBackground> 注册 */
+  const dynamicBgVideoEl = ref<HTMLVideoElement | null>(null);
+  /** 取色缓存：壁纸 URL → 主色（跨路由复用，避免重复解码取色） */
+  const accentCache = new Map<string, string>();
+  /** 兜底补取计数 / 定时器（防止取色一直失败时空转） */
+  let accentRetryCount = 0;
+  let accentRetryTimer: ReturnType<typeof setTimeout> | null = null;
+
+  const registerDynamicBgVideo = (el: HTMLVideoElement | null) => {
+    dynamicBgVideoEl.value = el ?? null;
   };
-  /** 动态背景主色（hex），未提取到则回退到主题色 */
-  const dynamicAccent = computed(
-    () => dynamicAccentColor.value || currentColorPalette.value.color || "#94A3B8",
+
+  const clearAccentRetry = () => {
+    if (accentRetryTimer) {
+      clearTimeout(accentRetryTimer);
+      accentRetryTimer = null;
+    }
+  };
+
+  const scheduleAccentRetry = () => {
+    if (accentRetryCount >= 6) return;
+    accentRetryCount++;
+    clearAccentRetry();
+    accentRetryTimer = setTimeout(() => {
+      void refreshDynamicAccent();
+    }, 600);
+  };
+
+  /**
+   * 写入主色前先按「当前壁纸 URL」校验。
+   * 🔥 不再用自增 token：token 会被任何一次无关的 watch 触发顶掉，
+   *    异步取色结果就会被误判成「过期」丢弃 → 主色一直为空，
+   *    表现就是「切了动态主题要刷新界面才吸到色」。
+   *    直接比对「取色用的壁纸是否仍是当前壁纸」，语义更准也不会误杀。
+   */
+  const commitAccent = (sourceUrl: string, color: string | null): boolean => {
+    if (!color) return false;
+    const current =
+      chatBgType.value === "video" ? chatBgVideo.value : chatBgImage.value;
+    // 壁纸又换了 → 丢弃过期结果
+    if (sourceUrl !== current) return false;
+    dynamicAccentColor.value = color;
+    accentRetryCount = 0;
+    clearAccentRetry();
+    console.log("[动态主题] 吸色已更新:", color);
+    return true;
+  };
+
+  /** 视频取色；视频未解码就绪时返回 false，由调用方稍后重试 */
+  const extractAccentFromVideo = (): boolean => {
+    const key = chatBgVideo.value || "";
+    const video = dynamicBgVideoEl.value;
+    if (!key || !video || video.readyState < 2) return false;
+    const cached = accentCache.get(key);
+    if (cached) return commitAccent(key, cached);
+    const color = extractColorFromVideo(video);
+    if (color) accentCache.set(key, color);
+    return commitAccent(key, color);
+  };
+
+  /** 按当前壁纸（图片 / 视频）重新取一次主色 */
+  async function refreshDynamicAccent() {
+    clearAccentRetry();
+
+    if (!hasDynamicBackground.value) {
+      dynamicAccentColor.value = "";
+      return;
+    }
+
+    // 视频壁纸：等解码就绪后取色（loadeddata + 定时兜底双保险）
+    if (chatBgType.value === "video" && chatBgVideo.value) {
+      // 🔥 优先用海报图（固定抽帧封面）取色。
+      //    直接抽视频当前帧的话，取到的是「取色那一刻正好播到的那帧」：
+      //    从设置页回到消息界面 vs 刷新界面，播放进度不同 → 选中色完全不同。
+      //    海报图是固定的，结果稳定且可缓存，跨刷新完全一致。
+      const poster = chatBgPoster.value;
+      if (poster) {
+        const posterKey = `poster:${poster}`;
+        const cachedPoster = accentCache.get(posterKey);
+        if (cachedPoster) {
+          commitAccent(chatBgVideo.value, cachedPoster);
+          return;
+        }
+
+        if (dynamicAccentColor.value) dynamicAccentColor.value = "";
+        let posterColor: string | null = null;
+        try {
+          posterColor = await extractColorFromUrl(poster);
+        } catch (e) {
+          console.warn("[动态主题] 海报取色失败，回退视频帧:", e);
+        }
+        if (posterColor) {
+          accentCache.set(posterKey, posterColor);
+          if (commitAccent(chatBgVideo.value, posterColor)) return;
+        }
+        // 海报取色失败（或缺图）→ 继续走下面的视频帧取色
+      }
+
+      if (extractAccentFromVideo()) return;
+      dynamicAccentColor.value = "";
+      const video = dynamicBgVideoEl.value;
+      video?.addEventListener(
+        "loadeddata",
+        () => {
+          void refreshDynamicAccent();
+        },
+        { once: true },
+      );
+      scheduleAccentRetry();
+      return;
+    }
+
+    const image = chatBgImage.value;
+    if (chatBgType.value !== "image" || !image) {
+      dynamicAccentColor.value = "";
+      return;
+    }
+
+    const cached = accentCache.get(image);
+    if (cached && commitAccent(image, cached)) return;
+
+    // 换图期间先清掉旧主色，避免沿用上一张壁纸的色
+    if (dynamicAccentColor.value) dynamicAccentColor.value = "";
+    let color: string | null = null;
+    try {
+      color = await extractColorFromUrl(image);
+    } catch (e) {
+      console.warn("[动态主题] 壁纸取色失败:", e);
+    }
+    if (color) accentCache.set(image, color);
+    if (commitAccent(image, color ?? null)) return;
+
+    // 取色失败（或期间又换了壁纸）→ 兜底重试：
+    // 首次加载大图失败/超时时重试通常就能成功（此时图片已进浏览器缓存）。
+    if (chatBgImage.value === image) scheduleAccentRetry();
+  }
+
+  // 壁纸 / 调色板索引 / 视频元素变化 → 重新取色。
+  // 必须同时监听这些：切主题时 video 元素往往复用同一个 DOM 只换 src，
+  // 而两个主题共用同一 URL 时 URL 也不变，靠 currentPaletteIndex 兜住「切主题」。
+  watch(
+    [
+      hasDynamicBackground,
+      chatBgType,
+      chatBgImage,
+      chatBgVideo,
+      dynamicBgVideoEl,
+      currentPaletteIndex,
+    ],
+    () => {
+      accentRetryCount = 0;
+      void refreshDynamicAccent();
+    },
+    { immediate: true, flush: "post" },
   );
-  /** 动态背景主色的加深版（吸取的主色往往偏淡，分割线等细线条用它更醒目） */
+
+  // 🔥 兜底自愈：壁纸已就绪但主色仍为空时自动补取。
+  //    覆盖「异步取色结果被丢弃」「组件重挂载后主色丢失」「视频解码晚于首次取色」等场景，
+  //    避免一直停在空值（会回退成中性灰蓝，看起来就是「没有吸色、必须刷新界面」）。
+  watch(
+    [
+      dynamicAccentColor,
+      hasDynamicBackground,
+      chatBgType,
+      chatBgImage,
+      chatBgVideo,
+      dynamicBgVideoEl,
+    ],
+    () => {
+      if (!hasDynamicBackground.value || dynamicAccentColor.value) {
+        clearAccentRetry();
+        return;
+      }
+      scheduleAccentRetry();
+    },
+  );
+
+  /** 暂停 / 恢复壁纸视频（窗口切后台、组件卸载时用，避免后台常驻解码） */
+  const pauseDynamicBgVideo = () => {
+    dynamicBgVideoEl.value?.pause();
+  };
+  const resumeDynamicBgVideo = () => {
+    void dynamicBgVideoEl.value?.play().catch(() => {
+      /* 自动播放被拦截时忽略 */
+    });
+  };
+
+  const dynamicAccent = computed(() => {
+    if (dynamicAccentColor.value) return dynamicAccentColor.value;
+    // 🔥 动态主题下吸色未就绪时，绝不能回退到调色板主色：
+    //    个性装扮的调色板复用基础日间配色（color = #DCDCDC 近白），
+    //    回退过去会让选中/悬浮态看起来就是「黑白选中」，掩盖了吸色还没跑完的事实。
+    //    这里统一用中性灰蓝兜底，等吸色完成再自动被壁纸真实主色替换。
+    if (hasDynamicBackground.value) return "#94A3B8";
+    return currentColorPalette.value.color || "#94A3B8";
+  });
   const dynamicAccentDeep = computed(() =>
     dynamicAccent.value ? darkenColor(dynamicAccent.value, 0.55) : "",
   );
-  /** 动态背景主色的浅色半透明背景（用于更新入口等） */
   const dynamicAccentBgSoft = computed(() =>
     hexToRgba(dynamicAccent.value, 0.18),
   );
-  /** 动态背景主色的半透明背景（用于悬停等） */
   const dynamicAccentBg = computed(() =>
     hexToRgba(dynamicAccent.value, 0.3),
   );
-  /**
-   * 动态背景主色的「图标版」：吸取的主色偏淡时自动加深，
-   * 保证头部按钮 / 输入框工具这类图标在壁纸上仍然清晰可辨（而不是糊成一片白）。
-   */
   const dynamicAccentIcon = computed(() => {
     const accent = dynamicAccent.value;
     if (!accent) return "#ffffff";
@@ -861,7 +1289,7 @@ export const useSiderColor = defineStore("siderColor", () => {
         previewGradient: p.chatBgGradient,
         isDefault: index === 0,
         type: w.type,
-        url: w.url,
+        url: resolveWallpaperUrl(w.url),
       };
     }),
   );
@@ -882,7 +1310,6 @@ export const useSiderColor = defineStore("siderColor", () => {
     syncThemeAcrossWindows();
   };
 
-  /** 启用个性装扮壁纸 */
   const setTheme = (index: number = 0) => {
     const type: ThemeType = "dynamic";
     currentThemeType.value = type;
@@ -909,10 +1336,6 @@ export const useSiderColor = defineStore("siderColor", () => {
     syncThemeAcrossWindows();
   };
 
-  /**
-   * 跨窗口同步侧边栏颜色主题（Electron 环境）
-   * 设置窗口修改主题后，广播给主窗口等其它窗口，使其立即重新加载主题。
-   */
   const syncThemeAcrossWindows = () => {
     broadcastThemeSettings({ type: "color" });
   };
@@ -922,22 +1345,20 @@ export const useSiderColor = defineStore("siderColor", () => {
 
     initSystemThemeListener();
 
-    // 跨窗口同步：监听其它窗口广播的主题变化，立即重新加载主题
     onThemeSettingsChanged((settings) => {
       if (settings?.type === "color") {
-        // 从 localStorage 重新读取主题设置并应用
         loadThemeFromStorage();
       }
     });
 
-    // Web 端多标签页同步：监听 localStorage storage 事件
     window.addEventListener("storage", (e) => {
-      if (
-        e.key === "theme-type" ||
-        e.key === "theme-palette-index" ||
-        e.key === "system-theme-variant" ||
-        e.key === "custom-theme"
-      ) {
+      const themeKeys = [
+        "theme-type",
+        "theme-palette-index",
+        "system-theme-variant",
+        "custom-theme",
+      ];
+      if (e.key && themeKeys.some((k) => withThemeUid(k) === e.key)) {
         loadThemeFromStorage();
       }
     });
@@ -946,8 +1367,16 @@ export const useSiderColor = defineStore("siderColor", () => {
   };
 
   /**
-   * 从 localStorage 读取主题设置并应用（供 initTheme 与跨窗口同步复用）
+   * 设置当前用户（登录/切换账号时调用），使主题设置按用户隔离存储。
+   * 设置 uid 后立即重新加载该用户的主题，避免沿用上一个账号的主题。
    */
+  const setCurrentUser = (userId: string | number | null) => {
+    setThemeStorageUid(userId);
+    if (isClient()) {
+      loadThemeFromStorage();
+    }
+  };
+
   const loadThemeFromStorage = () => {
     try {
       const savedThemeType = safeGetStorage("theme-type") as ThemeType;
@@ -977,7 +1406,6 @@ export const useSiderColor = defineStore("siderColor", () => {
         }
       }
 
-      // 个性装扮：恢复上次选择的壁纸
       const savedPaletteIndex = safeGetStorage("theme-palette-index");
       const savedType = safeGetStorage("theme-type");
       if (savedType === "dynamic" && savedPaletteIndex !== null) {
@@ -992,7 +1420,6 @@ export const useSiderColor = defineStore("siderColor", () => {
       console.error("读取主题设置失败:", error);
     }
 
-    // 兜底：无保存设置时使用默认基础配色（直接设置状态，不触发跨窗口广播，避免递归）
     currentThemeType.value = DEFAULT_THEME_TYPE;
     currentPaletteIndex.value = 0;
     customPalette.value = null;
@@ -1006,7 +1433,9 @@ export const useSiderColor = defineStore("siderColor", () => {
       backgroundImage: "none",
       color: sidebarTextColor.value,
       boxShadow: p.sidebarShadow || "none",
-      borderRight: p.sidebarBorder || "none",
+      // 分割线统一用 panelDividerColor，与联系人列表/聊天头部/输入框保持一致；
+      // 原 sidebarBorder 是极浅的 rgba(220,220,220,0.05)，在极简白下几乎不可见。
+      borderRight: `1px solid ${panelDividerColor.value}`,
       "--sidebar-text-color": sidebarTextColor.value,
       "--sidebar-icon-color": sidebarIconColor.value,
       "--sidebar-icon-hover-color": sidebarIconHoverColor.value,
@@ -1031,7 +1460,6 @@ export const useSiderColor = defineStore("siderColor", () => {
       "--message-bubble-bg": bubbleBg.value,
       "--message-bubble-border": bubbleBorder.value,
       "--message-bubble-text": bubbleTextColor.value,
-      // 不输出阴影变量，气泡无阴影
       backdropFilter: glassmorphismEnabled.value
         ? `blur(${blurAmount.value}px)`
         : "none",
@@ -1062,10 +1490,6 @@ export const useSiderColor = defineStore("siderColor", () => {
     textTransform: "uppercase" as const,
   });
 
-  /**
-   * 恢复到默认基础配色（非个性装扮壁纸）
-   * 注意：不能复用 setTheme —— 它只接受壁纸索引，传主题名会被当成 index 写入存储。
-   */
   const resetToDefault = () => {
     currentThemeType.value = DEFAULT_THEME_TYPE;
     currentPaletteIndex.value = DEFAULT_PALETTE_INDEX;
@@ -1078,6 +1502,33 @@ export const useSiderColor = defineStore("siderColor", () => {
 
     syncThemeAcrossWindows();
   };
+
+  // ============================================================
+  // 🔥 监听壁纸变化 → 重新采样亮度
+  // ============================================================
+  // 用 computed 拿到当前生效的壁纸 URL（图片或视频）
+  const currentWallpaperUrl = computed(() => {
+    if (!hasDynamicBackground.value) return "";
+    return chatBgType.value === "video" ? chatBgVideo.value : chatBgImage.value;
+  });
+
+  // 监听当前壁纸 URL，变化时触发采样
+  // 注意：Vue 的 watch 需要在 store 内部调用，才能保证响应式生效
+  // 直接调用 watch 即可（Pinia 的 setup store 支持）
+  // eslint-disable-next-line @typescript-eslint/no-floating-promises
+  watch(
+    currentWallpaperUrl,
+    (url) => {
+      if (url) {
+        void ensureWallpaperBrightness(url);
+      } else {
+        // 没有壁纸时复位到中间亮度
+        wallpaperBrightness.value = 0.5;
+        sampledUrl.value = "";
+      }
+    },
+    { immediate: true },
+  );
 
   // ===== 返回 =====
   return {
@@ -1110,6 +1561,7 @@ export const useSiderColor = defineStore("siderColor", () => {
     tagTextColor,
     linkColorValue,
     dangerColorValue,
+    successColorValue,
     highlightBgColor,
     highlightColorValue,
     selectedBgColor,
@@ -1122,6 +1574,7 @@ export const useSiderColor = defineStore("siderColor", () => {
     // 分割线
     dividerLineColorValue,
     panelDividerColor,
+    dynamicDividerColor,
     dynamicPanelBg,
     dividerLineWidth,
     dividerLineStyle,
@@ -1149,11 +1602,20 @@ export const useSiderColor = defineStore("siderColor", () => {
     hasDynamicBackground,
     dynamicAccentColor,
     setDynamicAccentColor,
+    // 动态背景取色（唯一实现在 store）
+    registerDynamicBgVideo,
+    pauseDynamicBgVideo,
+    resumeDynamicBgVideo,
     dynamicAccent,
     dynamicAccentDeep,
     dynamicAccentBgSoft,
     dynamicAccentBg,
     dynamicAccentIcon,
+
+    // ✅ 壁纸亮度 → 面板暗化透明度
+    wallpaperBrightness: readonly(wallpaperBrightness),
+    dynamicOverlayOpacity,
+    dynamicOverlayBg,
 
     // 质感
     glassmorphismEnabled,
@@ -1169,6 +1631,7 @@ export const useSiderColor = defineStore("siderColor", () => {
     setTheme,
     setSystemTheme,
     setCustomTheme,
+    setCurrentUser,
     initTheme,
     resetToDefault,
     getSidebarStyles,

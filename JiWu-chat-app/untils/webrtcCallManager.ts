@@ -12,16 +12,9 @@
  * 5. 内容过滤 - 防止 XSS 攻击
  */
 import SimplePeer from "simple-peer";
-import { getSignalingService } from "./signalingService";
+import { getSignalingService, type SignalingMessage } from "./signalingService";
 import { message } from "ant-design-vue";
 import { getTurnServers } from "../constants/call.config";
-import type {
-  CallManagerOptions,
-  CallStats,
-  CallStatus,
-  SignalingMessage,
-  SignalingMessageType,
-} from "../types/untilsTypes";
 
 /**
  * 通话状态枚举
@@ -56,6 +49,13 @@ export enum SignalingMessageType {
   ICE_CANDIDATE = "ice_candidate",
   END_CALL = "end_call",
 }
+
+/**
+ * SDP 语义（现代 WebRTC 默认 unified-plan，plan-b 已弃用）。
+ * 标准 lib.dom 已移除 RTCPeerConnectionOptions / RTCConfiguration.sdpSemantics，
+ * 这里自定义类型以保持配置兼容。
+ */
+export type SdpSemantics = "unified-plan" | "plan-b";
 
 /**
  * 通话管理器配置选项接口
@@ -137,7 +137,7 @@ interface CallConfig {
   iceCandidatePoolSize: number;
   bundlePolicy: RTCBundlePolicy;
   rtcpMuxPolicy: RTCRtcpMuxPolicy;
-  sdpSemantics: RTCPeerConnectionOptions["sdpSemantics"];
+  sdpSemantics: SdpSemantics;
   iceTransportPolicy: RTCIceTransportPolicy;
   maxQueueSize: number;
   statsInterval: number;
@@ -163,7 +163,7 @@ const getConfig = (): CallConfig => {
     iceCandidatePoolSize: parseInt(env.VUE_APP_ICE_CANDIDATE_POOL_SIZE || "10", 10),
     bundlePolicy: (env.VUE_APP_BUNDLE_POLICY as RTCBundlePolicy) || "max-bundle",
     rtcpMuxPolicy: (env.VUE_APP_RTCP_MUX_POLICY as RTCRtcpMuxPolicy) || "require",
-    sdpSemantics: (env.VUE_APP_SDP_SEMANTICS as RTCPeerConnectionOptions["sdpSemantics"]) || "unified-plan",
+    sdpSemantics: (env.VUE_APP_SDP_SEMANTICS as SdpSemantics) || "unified-plan",
     iceTransportPolicy: (env.VUE_APP_ICE_TRANSPORT_POLICY as RTCIceTransportPolicy) || "all",
     maxQueueSize: parseInt(env.VUE_APP_MAX_QUEUE_SIZE || "100", 10),
     statsInterval: parseInt(env.VUE_APP_STATS_INTERVAL || "2000", 10),
@@ -301,7 +301,7 @@ export class WebRTCCallManager {
    * @returns {RTCConfiguration} RTC 配置
    * @private
    */
-  private getRTCConfig(): RTCConfiguration {
+  private getRTCConfig(): RTCConfiguration & { sdpSemantics?: SdpSemantics } {
     return {
       iceServers: this.getIceServers(),
       iceCandidatePoolSize: this.config.iceCandidatePoolSize,

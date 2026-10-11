@@ -17,11 +17,7 @@
       >
         收到的好友申请
       </button>
-      <button
-        class="tab-btn"
-        :class="{ active: activeTab === 'sent' }"
-        @click="activeTab = 'sent'"
-      >
+      <button class="tab-btn" :class="{ active: activeTab === 'sent' }" @click="activeTab = 'sent'">
         我发起的申请
       </button>
     </div>
@@ -39,11 +35,7 @@
         </div>
         <div v-else class="list">
           <div v-for="req in receivedRequests" :key="req.id" class="card">
-            <img
-              :src="req.user.avatar || defaultAvatar"
-              :alt="req.user.nickname"
-              class="avatar"
-            />
+            <img :src="req.user.avatar || defaultAvatar" :alt="req.user.nickname" class="avatar" />
             <div class="info">
               <div class="name-row">
                 <span class="name">{{ req.user.nickname || req.user.username }}</span>
@@ -54,22 +46,24 @@
                 <span class="remark-label">附言：</span>
                 <span class="remark-text">{{ req.remark }}</span>
               </div>
-            </div>
-            <div class="actions">
-              <button
-                class="action accept"
-                :disabled="processingIds.includes(req.id)"
-                @click="handleRequest(req.id, 'accept')"
-              >
-                {{ processingIds.includes(req.id) ? "处理中" : "接受" }}
-              </button>
-              <button
-                class="action reject"
-                :disabled="processingIds.includes(req.id)"
-                @click="handleRequest(req.id, 'reject')"
-              >
-                {{ processingIds.includes(req.id) ? "处理中" : "拒绝" }}
-              </button>
+
+              <!-- 操作按钮区：右对齐、独立成行 -->
+              <div class="actions">
+                <button
+                  class="action reject"
+                  :disabled="processingIds.includes(req.id)"
+                  @click="handleRequest(req.id, 'reject')"
+                >
+                  {{ processingIds.includes(req.id) ? "处理中" : "拒绝" }}
+                </button>
+                <button
+                  class="action accept"
+                  :disabled="processingIds.includes(req.id)"
+                  @click="handleRequest(req.id, 'accept')"
+                >
+                  {{ processingIds.includes(req.id) ? "处理中" : "接受" }}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -87,38 +81,38 @@
         </div>
         <div v-else class="list">
           <div v-for="req in sentRequests" :key="req.id" class="card">
-            <img
-              :src="req.user.avatar || defaultAvatar"
-              :alt="req.user.nickname"
-              class="avatar"
-            />
+            <img :src="req.user.avatar || defaultAvatar" :alt="req.user.nickname" class="avatar" />
             <div class="info">
               <div class="name-row">
                 <span class="name">{{ req.user.nickname || req.user.username }}</span>
+                <span class="time">{{ formatTime(req.createdAt) }}</span>
+              </div>
+              <p class="bio">{{ req.user.bio || "暂无个人介绍" }}</p>
+
+              <!-- 底部：左侧状态徽章，右侧操作按钮 -->
+              <div class="card-footer">
                 <span class="status-badge" :class="`status-${req.status}`">
                   {{ statusText[req.status] || req.status }}
                 </span>
+                <div class="actions">
+                  <button
+                    v-if="req.status === 'pending'"
+                    class="action danger"
+                    :disabled="processingIds.includes(req.id)"
+                    @click="handleCancel(req.id)"
+                  >
+                    {{ processingIds.includes(req.id) ? "处理中" : "撤回" }}
+                  </button>
+                  <button
+                    v-else
+                    class="action danger"
+                    :disabled="processingIds.includes(req.id)"
+                    @click="handleDelete(req.id)"
+                  >
+                    {{ processingIds.includes(req.id) ? "处理中" : "删除" }}
+                  </button>
+                </div>
               </div>
-              <p class="bio">{{ req.user.bio || "暂无个人介绍" }}</p>
-              <div class="time-row">申请时间：{{ formatTime(req.createdAt) }}</div>
-            </div>
-            <div class="actions">
-              <button
-                v-if="req.status === 'pending'"
-                class="action danger"
-                :disabled="processingIds.includes(req.id)"
-                @click="handleCancel(req.id)"
-              >
-                撤回
-              </button>
-              <button
-                v-else
-                class="action danger"
-                :disabled="processingIds.includes(req.id)"
-                @click="handleDelete(req.id)"
-              >
-                删除
-              </button>
             </div>
           </div>
         </div>
@@ -136,7 +130,7 @@ import {
   cancelFriendRequest,
   deleteFriendRequest,
 } from "../untils/friendManager";
-import type { FriendRequest } from "../untils/friendManager";
+import type { FriendRequest } from "../types/untilsTypes";
 import { useSiderColor } from "../stores/siderColor";
 
 const emit = defineEmits<{
@@ -203,7 +197,7 @@ const handleRequest = async (id: number, action: "accept" | "reject") => {
   processingIds.value.push(id);
   try {
     await handleFriendRequest(id, action);
-    receivedRequests.value = receivedRequests.value.filter((r) => r.id !== id);
+    receivedRequests.value = receivedRequests.value.filter((r: FriendRequest) => r.id !== id);
     emit("refresh");
   } catch {
     // 错误提示由 friendManager 内部处理
@@ -275,9 +269,7 @@ onMounted(loadAll);
     .time-row,
     .empty-title,
     .empty-hint {
-      text-shadow:
-        0 1px 3px rgba(0, 0, 0, 0.7),
-        0 0 8px rgba(0, 0, 0, 0.45);
+      text-shadow: var(--dt-text-shadow);
     }
 
     .card {
@@ -300,7 +292,7 @@ onMounted(loadAll);
   justify-content: space-between;
   gap: 12px;
   padding: 12px 0;
-  border-bottom: 1px solid var(--notice-card-border, var(--border-color, #f0f0f0));
+  border-bottom: 1px solid var(--notice-card-border, var(--border-color, var(--border-color)));
 
   .panel-title {
     margin: 0 0 2px;
@@ -321,7 +313,7 @@ onMounted(loadAll);
     font-size: 13px;
     color: var(--notice-text-2, var(--text-secondary, #666));
     background: transparent;
-    border: 1px solid var(--notice-card-border, var(--border-color, #e5e5e5));
+    border: 1px solid var(--notice-card-border, var(--border-color, var(--border-color)));
     border-radius: 4px;
     cursor: pointer;
     transition: all 0.15s;
@@ -345,7 +337,7 @@ onMounted(loadAll);
     color: var(--notice-text-2, var(--text-secondary, #666));
     background: var(--notice-soft-bg, var(--bg-tertiary, #f5f5f5));
     border: none;
-    border-radius: 20px;
+    border-radius: 6px; /* 小圆角 */
     cursor: pointer;
     transition: all 0.2s;
 
@@ -378,7 +370,7 @@ onMounted(loadAll);
     .spinner {
       width: 24px;
       height: 24px;
-      border: 2px solid var(--notice-card-border, var(--border-color, #f0f0f0));
+      border: 2px solid var(--notice-card-border, var(--border-color, var(--border-color)));
       border-top-color: var(--notice-accent, var(--purple-color, #8b5cf6));
       border-radius: 50%;
       animation: spin 0.8s linear infinite;
@@ -411,7 +403,7 @@ onMounted(loadAll);
     gap: 12px;
     padding: 14px;
     background: var(--notice-card-bg, var(--card-bg, #fafafa));
-    border: 1px solid var(--notice-card-border, var(--border-color, #f0f0f0));
+    border: 1px solid var(--notice-card-border, var(--border-color, var(--border-color)));
     border-radius: 10px;
   }
 
@@ -421,12 +413,15 @@ onMounted(loadAll);
     border-radius: 50%;
     object-fit: cover;
     flex-shrink: 0;
-    background: #e8e8e8;
+    background: var(--bg-secondary);
   }
 
   .info {
     flex: 1;
     min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
 
     .name-row {
       display: flex;
@@ -439,12 +434,20 @@ onMounted(loadAll);
         font-size: 14px;
         font-weight: 600;
         color: var(--notice-text, var(--text-primary, #1f1f1f));
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
 
       .time {
         font-size: 11px;
         color: var(--notice-text-3, var(--text-tertiary, #999));
         flex-shrink: 0;
+        padding: 2px 8px;
+        background: var(--notice-tag-bg, rgba(0, 0, 0, 0.05));
+        border-radius: 10px;
+        white-space: nowrap;
       }
     }
 
@@ -474,51 +477,80 @@ onMounted(loadAll);
     }
   }
 
-  .actions {
+  /* 底部行：左侧状态徽章 + 右侧操作按钮 */
+  .card-footer {
     display: flex;
-    gap: 8px;
-    flex-shrink: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--notice-card-border, var(--border-color, var(--border-color)));
 
-    .action {
-      padding: 5px 14px;
-      font-size: 13px;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      font-weight: 500;
-      transition: all 0.2s;
+    /* 操作按钮区：右对齐 */
+    .actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
 
-      &:disabled {
-        opacity: 0.6;
-        cursor: not-allowed;
-      }
+      .action {
+        min-width: 72px;
+        padding: 6px 18px;
+        font-size: 13px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: 500;
+        transition: all 0.18s ease;
+        line-height: 1.4;
 
-      &.accept {
-        background: var(--notice-accent, var(--purple-color, #8b5cf6));
-        color: #fff;
-
-        &:hover:not(:disabled) {
-          opacity: 0.85;
+        &:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
         }
-      }
 
-      &.reject {
-        background: var(--notice-soft-bg, var(--bg-tertiary, #f5f5f5));
-        color: var(--notice-text-2, var(--text-secondary, #666));
-
-        &:hover:not(:disabled) {
-          background: var(--notice-soft-bg-2, var(--bg-hover, #e8e8e8));
-        }
-      }
-
-      &.danger {
-        background: transparent;
-        color: var(--notice-danger, var(--danger-color, #ff4d4f));
-        border: 1px solid var(--notice-danger, var(--danger-color, #ff4d4f));
-
-        &:hover:not(:disabled) {
-          background: var(--notice-danger, var(--danger-color, #ff4d4f));
+        /* 接受：蓝色实心 */
+        &.accept {
+          background: #1677ff;
           color: #fff;
+          border: 1px solid transparent;
+          box-shadow: 0 2px 6px rgba(22, 119, 255, 0.25);
+
+          &:hover:not(:disabled) {
+            background: #4096ff;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 10px rgba(22, 119, 255, 0.3);
+          }
+
+          &:active:not(:disabled) {
+            background: #0958d9;
+            transform: translateY(0);
+            box-shadow: 0 1px 3px rgba(22, 119, 255, 0.2);
+          }
+        }
+
+        /* 拒绝：描边弱化 */
+        &.reject {
+          background: transparent;
+          color: var(--notice-text-2, var(--text-secondary, #666));
+          border: 1px solid var(--notice-card-border, var(--border-color, var(--border-color)));
+
+          &:hover:not(:disabled) {
+            color: var(--notice-danger, #cf1322);
+            border-color: var(--notice-danger, #cf1322);
+            background: rgba(207, 19, 34, 0.06);
+          }
+        }
+
+        /* 危险操作：撤回 / 删除 */
+        &.danger {
+          background: transparent;
+          color: var(--notice-danger, var(--danger-color, #ff4d4f));
+          border: 1px solid var(--notice-danger, var(--danger-color, #ff4d4f));
+
+          &:hover:not(:disabled) {
+            background: var(--notice-danger, var(--danger-color, #ff4d4f));
+            color: #fff;
+          }
         }
       }
     }
@@ -532,7 +564,7 @@ onMounted(loadAll);
     font-weight: 500;
 
     &.status-pending {
-      background: #fff7e6;
+      background: var(--warning-bg);
       color: #d46b00;
     }
 
@@ -542,12 +574,12 @@ onMounted(loadAll);
     }
 
     &.status-rejected {
-      background: #fff2f0;
+      background: var(--error-bg);
       color: #cf1322;
     }
 
     &.status-blocked {
-      background: #f5f5f5;
+      background: var(--bg-tertiary);
       color: #8c8c8c;
     }
   }

@@ -123,7 +123,6 @@ const WINDOW_SIZES = {
   updateLogs: { width: 800, height: 640 },
   supercolorpalette: { width: 860, height: 640 },
   user: { width: 720, height: 560 },
-  "chat-history": { width: 900, height: 680 },
   call: { width: 800, height: 600 },
   default: { width: 1200, height: 600 },
 };

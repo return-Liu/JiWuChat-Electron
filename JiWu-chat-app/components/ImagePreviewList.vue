@@ -18,7 +18,7 @@
 </template>
 
 <script setup lang="ts">
-import type { SelectedImage } from "../untils/imageHandler";
+import type { SelectedImage } from "../types/chatTypes";
 
 interface Props {
   images: SelectedImage[];
@@ -47,7 +47,7 @@ defineEmits<{
   overflow: hidden;
   cursor: pointer;
   border: 1px solid rgba(0, 0, 0, 0.05);
-  background: #f5f5f5;
+  background: var(--bg-tertiary);
 }
 
 .media-preview-thumb {

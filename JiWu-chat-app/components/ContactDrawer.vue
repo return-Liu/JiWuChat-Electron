@@ -100,7 +100,7 @@
                   @contextmenu.prevent="handleMemberContextMenu($event, member)"
                 >
                   <a-avatar :size="44" :src="member.avatar" class="member-avatar" loading="lazy">
-                    <template #fallback">
+                    <template #fallback>
                       {{ (member.nickname || member.name)?.charAt(0) }}
                     </template>
                   </a-avatar>
@@ -149,7 +149,7 @@
                   @contextmenu.prevent="handleMemberContextMenu($event, groupOwner)"
                 >
                   <a-avatar :size="36" :src="groupOwner.avatar" loading="lazy">
-                    <template #fallback">
+                    <template #fallback>
                       {{ (groupOwner.nickname || groupOwner.name)?.charAt(0) }}
                     </template>
                   </a-avatar>
@@ -166,7 +166,7 @@
                   @contextmenu.prevent="handleMemberContextMenu($event, admin)"
                 >
                   <a-avatar :size="36" :src="admin.avatar" loading="lazy">
-                    <template #fallback">
+                    <template #fallback>
                       {{ (admin.nickname || admin.name)?.charAt(0) }}
                     </template>
                   </a-avatar>
@@ -183,7 +183,7 @@
                   @contextmenu.prevent="handleMemberContextMenu($event, member)"
                 >
                   <a-avatar :size="36" :src="member.avatar" loading="lazy">
-                    <template #fallback">
+                    <template #fallback>
                       {{ (member.nickname || member.name)?.charAt(0) }}
                     </template>
                   </a-avatar>
@@ -402,7 +402,7 @@
         <UserProfileModal
           :visible="showUserProfileModal"
           :user-id="selectedMemberId"
-          :group-id="contact.isGroup ? Number(contact.id) : null"
+          :group-id="contact.isGroup ? normalizeGroupNumericId(contact.id) : null"
           :current-user-id="Number(currentUserId)"
           :show-add-friend="true"
           :show-send-message="true"
@@ -426,7 +426,7 @@
         <SelectFriendModal
           :visible="shareModalVisible"
           share-type="group"
-          :target-id="contact.groupNumber"
+          :target-id="String(contact.groupNumber || '')"
           @update:visible="shareModalVisible = $event"
         />
 
@@ -449,21 +449,38 @@
               <!-- <div v-if="isGroupOwner && !isTargetOwner" class="context-menu-item" @click="handleContextMenuAction('transferOwner')">
                 <span>转让群主</span>
               </div> -->
-              <div v-if="!isTargetOwner && !isTargetAdmin" class="context-menu-item" @click="handleContextMenuAction('setAdmin')">
+              <div
+                v-if="!isTargetOwner && !isTargetAdmin"
+                class="context-menu-item"
+                @click="handleContextMenuAction('setAdmin')"
+              >
                 <span>设为管理员</span>
               </div>
-              <div v-if="isTargetAdmin" class="context-menu-item" @click="handleContextMenuAction('removeAdmin')">
+              <div
+                v-if="isTargetAdmin"
+                class="context-menu-item"
+                @click="handleContextMenuAction('removeAdmin')"
+              >
                 <span>取消管理员</span>
               </div>
               <div v-if="!isTargetOwner" class="context-menu-divider"></div>
-              <div v-if="!isTargetOwner" class="context-menu-item danger" @click="handleContextMenuAction('kick')">
+              <div
+                v-if="!isTargetOwner"
+                class="context-menu-item danger"
+                @click="handleContextMenuAction('kick')"
+              >
                 <span>移出群聊</span>
               </div>
             </template>
           </div>
         </Teleport>
         <!-- 点击空白关闭右键菜单 -->
-        <div v-if="contextMenu.visible" class="context-menu-mask" @click="closeContextMenu" @contextmenu.prevent="closeContextMenu"></div>
+        <div
+          v-if="contextMenu.visible"
+          class="context-menu-mask"
+          @click="closeContextMenu"
+          @contextmenu.prevent="closeContextMenu"
+        ></div>
       </div>
     </transition>
   </div>
@@ -476,7 +493,11 @@ import { message, Modal } from "ant-design-vue";
 import { PlusOutlined, LoadingOutlined } from "@ant-design/icons-vue";
 import { useSiderColor } from "../stores/siderColor";
 import { useGroupMemberActions } from "../composables/useGroupMemberActions";
-import { useGroupMembers } from "../composables/useGroupMembers";
+import {
+  useGroupMembers,
+  normalizeGroupNumericId,
+  normalizeGroupRouteId,
+} from "../composables/useGroupMembers";
 import request from "../untils/request";
 import type { Contact, ColorPalette } from "../types/chatTypes";
 
@@ -578,23 +599,8 @@ const membersListRef = ref<HTMLElement | null>(null); // 成员列表 DOM 引用
 const isDrawerInitialized = ref(false);
 const isMembersLoaded = ref(false);
 
-// 联系人数据缓存 (使用 Map 存储，key 为 contactId)
-const contactDataCache = new Map<
-  string | number,
-  {
-    localIsTop: boolean;
-    localIsMuted: boolean;
-    tempGroupRule: string;
-    myGroupNickname: string;
-    timestamp: number;
-  }
->();
-
-// 缓存有效期 (5 分钟)
-const CACHE_EXPIRY_TIME = 5 * 60 * 1000;
-
-// 当前正在加载的联系人 ID (避免重复加载)
-let currentLoadingContactId: string | number | null = null;
+// 已成功初始化过的联系人，避免同一联系人被重复请求详情
+let lastLoadedContactKey: string | null = null;
 
 // 计算属性 - 直接使用 Store 配置
 const drawerStyle = computed(() => {
@@ -610,7 +616,7 @@ const showGroupManagement = computed(() => {
   return props.contact.isGroup && (props.isGroupOwner || props.isGroupAdmin);
 });
 
-// 🔥 是否可以邀请成员：群主/管理员始终可以；普通成员需检查 allowMemberInvite 设置
+// 是否可以邀请成员：群主/管理员始终可以；普通成员需检查 allowMemberInvite 设置
 const canInviteMembers = computed(() => {
   if (!props.contact.isGroup) return false;
   // 群主或管理员始终可以邀请
@@ -689,8 +695,6 @@ const handleShareGroup = () => {
   if (!props.contact.groupNumber) return;
   shareModalVisible.value = true;
 };
-
-
 
 const handleEditRule = () => {
   tempGroupRule.value = props.contact.groupRule || "";
@@ -861,7 +865,7 @@ const handleToggleSearch = () => {
 };
 
 const handleAddMemberClick = () => {
-  // 🔥 二次校验：非群主/管理员且 allowMemberInvite 为 false 时禁止邀请
+  // 二次校验：非群主/管理员且 allowMemberInvite 为 false 时禁止邀请
   if (!canInviteMembers.value) {
     message.warning("当前群聊仅允许群主和管理员邀请成员");
     return;
@@ -903,7 +907,7 @@ const {
   closeContextMenu,
   handleContextMenuAction,
 } = useGroupMemberActions({
-  groupId: () => props.contact.id,
+  groupId: () => normalizeGroupRouteId(props.contact.id),
   isGroupOwner: () => props.isGroupOwner,
   isGroupAdmin: () => props.isGroupAdmin,
   groupOwner: () => groupOwner.value,
@@ -1038,7 +1042,7 @@ const saveNickname = async () => {
     }
     message.success("本群昵称已更新");
   } catch (error: any) {
-    message.error(error.response?.data?.message || "修改失败，请重试");
+    message.error(error.response.data.data.message);
   }
 };
 
@@ -1066,52 +1070,8 @@ const saveTags = async (tags: string[]) => {
 
     message.success(response.data.message);
   } catch (error: any) {
-    message.error(error.response?.data?.message);
+    message.error(error.response.data.data.message);
   }
-};
-
-// 检查缓存是否有效
-const isCacheValid = (contactId: string | number): boolean => {
-  const cached = contactDataCache.get(contactId);
-  if (!cached) return false;
-
-  const now = Date.now();
-  const isExpired = now - cached.timestamp > CACHE_EXPIRY_TIME;
-
-  if (isExpired) {
-    contactDataCache.delete(contactId);
-    console.log(`[缓存] 联系人 ${contactId} 缓存已过期`);
-    return false;
-  }
-
-  return true;
-};
-
-// 从缓存恢复数据
-const restoreFromCache = (contactId: string | number): boolean => {
-  const cached = contactDataCache.get(contactId);
-  if (!cached) return false;
-
-  localIsTop.value = cached.localIsTop;
-  localIsMuted.value = cached.localIsMuted;
-  tempGroupRule.value = cached.tempGroupRule;
-  myGroupNickname.value = cached.myGroupNickname;
-
-  console.log(`[缓存] 已从缓存恢复联系人 ${contactId} 的数据`);
-  return true;
-};
-
-// 保存数据到缓存
-const saveToCache = (contactId: string | number) => {
-  contactDataCache.set(contactId, {
-    localIsTop: localIsTop.value,
-    localIsMuted: localIsMuted.value,
-    tempGroupRule: tempGroupRule.value,
-    myGroupNickname: myGroupNickname.value,
-    timestamp: Date.now(),
-  });
-
-  console.log(`[缓存] 已缓存联系人 ${contactId} 的数据`);
 };
 
 /**
@@ -1147,65 +1107,37 @@ const loadGroupMembers = async (contact: any) => {
   }
 };
 
-// 懒加载初始化抽屉数据 (带缓存)
-const loadDrawerData = async () => {
+/**
+ * 初始化抽屉数据。
+ * 数据源就是 props.contact（父组件已持有完整联系人对象），这里只做：
+ *   1. 从 contact 同步置顶/免打扰/群公告/本群昵称等本地编辑态；
+ *   2. 群聊若缺少 groupMembers（列表缓存会剥离），按需补拉一次。
+ * 不再依赖额外的 contactDataCache，避免「同一联系人重复请求 / 缓存与 props 不一致」。
+ */
+const initDrawerData = async () => {
   const contactId = props.contact.id;
 
-  if (currentLoadingContactId === contactId) {
-    console.log(`[抽屉懒加载] 联系人 ${contactId} 正在加载中，跳过`);
-    return;
-  }
+  localIsTop.value = props.contact.isTop || false;
+  localIsMuted.value = props.contact.isMuted || false;
 
-  if (isCacheValid(contactId)) {
-    console.log(`[抽屉懒加载] 联系人 ${contactId} 命中缓存`);
-    restoreFromCache(contactId);
-    return;
-  }
+  if (props.contact.isGroup) {
+    tempGroupRule.value = props.contact.groupRule || "";
+    myGroupNickname.value = props.contact.myGroupNickname || "";
 
-  currentLoadingContactId = contactId;
-
-  try {
-    localIsTop.value = props.contact.isTop || false;
-    localIsMuted.value = props.contact.isMuted || false;
-    console.log("[抽屉懒加载] 状态初始化完成");
-
-    if (props.contact.isGroup) {
-      tempGroupRule.value = props.contact.groupRule || "";
-      myGroupNickname.value = props.contact.myGroupNickname || "";
-
-      // 缓存剥离了 groupMembers：打开抽屉时若缺失，按需拉取群成员
-      if (!Array.isArray(props.contact.groupMembers) || props.contact.groupMembers.length === 0) {
-        await loadGroupMembers(props.contact);
-      }
-
-      if (myNicknameEditableRef.value) {
-        const target = myNicknameEditableRef.value;
-        const nickname = myGroupNickname.value;
-        target.textContent = nickname || "设置昵称";
-        target.classList.toggle("placeholder", !nickname);
-      }
-
-      console.log("[抽屉懒加载] 群聊基础数据加载完成");
-
-      if (Array.isArray(props.contact.groupMembers)) {
-        isMembersLoaded.value = true;
-        membersCurrentPage.value = 1;
-        loadedMembersCount.value = Math.min(membersPageSize, props.contact.groupMembers.length);
-
-        console.log("[抽屉懒加载] 群成员初始数据加载完成");
-      }
-    } else {
-      isMembersLoaded.value = true;
+    // 群成员缺失时按需补拉（列表缓存剥离了 groupMembers）
+    if (!Array.isArray(props.contact.groupMembers) || props.contact.groupMembers.length === 0) {
+      await loadGroupMembers(props.contact);
     }
 
-    isDrawerInitialized.value = true;
-    saveToCache(contactId);
-    console.log("[抽屉懒加载] 初始化完成");
-  } catch (error) {
-    console.error("[抽屉懒加载] 初始化失败:", error);
-  } finally {
-    currentLoadingContactId = null;
+    isMembersLoaded.value = Array.isArray(props.contact.groupMembers);
+    membersCurrentPage.value = 1;
+    loadedMembersCount.value = Math.min(membersPageSize, props.contact.groupMembers?.length || 0);
+  } else {
+    isMembersLoaded.value = true;
   }
+
+  isDrawerInitialized.value = true;
+  lastLoadedContactKey = String(contactId);
 };
 
 // 监听群成员展开状态，触发懒加载
@@ -1220,44 +1152,37 @@ watch(showAllMembers, async (newValue, oldValue) => {
   }
 });
 
-// 优化后的监听器 - 添加缓存逻辑
+// 打开抽屉 / 切换联系人时初始化数据：同一联系人只初始化一次，避免重复请求
 watch(
-  [() => props.visible, () => props.contact],
-  async ([newVisible, newContact], [oldVisible, oldContact]) => {
-    if (newVisible && newContact) {
-      const contactIdChanged = !oldContact || oldContact.id !== newContact.id;
-
-      if (contactIdChanged) {
-        console.log("[抽屉监听器] 检测到联系人切换:", {
-          from: oldContact?.id,
-          to: newContact.id,
-        });
-
-        isDrawerInitialized.value = false;
-
-        if (isCacheValid(newContact.id)) {
-          console.log("[抽屉监听器] 命中缓存，直接恢复");
-          restoreFromCache(newContact.id);
-          isDrawerInitialized.value = true;
-        } else {
-          console.log("[抽屉监听器] 无缓存，开始加载数据");
-          await loadDrawerData();
-        }
-      } else if (!isDrawerInitialized.value) {
-        console.log("[抽屉监听器] 同一联系人但未初始化，开始加载");
-        if (isCacheValid(newContact.id)) {
-          restoreFromCache(newContact.id);
-          isDrawerInitialized.value = true;
-        } else {
-          await loadDrawerData();
-        }
-      }
-
-      if (!newContact.isGroup) {
-        await checkIfBlocked();
-      }
-    } else if (!newVisible) {
+  [() => props.visible, () => props.contact?.id],
+  async ([newVisible], [oldVisible]) => {
+    if (!newVisible) {
       selectedMember.value = null;
+      // 关闭时重置标记，下次打开重新初始化
+      lastLoadedContactKey = null;
+      isDrawerInitialized.value = false;
+      return;
+    }
+
+    const currentKey = String(props.contact?.id || "");
+    if (!currentKey) return;
+
+    // 同一联系人已初始化过：直接复用，避免重复请求
+    if (lastLoadedContactKey === currentKey && isDrawerInitialized.value) {
+      return;
+    }
+
+    isDrawerInitialized.value = false;
+    isMembersLoaded.value = false;
+    showAllMembers.value = false;
+    loadedMembersCount.value = 0;
+    selectedMember.value = null;
+
+    await initDrawerData();
+
+    // 拉黑状态只对好友（非群聊）有意义，且只在切换联系人时查一次
+    if (!props.contact.isGroup) {
+      void checkIfBlocked();
     }
   },
   { immediate: true },
@@ -1346,10 +1271,10 @@ const toggleBlockStatus = async () => {
         try {
           const response = await request.delete(`/blocked-users/${props.contact.id}/unblock`);
           isBlocked.value = false;
-          message.success(response.data.message || "已取消拉黑");
+          message.success(response.data.message);
         } catch (error: any) {
           console.error("取消拉黑失败:", error);
-          message.error(error.response?.data?.message || "操作失败，请重试");
+          message.error(error.response.data.data.message);
         }
       },
       onCancel() {
@@ -1369,11 +1294,11 @@ const toggleBlockStatus = async () => {
             reason: "用户主动拉黑",
           });
           isBlocked.value = true;
-          message.success(response.data.message || "已拉黑用户");
+          message.success(response.data.message);
           closeDrawer();
         } catch (error: any) {
           console.error("拉黑用户失败:", error);
-          message.error(error.response?.data?.message || "操作失败，请重试");
+          message.error(error.response.data.data.message);
         }
       },
       onCancel() {
@@ -1392,7 +1317,7 @@ const toggleBlockStatus = async () => {
   right: 0;
   width: 380px;
   height: 100%;
-  background: #ffffff;
+  background: var(--dt-panel-solid, var(--card-bg));
   z-index: 2000;
   display: flex;
   flex-direction: column;
@@ -1409,7 +1334,7 @@ const toggleBlockStatus = async () => {
 
   .drawer-header {
     padding: 48px 24px 24px;
-    border-bottom: 1px solid #f0f2f5;
+    border-bottom: 1px solid var(--border-color);
 
     .avatar-section {
       display: flex;
@@ -1431,7 +1356,7 @@ const toggleBlockStatus = async () => {
       .user-name {
         font-size: 22px;
         font-weight: 600;
-        color: #1f2f3d;
+        color: var(--text-primary);
         margin: 0 0 8px 0;
         line-height: 1.3;
         display: flex;
@@ -1446,7 +1371,6 @@ const toggleBlockStatus = async () => {
           padding: 4px;
           border-radius: 4px;
           transition: all 0.15s;
-
         }
       }
 
@@ -1468,13 +1392,13 @@ const toggleBlockStatus = async () => {
         }
 
         .tag-add {
-          background: #f5f7fa;
-          border: 1px dashed #dcdfe6;
-          color: #606266;
+          background: var(--bg-tertiary);
+          border: 1px dashed var(--border-color);
+          color: var(--text-secondary);
 
           &:hover {
-            background: var(--theme-color);
-            border-color: var(--theme-color);
+            background: var(--color-primary);
+            border-color: var(--color-primary);
             color: #ffffff;
           }
         }
@@ -1497,16 +1421,16 @@ const toggleBlockStatus = async () => {
     }
 
     &::-webkit-scrollbar-thumb {
-      background: #dcdfe6;
+      background: var(--border-color);
       border-radius: 2px;
 
       &:hover {
-        background: #c0c4cc;
+        background: var(--text-tertiary);
       }
     }
 
     .info-card {
-      background: #fafbfc;
+      background: var(--bg-tertiary);
       border-radius: 12px;
       padding: 16px;
       margin-bottom: 16px;
@@ -1524,16 +1448,16 @@ const toggleBlockStatus = async () => {
         gap: 8px;
         font-size: 14px;
         font-weight: 500;
-        color: #606266;
+        color: var(--text-secondary);
 
         .menu-icon {
           font-size: 16px;
-          color: var(--theme-color);
+          color: var(--color-primary);
         }
 
         .member-count {
           margin-left: 4px;
-          color: #909399;
+          color: var(--text-secondary);
           font-size: 12px;
           font-weight: normal;
         }
@@ -1549,13 +1473,13 @@ const toggleBlockStatus = async () => {
           height: 32px;
           border-radius: 8px;
           background: transparent !important;
-          border: 1px solid #dcdfe6;
-          color: #606266;
+          border: 1px solid var(--border-color);
+          color: var(--text-secondary);
           transition: all 0.25s ease;
 
           &:hover {
-            background: var(--theme-color) !important;
-            border-color: var(--theme-color);
+            background: var(--color-primary) !important;
+            border-color: var(--color-primary);
             color: #ffffff;
           }
 
@@ -1568,11 +1492,11 @@ const toggleBlockStatus = async () => {
       .announcement-content {
         font-size: 14px;
         line-height: 1.6;
-        color: #606266;
-        background: #ffffff;
+        color: var(--text-secondary);
+        background: var(--dt-panel-solid, var(--card-bg));
         padding: 12px;
         border-radius: 8px;
-        border: 1px solid #e4e7ed;
+        border: 1px solid var(--border-color);
       }
 
       .announcement-edit {
@@ -1588,12 +1512,12 @@ const toggleBlockStatus = async () => {
 
             &:not(.ant-btn-primary) {
               background: transparent;
-              border: 1px solid #dcdfe6;
-              color: #606266;
+              border: 1px solid var(--border-color);
+              color: var(--text-secondary);
 
               &:hover {
-                background: var(--theme-color);
-                border-color: var(--theme-color);
+                background: var(--color-primary);
+                border-color: var(--color-primary);
                 color: #ffffff;
               }
             }
@@ -1633,7 +1557,7 @@ const toggleBlockStatus = async () => {
 
             .member-name {
               font-size: 12px;
-              color: #606266;
+              color: var(--text-secondary);
               width: 60px;
               overflow: hidden;
               text-overflow: ellipsis;
@@ -1652,17 +1576,17 @@ const toggleBlockStatus = async () => {
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                color: #909399;
+                color: var(--text-secondary);
                 font-size: 20px;
                 transition: all 0.25s ease;
-                border: 1px solid #dcdfe6;
+                border: 1px solid var(--border-color);
               }
 
               &:hover {
                 .add-icon-wrapper,
                 .more-icon-wrapper {
-                  background: var(--theme-color);
-                  border-color: var(--theme-color);
+                  background: var(--color-primary);
+                  border-color: var(--color-primary);
                   color: #ffffff;
                 }
               }
@@ -1684,7 +1608,7 @@ const toggleBlockStatus = async () => {
             align-items: center;
             gap: 12px;
             padding: 10px 0;
-            border-bottom: 1px solid #f0f2f5;
+            border-bottom: 1px solid var(--border-color);
             cursor: pointer;
             transition: all 0.2s;
             &:last-child {
@@ -1694,7 +1618,7 @@ const toggleBlockStatus = async () => {
             .list-name {
               flex: 1;
               font-size: 14px;
-              color: #303133;
+              color: var(--text-primary);
             }
 
             .ant-avatar {
@@ -1711,7 +1635,7 @@ const toggleBlockStatus = async () => {
             align-items: center;
             justify-content: center;
             padding: 20px;
-            color: #909399;
+            color: var(--text-secondary);
             font-size: 13px;
 
             .anticon {
@@ -1729,7 +1653,7 @@ const toggleBlockStatus = async () => {
         justify-content: space-between;
         align-items: center;
         padding: 12px 0;
-        border-bottom: 1px solid #f0f2f5;
+        border-bottom: 1px solid var(--border-color);
 
         &:last-child {
           border-bottom: none;
@@ -1737,12 +1661,12 @@ const toggleBlockStatus = async () => {
 
         .detail-label {
           font-size: 14px;
-          color: #606266;
+          color: var(--text-secondary);
         }
 
         .detail-value {
           font-size: 14px;
-          color: #303133;
+          color: var(--text-primary);
           max-width: 60%;
           text-align: right;
           word-break: break-word;
@@ -1765,16 +1689,16 @@ const toggleBlockStatus = async () => {
               transition: all 0.2s;
 
               &.placeholder {
-                color: #c0c4cc;
+                color: var(--text-tertiary);
               }
 
               &:hover {
-                background: #f5f7fa;
+                background: var(--bg-tertiary);
               }
 
               &:focus {
-                background: #ffffff;
-                outline: 1px solid var(--theme-color);
+                background: var(--dt-panel-solid, var(--card-bg));
+                outline: 1px solid var(--color-primary);
               }
             }
           }
@@ -1782,7 +1706,7 @@ const toggleBlockStatus = async () => {
 
         &.switch-item {
           .detail-label {
-            color: #303133;
+            color: var(--text-primary);
             font-weight: 500;
           }
         }
@@ -1792,7 +1716,7 @@ const toggleBlockStatus = async () => {
           transition: color 0.2s;
 
           &:hover {
-            color: var(--theme-color);
+            color: var(--color-primary);
           }
         }
 
@@ -1801,13 +1725,13 @@ const toggleBlockStatus = async () => {
           transition: all 0.2s;
 
           .detail-label {
-            color: #f56c6c;
+            color: var(--error-color);
             font-weight: 500;
           }
 
           &:hover {
             .detail-label {
-              color: #f78989;
+              color: var(--error-color);
             }
           }
         }
@@ -1815,7 +1739,7 @@ const toggleBlockStatus = async () => {
         &.danger-action-item {
           margin-top: 16px;
           padding-top: 16px;
-          border-top: 1px solid #f0f2f5;
+          border-top: 1px solid var(--border-color);
           border-bottom: none;
 
           :deep(div) {
@@ -1824,16 +1748,16 @@ const toggleBlockStatus = async () => {
             padding: 10px 16px;
             border-radius: 8px;
             background: transparent;
-            border: 1px solid #f56c6c;
-            color: #f56c6c;
+            border: 1px solid var(--error-color);
+            color: var(--error-color);
             cursor: pointer;
             transition: all 0.25s ease;
             font-size: 14px;
             font-weight: 500;
 
             &:hover {
-              background: #f56c6c;
-              border-color: #f56c6c;
+              background: var(--error-color);
+              border-color: var(--error-color);
               color: #ffffff;
             }
 
@@ -1845,13 +1769,13 @@ const toggleBlockStatus = async () => {
               opacity: 0.5;
               cursor: not-allowed;
               background: transparent;
-              color: #c0c4cc;
-              border-color: #dcdfe6;
+              color: var(--text-tertiary);
+              border-color: var(--border-color);
 
               &:hover {
                 background: transparent;
-                color: #c0c4cc;
-                border-color: #dcdfe6;
+                color: var(--text-tertiary);
+                border-color: var(--border-color);
                 transform: none;
               }
             }
@@ -1893,7 +1817,7 @@ const toggleBlockStatus = async () => {
   position: fixed;
   z-index: 9999;
   min-width: 160px;
-  background: var(--card-bg);
+  background: var(--dt-panel-solid, var(--card-bg));
   border: 1px solid var(--border-color);
   border-radius: 8px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);

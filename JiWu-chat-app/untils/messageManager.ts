@@ -18,22 +18,140 @@ import {
   invalidateChatHistoryCache,
   getMessageTimestamp,
   shouldReplaceContactSummary,
+  getChatPartnerMyGroupNickname,
+  buildMediaSummaryText,
 } from "./contactManager";
 import request from "./request";
 import { message } from "ant-design-vue";
 import { GROUP_INVITE_TYPES } from "../types/constants";
 import { ref } from "vue";
 import { useNotificationStore } from "../stores/notification";
+import { useChatWorkspaceStore } from "../stores/chatWorkspace";
+import { useUserStore } from "../stores/user";
+
+export type { MessagePageState, MessagePageOptions } from "../types/untilsTypes";
 
 // ==========================================
 // 数据转换工具
 // ==========================================
 
-export const getChatPartnerMyGroupNickname = (chatPartner: any): string => {
-  if (!chatPartner) return "";
-  const raw =
-    chatPartner.myGroupNickname ?? chatPartner.dataValues?.myGroupNickname;
-  return typeof raw === "string" && raw.trim() ? raw.trim() : "";
+// getChatPartnerMyGroupNickname 统一由 contactManager 提供，这里 re-export 保持对外 API 不变，
+// 避免两处重复定义（改一处漏一处）。
+export { getChatPartnerMyGroupNickname };
+
+interface GroupMetaFromLatest {
+  groupNumber: string;
+  tags: any[];
+  admin: any[];
+  owner: any;
+  memberCount: number;
+  allowMemberInvite: boolean;
+}
+
+const resolveGroupMetaFromLatest = (latest: any): GroupMetaFromLatest => {
+  const groupPayload = latest?.group || latest?.groupData || latest?.groupInfo || {};
+  const members = Array.isArray(latest?.members)
+    ? latest.members
+    : Array.isArray(groupPayload?.members)
+      ? groupPayload.members
+      : [];
+
+  const resolvedGroupNumber =
+    latest?.groupNumber ||
+    groupPayload?.groupNumber ||
+    latest?.number ||
+    groupPayload?.number ||
+    "";
+
+  const resolvedTags = Array.isArray(latest?.tags)
+    ? latest.tags
+    : Array.isArray(groupPayload?.tags)
+      ? groupPayload.tags
+      : [];
+
+  const resolvedAdmin = Array.isArray(latest?.admin)
+    ? latest.admin
+    : Array.isArray(groupPayload?.admin)
+      ? groupPayload.admin
+      : members
+        .filter((member: any) => String(member?.role || "").toLowerCase() === "admin")
+        .map((member: any) => ({
+          id: member.id ?? member.userId ?? member.user?.id,
+          name: member.name ?? member.nickname ?? member.username ?? "管理员",
+          role: "admin",
+          avatar: member.avatar,
+        }));
+
+  const resolvedOwner = latest?.owner || groupPayload?.owner || undefined;
+  const resolvedMemberCount =
+    latest?.memberCount ?? groupPayload?.memberCount ?? members.length ?? 0;
+  const resolvedAllowMemberInvite =
+    latest?.allowMemberInvite ?? groupPayload?.allowMemberInvite ?? true;
+
+  return {
+    groupNumber: resolvedGroupNumber ? String(resolvedGroupNumber) : "",
+    tags: resolvedTags,
+    admin: resolvedAdmin,
+    owner: resolvedOwner,
+    memberCount: resolvedMemberCount,
+    allowMemberInvite: resolvedAllowMemberInvite,
+  };
+};
+
+export const createSelfContact = (currentUserId?: string): Contact => {
+  const userStore = useUserStore();
+  const selfId = String(currentUserId ?? userStore.user?.id ?? "current-user");
+
+  return {
+    id: selfId,
+    name: userStore.user?.nickname || userStore.user?.username || "当前用户",
+    avatar:
+      userStore.user?.avatar ||
+      "https://cube.elemecdn.com/9/c2/f0ee8a3c7c9638a54940382568c9dpng.png",
+    lastMessage: "",
+    lastMessageTime: "",
+    unreadCount: 0,
+    isOnline: userStore.user?.status === 0,
+    status: userStore.user?.status ?? 0,
+    messages: [],
+    remark: "",
+    isTop: false,
+    isMuted: false,
+    isGroup: false,
+    isFriend: false,
+    isSelf: true,
+    username: userStore.user?.username || "",
+  } as Contact;
+};
+
+const ensureCurrentUserContact = (contacts: Contact[], currentUserId: string) => {
+  const selfId = String(currentUserId || "current-user");
+  const selfContact = createSelfContact(selfId);
+
+  const existingIndex = contacts.findIndex(
+    (c) => String(c.id) === selfId && !c.isGroup,
+  );
+
+  if (existingIndex >= 0) {
+    const existing = contacts[existingIndex];
+    // ⚠️ 只刷新「自己」的元数据（昵称/头像/在线状态），
+    //    绝不能把 selfContact.messages（空数组）覆盖上去——
+    //    否则每次页面重新可见（切到编辑器再切回）都会清空自己会话的聊天记录。
+    contacts[existingIndex] = {
+      ...existing,
+      ...selfContact,
+      // 运行时字段：以已有数据为准，避免被空值覆盖
+      messages: existing.messages ?? [],
+      chatHistoryPagination: existing.chatHistoryPagination,
+      id: selfId,
+      isGroup: false,
+      isFriend: false,
+      isSelf: true,
+    };
+    return;
+  }
+
+  contacts.unshift(selfContact);
 };
 
 export const convertToComponentContact = (
@@ -65,37 +183,56 @@ export const restoreContactStates = (
   contacts: Contact[],
   currentUserId: string,
 ) => {
-  try {
-    const top = JSON.parse(localStorage.getItem("contactTopStatus") || "{}");
-    const mute = JSON.parse(localStorage.getItem("contactMuteStatus") || "{}");
-    contacts.forEach((c) => {
-      c.isTop = top[c.id] ?? false;
-      c.isMuted = mute[c.id] ?? false;
-    });
-    sortContacts(contacts, currentUserId);
-  } catch (err) {
-    // 静默失败
-  }
+  return useChatWorkspaceStore().restoreContactStates(contacts, currentUserId);
 };
 
 export const triggerContactsUpdate = (contacts: Contact[]) => {
-  return [...contacts];
+  return useChatWorkspaceStore().triggerContactsUpdate(contacts);
 };
 
 export const triggerContactUpdate = (
   contacts: Contact[],
   contactId: string,
 ) => {
-  const contactIndex = contacts.findIndex((c) => c.id === contactId);
-  if (contactIndex !== -1) {
-    contacts[contactIndex] = { ...contacts[contactIndex] };
-  }
-  return triggerContactsUpdate(contacts);
+  return useChatWorkspaceStore().triggerContactUpdate(contacts, contactId);
 };
 
 // ==========================================
 // 群聊数据加载
 // ==========================================
+
+/**
+ * 群详情请求去重表：key = 会话侧群ID（`group_91`）。
+ * 同一群的详情在短时间内会被多处拉取（列表刷新、打开会话、群抽屉补成员），
+ * 以前各自 `request.get('/group/xx')` 造成同一个接口连发多次。
+ * 这里做 in-flight 合并 + 短缓存，重复调用直接复用同一个 Promise。
+ */
+const GROUP_DETAIL_TTL = 3000;
+const groupDetailCache = new Map<string, { at: number; promise: Promise<any> }>();
+
+/**
+ * 拉取群详情。
+ * @param groupId 会话侧群ID（`group_91`）或纯数字（内部统一补成带前缀形式）
+ */
+export const fetchGroupDetail = async (groupId: string | number): Promise<any> => {
+  const key = String(groupId).startsWith("group_") ? String(groupId) : `group_${groupId}`;
+  const cached = groupDetailCache.get(key);
+  if (cached && Date.now() - cached.at < GROUP_DETAIL_TTL) {
+    return cached.promise;
+  }
+
+  const promise = request
+    .get(`/group/${key}`)
+    .then(({ data }) => data)
+    .catch((err) => {
+      // 失败不缓存，下次可重试
+      groupDetailCache.delete(key);
+      throw err;
+    });
+
+  groupDetailCache.set(key, { at: Date.now(), promise });
+  return promise;
+};
 
 export const refreshGroups = async (
   contacts: Contact[],
@@ -120,9 +257,8 @@ export const refreshGroups = async (
     const newGroups: Contact[] = [];
 
     const groupDetailPromises = groups.map((group: any) =>
-      request
-        .get(`/group/${group.id}`)
-        .then(({ data: groupData }) => ({ group, groupData }))
+      fetchGroupDetail(group.id)
+        .then((groupData) => ({ group, groupData }))
         .catch(() => null),
     );
     const groupDetails = (await Promise.all(groupDetailPromises)).filter(
@@ -131,11 +267,29 @@ export const refreshGroups = async (
 
     for (const { group, groupData } of groupDetails) {
       const groupId = `group_${group.id}`;
-      const currentMember = groupData.members?.find(
-        (m: any) => String(m.id) === String(userStore.user?.id),
+      const groupMembers = Array.isArray(groupData.members) ? groupData.members : [];
+      const currentMember = groupMembers.find(
+        (m: any) => String(m.id ?? m.userId ?? m.user?.id) === String(userStore.user?.id),
       );
 
       const unreadCount = groupData.unreadCount ?? group.unreadCount ?? 0;
+      const resolvedGroupNumber =
+        groupData.groupNumber ||
+        group.groupNumber ||
+        group.number ||
+        groupData.number ||
+        "";
+      const derivedAdmins =
+        Array.isArray(groupData.admin) && groupData.admin.length > 0
+          ? groupData.admin
+          : groupMembers
+            .filter((member: any) => String(member?.role || "").toLowerCase() === "admin")
+            .map((member: any) => ({
+              id: member.id ?? member.userId ?? member.user?.id,
+              name: member.name ?? member.nickname ?? member.username ?? "管理员",
+              avatar: member.avatar,
+              role: "admin",
+            }));
 
       const groupContact: Contact = {
         id: groupId,
@@ -151,18 +305,18 @@ export const refreshGroups = async (
         isMuted: false,
         isGroup: true,
         role: group.role,
-        groupNumber: group.groupNumber,
+        groupNumber: resolvedGroupNumber ? String(resolvedGroupNumber) : "",
         groupRule: group.rule,
         groupOwnerId: groupData.owner ? String(groupData.owner.id) : "",
         owner: groupData.owner,
-        admin: groupData.admin || [],
+        admin: derivedAdmins,
         // 优先用后端返回的 memberCount，缺失时回退到 members 数组长度，
         // 保证「人数」这个轻量字段永远有正确值（供缓存保留、头部/列表显示）
-        memberCount: groupData.memberCount ?? groupData.members?.length ?? 0,
+        memberCount: groupData.memberCount ?? groupMembers.length ?? 0,
         allowMemberInvite: groupData.allowMemberInvite ?? true,
         groupMembers:
-          groupData.members?.map((m: any) => ({
-            id: String(m.id),
+          groupMembers.map((m: any) => ({
+            id: String(m.id ?? m.userId ?? m.user?.id ?? ""),
             name: m.name,
             avatar: m.avatar,
             role: m.role,
@@ -172,11 +326,18 @@ export const refreshGroups = async (
             chatLevel: m.chatLevel || 1,
             messageCount: m.messageCount || 0,
             groupTitle: m.groupTitle || null,
+            isBot: m.isBot === true || undefined,
           })) || [],
         joinMessages: [],
+        // 🔥 入群通知：直接用后端群详情返回的 joinNotices 数组（权威数据源，含全部历史记录）
+        joinNotices: Array.isArray(groupData.joinNotices) ? groupData.joinNotices : [],
         myGroupNickname: currentMember?.nickname || "",
         myGroupTags: currentMember?.tags || [],
         tags: groupData.tags || [],
+        // 群聊风险等级（QQ 式安全提醒，由后端举报聚合得出）
+        riskLevel: groupData.riskLevel || "normal",
+        riskReportCount: groupData.riskReportCount || 0,
+        riskReasons: groupData.riskReasons || [],
       };
 
       if (!newGroups.some((g) => g.id === groupId))
@@ -193,9 +354,14 @@ export const refreshGroups = async (
       const historyPromises = newGroups.map(async (groupContact) => {
         try {
           // 🔥 修复：即使 lastMessage 为空，也尝试加载历史（首次加载时 lastMessage 可能为空）
-          // 只有当明确确认没有历史消息时才跳过
-          if (recentApplied && groupContact.chatHistoryPagination?.total === 0 && !groupContact.chatHistoryPagination?.hasNextPage) {
-            groupContact.joinMessages = [];
+          // 只有当明确确认没有历史消息时才跳过。
+          // 注意：这里不能清空 joinMessages —— 入群记录可能来自 WS 的 group_member_joined，
+          // 清掉后「XXX 加入了群聊」提示条会凭空消失。
+          if (
+            recentApplied &&
+            groupContact.chatHistoryPagination?.total === 0 &&
+            !groupContact.chatHistoryPagination?.hasNextPage
+          ) {
             return;
           }
 
@@ -230,35 +396,7 @@ export const refreshGroups = async (
 };
 
 export const extractJoinMessages = (messages: any[]) => {
-  return messages
-    .filter((msg: any) => {
-      try {
-        if (msg.messageType === "group_notification") {
-          const content = JSON.parse(msg.content);
-          return content.type === "group_notification" && content.joinedUser;
-        }
-        return false;
-      } catch {
-        return false;
-      }
-    })
-    .map((msg: any) => {
-      try {
-        const content = JSON.parse(msg.content);
-        return {
-          userId: String(content.joinedUser.id),
-          userName:
-            content.joinedUser.nickname ||
-            content.joinedUser.username ||
-            "用户",
-          time: msg.time || content.timestamp || new Date().toISOString(),
-        };
-      } catch {
-        return null;
-      }
-    })
-    .filter((item): item is NonNullable<typeof item> => item !== null)
-    .sort((a, b) => getMessageTimestamp(a.time) - getMessageTimestamp(b.time));
+  return useChatWorkspaceStore().extractJoinMessages(messages);
 };
 
 // ==========================================
@@ -298,6 +436,11 @@ export const fetchFriendsList = async (): Promise<Contact[]> => {
         isMuted: false,
         isGroup: false,
         isFriend: true,
+        // 机器人好友：后端好友列表里带 isBot / category=robot，透传给会话用于隐藏通话等能力
+        isBot:
+          friend.isBot === true ||
+          friend.friendUser?.isBot === true ||
+          friend.category === "robot",
         username: friend.friendUser?.username || "",
         onlineVisibility: friend.friendUser?.onlineVisibility ?? 0,
         status: friend.friendUser?.status,
@@ -321,6 +464,7 @@ export class MessageLoader {
   private currentUserId: string = "";
   private updateCallbacks: ((contacts: Contact[]) => void)[] = [];
   private refreshDebounceTimer: number | null = null;
+  private readCursorTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
   private visibilityHandler: (() => void) | null = null;
   private notificationComponentRef: any = null;
   private statusBarNotificationRef: any = null;
@@ -381,7 +525,8 @@ export class MessageLoader {
 
   private async syncAllRecentMessages(): Promise<void> {
     try {
-      const { data } = await request.get("/message/latest");
+      // 页面恢复可见时强制刷新，绕过前后端缓存，拿到最新消息摘要
+      const { data } = await request.get("/message/latest", { params: { refresh: 1 } });
       // 🔥 兼容后端返回的多种格式
       let messages = data.recentMessages || data.messages || [];
       if (messages && typeof messages === "object" && !Array.isArray(messages) && Array.isArray(messages.messages)) {
@@ -389,6 +534,12 @@ export class MessageLoader {
       }
       if (!Array.isArray(messages) || messages.length === 0) return;
 
+      const topMap = getTopStatusFromLocalStorage();
+      const muteMap = getMuteStatusFromLocalStorage();
+      ensureCurrentUserContact(this.contacts, this.currentUserId);
+
+      // 为 /message/latest 里出现的会话建立「会话Key → 最新消息」映射，
+      // 每个会话只保留最新一条，用于驱动联系人列表渲染。
       const msgMap = new Map<string, any>();
       messages.forEach((m: any) => {
         const key = m.groupId
@@ -406,16 +557,92 @@ export class MessageLoader {
         }
       });
 
+      // 1) 先把 /message/latest 里的会话补进联系人列表（列表里没有的才创建）。
+      //    这样即使 contacts 只有「当前用户」，好友/群聊也能直接渲染出来。
+      for (const [key, latest] of msgMap) {
+        // self 会话（自己给自己发）不需要作为联系人展示，跳过
+        if (latest.chatType === "self") continue;
+
+        const isGroup = !!latest.groupId;
+        const contactId = isGroup
+          ? key
+          : String(latest.chatPartnerId ?? latest.senderId ?? latest.receiverId ?? "");
+
+        if (!contactId) continue;
+
+        let contact = this.contacts.find((c) => String(c.id) === contactId);
+        if (!contact) {
+          const partner = latest.chatPartner || latest.sender || {};
+          const groupMeta: GroupMetaFromLatest = isGroup
+            ? resolveGroupMetaFromLatest(latest)
+            : {
+              groupNumber: "",
+              tags: [],
+              admin: [],
+              owner: undefined,
+              memberCount: 0,
+              allowMemberInvite: true,
+            };
+          contact = {
+            id: contactId,
+            name:
+              partner.name ||
+              partner.nickname ||
+              partner.username ||
+              "未知联系人",
+            avatar:
+              partner.avatar ||
+              "https://cube.elemecdn.com/9/c2/f0ee8a3c7c9638a54940382568c9dpng.png",
+            lastMessage: "",
+            lastMessageTime: "",
+            unreadCount: 0,
+            isOnline: false,
+            messages: [],
+            remark: "",
+            isTop: false,
+            isMuted: false,
+            isGroup,
+            groupMembers: [],
+            joinMessages: [],
+            groupNumber: isGroup ? groupMeta.groupNumber : undefined,
+            tags: isGroup ? groupMeta.tags : undefined,
+            admin: isGroup ? groupMeta.admin : undefined,
+            owner: isGroup ? groupMeta.owner : undefined,
+            memberCount: isGroup ? groupMeta.memberCount : undefined,
+            allowMemberInvite: isGroup ? groupMeta.allowMemberInvite : undefined,
+          };
+          this.contacts.push(contact);
+        } else if (isGroup) {
+          const groupMeta = resolveGroupMetaFromLatest(latest);
+          if (!contact.groupNumber && groupMeta.groupNumber) {
+            contact.groupNumber = groupMeta.groupNumber;
+          }
+          if ((!contact.tags || contact.tags.length === 0) && groupMeta.tags?.length) {
+            contact.tags = groupMeta.tags;
+          }
+          if ((!contact.admin || contact.admin.length === 0) && groupMeta.admin?.length) {
+            contact.admin = groupMeta.admin;
+          }
+          if (!contact.owner && groupMeta.owner) {
+            contact.owner = groupMeta.owner;
+          }
+          if (!contact.memberCount && groupMeta.memberCount) {
+            contact.memberCount = groupMeta.memberCount;
+          }
+          if (contact.allowMemberInvite === undefined && groupMeta.allowMemberInvite !== undefined) {
+            contact.allowMemberInvite = groupMeta.allowMemberInvite;
+          }
+        }
+      }
+
       let hasUpdates = false;
-      const topMap = getTopStatusFromLocalStorage();
-      const muteMap = getMuteStatusFromLocalStorage();
 
       for (const contact of this.contacts) {
         contact.isTop = topMap.get(String(contact.id)) || false;
         contact.isMuted = muteMap.get(String(contact.id)) || false;
 
         const lookupKey = contact.isGroup
-          ? contact.id
+          ? String(contact.id)
           : [String(contact.id), this.currentUserId].sort().join("_");
 
         const latest = msgMap.get(lookupKey);
@@ -461,7 +688,9 @@ export class MessageLoader {
           }
 
           if (shouldReplaceSummary) {
-            contact.lastMessage = newLastMessage;
+            // 媒体消息聚合：列表摘要显示 [图片][图片][图片]，而不是单个 [图片]
+            const mediaSummary = buildMediaSummaryText(contact.messages);
+            contact.lastMessage = mediaSummary || newLastMessage;
             contact.lastMessageTime = latest.time;
             contact.lastMessageAt = latest.createdAt;
           }
@@ -482,7 +711,7 @@ export class MessageLoader {
         }
       }
 
-      if (hasUpdates) {
+      if (hasUpdates || this.contacts.length > 0) {
         sortContacts(this.contacts, this.currentUserId);
         this.notifyUpdate();
         console.log("[MessageLoader] 页面恢复可见，已同步最新消息");
@@ -655,6 +884,10 @@ export class MessageLoader {
         const activeId = this.getActiveContactId();
         if (activeId !== contactId) {
           contact.unreadCount = (contact.unreadCount || 0) + 1;
+        } else {
+          // 正在看当前会话：实时推进后端已读游标（防抖），
+          // 避免下次进入该会话时把「已看过的消息」再标记为「新消息」。
+          this.scheduleAdvanceReadCursor(contactId);
         }
       }
 
@@ -690,7 +923,7 @@ export class MessageLoader {
         createdAt: msg.createdAt || msg.time,
         _timestamp: msg.createdAt
           ? new Date(msg.createdAt).getTime()
-          : Date.now(),
+          : undefined,
         avatar: enhancedSender?.avatar || "",
         isMe: isMe,
         senderId: senderId,
@@ -711,6 +944,13 @@ export class MessageLoader {
         callType: msg.callType,
         callStatus: msg.callStatus,
         callDuration: msg.callDuration,
+        // 引用回复字段
+        replyTo: (msg as any).replyTo || undefined,
+        // AI 深度思考（机器人回复默认开启，前端折叠展示）
+        thinking: (msg as any).thinking || undefined,
+        deepThinking: (msg as any).deepThinking === true,
+        // AI 回复标记：前端据此做逐字打字机输出
+        isBotMessage: (msg as any).isBotMessage === true || undefined,
       };
 
       // 检查是否已存在（去重）
@@ -752,7 +992,25 @@ export class MessageLoader {
             : getMessageTimestamp(b.createdAt || b.time);
           return timeA - timeB;
         });
+
+        // 🔥 强制换掉数组引用（原地 push 不会改变引用）：
+        //   - MessageDisplay 的 displayMessages 计算属性依赖 activeContact.messages，
+        //     引用不变就不会重算，界面要切换会话/页面才刷新；
+        //   - RightChatArea 的「消息变化自动滚到底部」深度 watcher 同样不会触发；
+        //   - 同时保证即使 MessageLoader 内部拿到的是原始数组，
+        //     syncContactsInPlace 的 Object.assign 也能因引用变化而触发 Vue 更新。
+        contact.messages = [...contact.messages];
+
         console.log("[MessageLoader] 添加新消息:", contactId, msg.messageType);
+      }
+
+      // 媒体消息聚合：一次发多张图 / 多个文件时，列表摘要显示 [图片][图片][图片]
+      // （单条消息的 formatMessageContent 只返回一个图标，会被后一条覆盖）
+      const mediaSummary = buildMediaSummaryText(contact.messages);
+      if (mediaSummary) {
+        contact.lastMessage = isGroup && enhancedSender
+          ? `${enhancedSender.groupNickname || enhancedSender.nickname || enhancedSender.username || "未知用户"}: ${mediaSummary}`
+          : mediaSummary;
       }
 
       // ==========================================
@@ -839,6 +1097,28 @@ export class MessageLoader {
   }
 
   /**
+   * 实时推进已读游标（防抖）。
+   * 用户正在看某会话时收到对方消息，推进后端游标到最新，
+   * 避免下次进入该会话时把「已看过的消息」再标记为「新消息」。
+   * 复用 mark-read 接口（它会更新已读状态 + 推进游标）。
+   */
+  private scheduleAdvanceReadCursor(contactId: string) {
+    const existing = this.readCursorTimers.get(contactId);
+    if (existing) clearTimeout(existing);
+
+    const timer = setTimeout(() => {
+      this.readCursorTimers.delete(contactId);
+      request
+        .post(`/message/mark-read/${contactId}`)
+        .catch(() => {
+          /* 静默失败：实时推进失败不影响主流程，下次进入会话时 mark-read 兜底 */
+        });
+    }, 800);
+
+    this.readCursorTimers.set(contactId, timer);
+  }
+
+  /**
    * 🔥 统一的消息通知处理
    * 根据 notificationMode 配置决定通知方式
    */
@@ -910,11 +1190,24 @@ export class MessageLoader {
     this.notifyUpdate();
   }
 
+  /**
+   * 只同步数组引用，不回调（避免 setContacts 与本方法互相触发的死循环）。
+   *
+   * 🔥 关键：页面必须把「响应式的 contacts.value」交给这里。
+   * 若传入的是原始数组（raw），后续实时消息的原地 push / 索引赋值都不会触发
+   * Vue 依赖收集，表现为「机器人/对方回复要切换会话或页面才显示」。
+   */
+  setContactsReference(contacts: Contact[]) {
+    this.contacts = contacts;
+  }
+
   destroy() {
     if (this.refreshDebounceTimer) {
       clearTimeout(this.refreshDebounceTimer);
       this.refreshDebounceTimer = null;
     }
+    this.readCursorTimers.forEach((timer) => clearTimeout(timer));
+    this.readCursorTimers.clear();
     if (this.visibilityHandler && typeof document !== "undefined") {
       document.removeEventListener("visibilitychange", this.visibilityHandler);
       this.visibilityHandler = null;
@@ -926,6 +1219,36 @@ export class MessageLoader {
 // ==========================================
 // 加载最近消息
 // ==========================================
+
+/**
+ * /message/latest 响应短时缓存。
+ * 首屏「快速加载」(自己+最近会话) 与随后的「后台补齐完整列表」会在极短时间内各调一次，
+ * 缓存避免同一页面加载周期内重复请求；forceRefresh 可绕过缓存。
+ */
+let latestMessagesCache: { ts: number; data: any } | null = null;
+const LATEST_MESSAGES_CACHE_TTL = 5000;
+
+/** 清空「最近消息」短时缓存（登出 / 切换账号时调用，避免跨账号残留） */
+export const clearLatestMessagesCache = (): void => {
+  latestMessagesCache = null;
+};
+
+const fetchLatestMessages = async (forceRefresh = false): Promise<any> => {
+  if (
+    !forceRefresh &&
+    latestMessagesCache &&
+    Date.now() - latestMessagesCache.ts < LATEST_MESSAGES_CACHE_TTL
+  ) {
+    return latestMessagesCache.data;
+  }
+  // 🔥 forceRefresh 时同时绕过后端 /message/latest 的短时缓存（refresh=1），
+  // 确保「切回页面强制刷新」拿到的是服务器最新数据，而非 5 秒内的旧缓存。
+  const { data } = await request.get("/message/latest", {
+    params: forceRefresh ? { refresh: 1 } : undefined,
+  });
+  latestMessagesCache = { ts: Date.now(), data };
+  return data;
+};
 
 export const fetchAllRecentMessages = async (
   contacts: Contact[],
@@ -942,7 +1265,7 @@ export const fetchAllRecentMessages = async (
   }
 
   try {
-    const { data } = await request.get("/message/latest");
+    const data = await fetchLatestMessages(forceRefresh);
     // 🔥 兼容后端返回的多种格式：
     // 1. { recentMessages: [...] } - 直接是数组
     // 2. { recentMessages: { messages: [...] } } - 嵌套对象
@@ -958,6 +1281,7 @@ export const fetchAllRecentMessages = async (
 
     const topMap = getTopStatusFromLocalStorage();
     const muteMap = getMuteStatusFromLocalStorage();
+    ensureCurrentUserContact(contacts, currentUserId);
     const msgMap = new Map<string, any>();
 
     messages.forEach((m: any) => {
@@ -976,6 +1300,45 @@ export const fetchAllRecentMessages = async (
       }
     });
 
+    // 把 /message/latest 里出现的会话补进联系人列表（列表里没有的才创建），
+    // 这样即使 contacts 只有「当前用户」，好友/群聊也能直接渲染出来。
+    for (const [key, latest] of msgMap) {
+      if (latest.chatType === "self") continue;
+
+      const isGroup = !!latest.groupId;
+      const contactId = isGroup
+        ? key
+        : String(latest.chatPartnerId ?? latest.senderId ?? latest.receiverId ?? "");
+
+      if (!contactId) continue;
+
+      if (!contacts.some((c) => String(c.id) === contactId)) {
+        const partner = latest.chatPartner || latest.sender || {};
+        contacts.push({
+          id: contactId,
+          name:
+            partner.name ||
+            partner.nickname ||
+            partner.username ||
+            "未知联系人",
+          avatar:
+            partner.avatar ||
+            "https://cube.elemecdn.com/9/c2/f0ee8a3c7c9638a54940382568c9dpng.png",
+          lastMessage: "",
+          lastMessageTime: "",
+          unreadCount: 0,
+          isOnline: false,
+          messages: [],
+          remark: "",
+          isTop: false,
+          isMuted: false,
+          isGroup,
+          groupMembers: [],
+          joinMessages: [],
+        });
+      }
+    }
+
     let hasUpdates = false;
 
     for (const contact of contacts) {
@@ -983,7 +1346,7 @@ export const fetchAllRecentMessages = async (
       contact.isMuted = muteMap.get(String(contact.id)) || false;
 
       const lookupKey = contact.isGroup
-        ? contact.id
+        ? String(contact.id)
         : [String(contact.id), currentUserId].sort().join("_");
 
       const latest = msgMap.get(lookupKey);
@@ -1016,15 +1379,21 @@ export const fetchAllRecentMessages = async (
           latest.senderId,
         );
 
+        // 媒体消息聚合：列表摘要显示 [图片][图片][图片]，而不是单个 [图片]
+        const mediaSummary = buildMediaSummaryText(contact.messages);
+        const finalLastMessage = mediaSummary || newLastMessage;
+
         if (
-          contact.lastMessage !== newLastMessage ||
+          contact.lastMessage !== finalLastMessage ||
           contact.lastMessageTime !== latest.time
         ) {
           hasUpdates = true;
         }
 
-        contact.lastMessage = newLastMessage;
+        contact.lastMessage = finalLastMessage;
         contact.lastMessageTime = latest.time;
+        // 记录可解析时间戳，供联系人列表按真实时间排序（lastMessageTime 是「今天 HH:mm」等中文展示串，无法排序）
+        contact.lastMessageAt = latest.createdAt;
 
         if (latest.unreadCount !== undefined) {
           contact.unreadCount = latest.unreadCount;
@@ -1281,7 +1650,7 @@ const handleRealtimeMessageLegacy = (
       content: msg.content,
       time: msg.time,
       createdAt: msg.createdAt || msg.time,
-      _timestamp: msg.createdAt ? new Date(msg.createdAt).getTime() : Date.now(),
+      _timestamp: msg.createdAt ? new Date(msg.createdAt).getTime() : undefined,
       avatar: enhancedSender?.avatar || "",
       isMe: isMe,
       senderId: senderId,
@@ -1297,6 +1666,8 @@ const handleRealtimeMessageLegacy = (
       callType: msg.callType,
       callStatus: msg.callStatus,
       callDuration: msg.callDuration,
+      // 引用回复字段
+      replyTo: (msg as any).replyTo || undefined,
     };
 
     const exists = contact.messages.some((m: any) => {
@@ -1319,6 +1690,16 @@ const handleRealtimeMessageLegacy = (
           : getMessageTimestamp(b.createdAt || b.time);
         return timeA - timeB;
       });
+      // 同上：换引用以触发界面重算 + 自动滚动
+      contact.messages = [...contact.messages];
+    }
+
+    // 媒体消息聚合：一次发多张图 / 多个文件时，列表摘要显示 [图片][图片][图片]
+    const mediaSummary = buildMediaSummaryText(contact.messages);
+    if (mediaSummary) {
+      contact.lastMessage = isGroup && enhancedSender
+        ? `${enhancedSender.groupNickname || enhancedSender.nickname || enhancedSender.username || "未知用户"}: ${mediaSummary}`
+        : mediaSummary;
     }
 
     // 更新联系人
@@ -1380,10 +1761,11 @@ export const handleRecallMessage = (data: any, state: MessagePageState) => {
       : String(senderId) === state.currentUserId
         ? String(receiverId)
         : String(senderId);
-    const c = state.contacts.find((x) => x.id === cid);
+    // id 可能是 number / string，统一按字符串比较，避免撤回事件静默失效
+    const c = state.contacts.find((x) => String(x.id) === String(cid));
     if (!c) return;
 
-    const idx = c.messages.findIndex((x) => x.id === messageId);
+    const idx = c.messages.findIndex((x) => String(x.id) === String(messageId));
     if (idx !== -1) {
       const m = c.messages[idx];
       if (!m.recalledContent && m.content) m.recalledContent = m.content;
@@ -1404,28 +1786,20 @@ const updateContactLastMessageAfterRecall = (c: Contact, uid: string) => {
     c.lastMessageTime = "";
     return;
   }
-  let last = null;
-  for (let i = c.messages.length - 1; i >= 0; i--) {
-    if (!c.messages[i].isRecalled) {
-      last = c.messages[i];
-      break;
-    }
-  }
-  if (last) {
-    c.lastMessage = formatMessageContent(
-      last.messageType || "text",
-      last.content,
-      c.isGroup,
-      last.sender,
-      false,
-      uid,
-      last.senderId,
-    );
-    c.lastMessageTime = last.time;
-  } else {
-    c.lastMessage = "暂无消息";
-    c.lastMessageTime = "";
-  }
+  // 撤回后直接取当前最后一条消息：若它就是刚被撤回的消息，formatMessageContent 会
+  // 按 isRecalled 返回「你撤回了一条消息 / 对方撤回了一条消息」，与聊天界面保持一致；
+  // 若撤回的不是最后一条，则仍显示原有的最后一条普通消息内容。
+  const last = c.messages[c.messages.length - 1];
+  c.lastMessage = formatMessageContent(
+    last.messageType || "text",
+    last.content,
+    c.isGroup,
+    last.sender,
+    last.isRecalled || false,
+    uid,
+    last.senderId,
+  );
+  c.lastMessageTime = last.time;
 };
 
 // ==========================================
@@ -1601,17 +1975,31 @@ export const handleGroupMemberTitleUpdate = (
 
 export const fetchGroupDetails = async (gid: string, contacts: Contact[]) => {
   try {
-    const { data } = await request.get(`/group/${gid.replace("group_", "")}`);
+    const data = await fetchGroupDetail(gid);
     const c = contacts.find((x) => x.id === gid);
     if (!c?.isGroup) return;
+
+    const groupMembers = Array.isArray(data.members) ? data.members : [];
+    const derivedAdmins =
+      Array.isArray(data.admin) && data.admin.length > 0
+        ? data.admin
+        : groupMembers
+          .filter((member: any) => String(member?.role || "").toLowerCase() === "admin")
+          .map((member: any) => ({
+            id: member.id ?? member.userId ?? member.user?.id,
+            name: member.name ?? member.nickname ?? member.username ?? "管理员",
+            avatar: member.avatar,
+            role: "admin",
+          }));
+
     c.owner = data.owner;
-    c.admin = data.admin || [];
+    c.admin = derivedAdmins;
     c.groupOwnerId = data.owner ? String(data.owner.id) : "";
     c.groupRule = data.rule;
     c.groupMembers =
-      data.members?.map((m: any) => ({
-        id: String(m.id),
-        userId: String(m.id),
+      groupMembers.map((m: any) => ({
+        id: String(m.id ?? m.userId ?? m.user?.id ?? ""),
+        userId: String(m.id ?? m.userId ?? m.user?.id ?? ""),
         name: m.name,
         avatar: m.avatar,
         role: m.role,
@@ -1622,6 +2010,7 @@ export const fetchGroupDetails = async (gid: string, contacts: Contact[]) => {
         messageCount: m.messageCount || 0,
         groupTitle: m.groupTitle,
         useDefaultTitle: m.useDefaultTitle ?? false,
+        isBot: m.isBot === true || undefined,
       })) || [];
   } catch { }
 };

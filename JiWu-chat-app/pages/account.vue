@@ -295,22 +295,22 @@ onMounted(async () => {
   display: flex;
   width: 100%;
   min-height: 100vh;
-  background: #f5f5f5;
+  background: var(--bg-tertiary);
 }
 
 .account-sidebar {
   width: 220px;
-  background: #fff;
+  background: var(--card-bg);
   display: flex;
   flex-direction: column;
-  border-right: 1px solid #e5e5e5;
+  border-right: 1px solid var(--border-color);
 
   .sidebar-header {
     padding: 20px 16px;
     display: flex;
     align-items: center;
     gap: 12px;
-    border-bottom: 1px solid #e5e5e5;
+    border-bottom: 1px solid var(--border-color);
 
     .sidebar-avatar {
       .avatar-img {
@@ -326,7 +326,7 @@ onMounted(async () => {
         font-size: 14px;
         font-weight: 500;
         margin: 0 0 2px 0;
-        color: #1a1a1a;
+        color: var(--text-primary);
       }
       .sidebar-account {
         font-size: 11px;
@@ -349,12 +349,12 @@ onMounted(async () => {
         padding: 10px 20px;
         cursor: pointer;
         font-size: 13px;
-        color: #666;
+        color: var(--text-secondary);
         transition: all 0.2s;
 
         &:hover {
-          background: #f5f5f5;
-          color: #1a1a1a;
+          background: var(--bg-tertiary);
+          color: var(--text-primary);
         }
 
         &.active {
@@ -369,20 +369,20 @@ onMounted(async () => {
 
   .sidebar-footer {
     padding: 16px;
-    border-top: 1px solid #e5e5e5;
+    border-top: 1px solid var(--border-color);
 
     .back-btn {
       width: 100%;
       padding: 8px;
       border-radius: 6px;
-      border: 1px solid #e5e5e5;
+      border: 1px solid var(--border-color);
       background: transparent;
-      color: #666;
+      color: var(--text-secondary);
       cursor: pointer;
       font-size: 13px;
 
       &:hover {
-        background: #f5f5f5;
+        background: var(--bg-tertiary);
       }
     }
   }
@@ -402,7 +402,7 @@ onMounted(async () => {
     .main-title {
       font-size: 18px;
       font-weight: 500;
-      color: #1a1a1a;
+      color: var(--text-primary);
       margin: 0;
     }
 
@@ -431,20 +431,20 @@ onMounted(async () => {
   .profile-card,
   .info-card,
   .security-card {
-    background: #fff;
+    background: var(--card-bg);
     border-radius: 10px;
-    border: 1px solid #e5e5e5;
+    border: 1px solid var(--border-color);
     overflow: hidden;
 
     .card-header {
       padding: 12px 16px;
-      border-bottom: 1px solid #e5e5e5;
-      background: #fafafa;
+      border-bottom: 1px solid var(--border-color);
+      background: var(--bg-tertiary);
 
       .card-title {
         font-size: 14px;
         font-weight: 500;
-        color: #1a1a1a;
+        color: var(--text-primary);
         margin: 0;
       }
     }
@@ -457,7 +457,7 @@ onMounted(async () => {
   .profile-card {
     .bio-content {
       font-size: 13px;
-      color: #666;
+      color: var(--text-secondary);
       line-height: 1.5;
     }
   }
@@ -479,7 +479,7 @@ onMounted(async () => {
         }
         .info-value {
           font-size: 13px;
-          color: #1a1a1a;
+          color: var(--text-primary);
         }
       }
     }
@@ -496,7 +496,7 @@ onMounted(async () => {
         align-items: center;
         justify-content: space-between;
         padding-bottom: 10px;
-        border-bottom: 1px solid #f0f0f0;
+        border-bottom: 1px solid var(--border-color);
 
         &:last-child {
           border-bottom: none;
@@ -509,7 +509,7 @@ onMounted(async () => {
           h4 {
             font-size: 13px;
             font-weight: 500;
-            color: #1a1a1a;
+            color: var(--text-primary);
             margin: 0 0 2px;
           }
           p {
@@ -538,14 +538,14 @@ onMounted(async () => {
   }
 
   .loading-container {
-    background: #fff;
+    background: var(--card-bg);
     border-radius: 10px;
     padding: 16px;
-    border: 1px solid #e5e5e5;
+    border: 1px solid var(--border-color);
 
     .skeleton-line {
       height: 14px;
-      background: #e5e5e5;
+      background: var(--bg-secondary);
       border-radius: 4px;
       margin-bottom: 12px;
 
@@ -565,10 +565,10 @@ onMounted(async () => {
     animation: slideInRight 0.3s ease-out;
 
     .hint-content {
-      background: #fff;
+      background: var(--card-bg);
       border-radius: 12px;
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-      border: 1px solid #e5e5e5;
+      border: 1px solid var(--border-color);
       overflow: hidden;
 
       .hint-header {
@@ -576,12 +576,12 @@ onMounted(async () => {
         display: flex;
         align-items: center;
         gap: 10px;
-        border-bottom: 1px solid #e5e5e5;
+        border-bottom: 1px solid var(--border-color);
 
         h3 {
           font-size: 16px;
           font-weight: 500;
-          color: #1a1a1a;
+          color: var(--text-primary);
           margin: 0;
           flex: 1;
         }
@@ -596,7 +596,7 @@ onMounted(async () => {
           height: 28px;
 
           &:hover {
-            background: #f5f5f5;
+            background: var(--bg-tertiary);
             border-radius: 50%;
           }
         }
@@ -608,7 +608,7 @@ onMounted(async () => {
         .hint-description {
           margin: 0 0 16px;
           font-size: 13px;
-          color: #666;
+          color: var(--text-secondary);
           line-height: 1.5;
         }
 
@@ -622,7 +622,7 @@ onMounted(async () => {
               .feature-title {
                 font-size: 13px;
                 font-weight: 500;
-                color: #1a1a1a;
+                color: var(--text-primary);
               }
               .feature-desc {
                 font-size: 11px;
@@ -635,7 +635,7 @@ onMounted(async () => {
 
       .hint-footer {
         padding: 12px 20px;
-        background: #fafafa;
+        background: var(--bg-tertiary);
         display: flex;
         gap: 10px;
         justify-content: flex-end;
@@ -657,12 +657,12 @@ onMounted(async () => {
           }
 
           &.hint-secondary {
-            background: #fff;
-            color: #666;
-            border: 1px solid #e5e5e5;
+            background: var(--card-bg);
+            color: var(--text-secondary);
+            border: 1px solid var(--border-color);
 
             &:hover {
-              background: #f5f5f5;
+              background: var(--bg-tertiary);
             }
           }
         }

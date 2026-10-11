@@ -1,3 +1,4 @@
+import { getErrorMessage } from ".//errorMessage";
 import { message } from "ant-design-vue";
 import request from "./request";
 import type {
@@ -52,7 +53,7 @@ export const handleFriendRequest = async (
     return response.data;
   } catch (error: any) {
     const errorMessage =
-      error.response?.data?.data?.message || "处理好友申请失败";
+      getErrorMessage(error, "处理好友申请失败");
     message.error(errorMessage);
     throw error;
   }
@@ -71,7 +72,7 @@ export const getFriendRequests = async (params?: {
     return response.data?.requests || [];
   } catch (error: any) {
     const errorMessage =
-      error.response?.data?.data?.message || "获取好友申请列表失败";
+      getErrorMessage(error, "获取好友申请列表失败");
     message.error(errorMessage);
     throw error;
   }
@@ -90,11 +91,14 @@ export const getFriends = async (
     if (Array.isArray(response.data)) {
       // 情况1: 直接返回数组
       rawData = response.data;
+    } else if (Array.isArray(response.data?.list)) {
+      // 情况2: 统一响应格式下的数组（data.list）
+      rawData = response.data.list;
     } else if (response.data.friendUser) {
-      // 情况2: 有 friendUser 属性的对象
+      // 情况3: 有 friendUser 属性的对象
       rawData = response.data.friendUser;
     } else if (typeof response.data === 'object') {
-      // 情况3: 有数字键的对象（如 {"0": {...}, "1": {...}, ...}）
+      // 情况4: 有数字键的对象（旧格式，如 {"0": {...}, "1": {...}, ...}）
       const numericKeys = Object.keys(response.data).filter(key => /^\d+$/.test(key));
       if (numericKeys.length > 0) {
         rawData = numericKeys.map(key => response.data[key]);
@@ -130,7 +134,7 @@ export const getFriends = async (
 
     return friendsData;
   } catch (error: any) {
-    const errorMessage = error.response?.data?.data?.message || "获取好友列表失败";
+    const errorMessage = getErrorMessage(error, "获取好友列表失败");
     message.error(errorMessage);
     throw error;
   }
@@ -143,7 +147,7 @@ export const deleteFriend = async (friendId: number): Promise<void> => {
 
     message.success(response.data.message || "好友删除成功");
   } catch (error: any) {
-    const errorMessage = error.response?.data?.data?.message || "删除好友失败";
+    const errorMessage = getErrorMessage(error, "删除好友失败");
     message.error(errorMessage);
     throw error;
   }
@@ -163,7 +167,7 @@ export const updateFriendRemark = async (
     return response.data;
   } catch (error: any) {
     const errorMessage =
-      error.response?.data?.data?.message || "更新好友备注失败";
+      getErrorMessage(error, "更新好友备注失败");
     message.error(errorMessage);
     throw error;
   }
@@ -179,7 +183,7 @@ export const blockUser = async (userId: number): Promise<any> => {
     // 移除内部的 message 提示，由调用方自行处理
     return response.data;
   } catch (error: any) {
-    const errorMessage = error.response?.data?.data?.message || "屏蔽用户失败";
+    const errorMessage = getErrorMessage(error, "屏蔽用户失败");
     throw error;
   }
 };
@@ -194,7 +198,7 @@ export const unblockUser = async (userId: number): Promise<any> => {
     // 移除内部的 message 提示，由调用方自行处理
     return response.data;
   } catch (error: any) {
-    const errorMessage = error.response?.data?.data?.message || "取消屏蔽失败";
+    const errorMessage = getErrorMessage(error, "取消屏蔽失败");
     throw error;
   }
 };
@@ -227,7 +231,7 @@ export const getUserInfo = async (
     return response.data;
   } catch (error: any) {
     const errorMessage =
-      error.response?.data?.data?.message || "获取用户信息失败";
+      getErrorMessage(error, "获取用户信息失败");
     message.error(errorMessage);
     throw error;
   }
@@ -266,7 +270,7 @@ export const getFriendRequestDetail = async (
     return response.data;
   } catch (error: any) {
     const errorMessage =
-      error.response?.data?.data?.message || "获取申请详情失败";
+      getErrorMessage(error, "获取申请详情失败");
     message.error(errorMessage);
     throw error;
   }
@@ -289,7 +293,7 @@ export const cancelFriendRequest = async (requestId: number): Promise<void> => {
     message.success(response.data.message || "已撤回好友申请");
   } catch (error: any) {
     const errorMessage =
-      error.response?.data?.data?.message || "撤回好友申请失败";
+      getErrorMessage(error, "撤回好友申请失败");
     message.error(errorMessage);
     throw error;
   }
@@ -304,7 +308,7 @@ export const deleteFriendRequest = async (requestId: number): Promise<void> => {
     message.success(response.data.message || "已删除好友申请");
   } catch (error: any) {
     const errorMessage =
-      error.response?.data?.data?.message || "删除好友申请失败";
+      getErrorMessage(error, "删除好友申请失败");
     message.error(errorMessage);
     throw error;
   }

@@ -5,9 +5,12 @@ import Cookies from "js-cookie";
 import { message } from "ant-design-vue";
 import { useRouter } from "vue-router";
 import { useUiSettings } from "./uiSettings";
+import { useSiderColor } from "./siderColor";
+import { reloadThemeMode } from "../composables/useTheme";
 import { getSignalingService } from "../untils/signalingService";
 import { clearContactsCache, pruneOtherUsersCache } from "../untils/contactCache";
 import { pruneOtherUsersCache as pruneOtherFriendCaches } from "../untils/friendListCache";
+import { clearAllAccountCaches } from "../untils/cacheLifecycle";
 
 // 独立定义User接口，避免和响应式变量重名
 export interface UserInfo {
@@ -98,6 +101,9 @@ export const useUserStore = defineStore("user", () => {
       if (user.value?.id) {
         const uiSettings = useUiSettings();
         uiSettings.setCurrentUser(user.value.id);
+        // 主题设置也按用户隔离，登录后立即加载该用户的主题
+        useSiderColor().setCurrentUser(user.value.id);
+        reloadThemeMode();
         // 初始化信令服务
         initializeSignalingService(String(user.value.id));
       }
@@ -135,6 +141,13 @@ export const useUserStore = defineStore("user", () => {
     // 设置UI Store的当前用户ID，触发字体设置加载
     const uiSettings = useUiSettings();
     uiSettings.setCurrentUser(userData.id);
+    // 主题设置也按用户隔离
+    useSiderColor().setCurrentUser(userData.id);
+    reloadThemeMode();
+
+    // 用户资料（昵称 / 头像）变化后让联系人缓存失效，
+    // 避免缓存里「自己」会话仍是旧昵称 / 旧头像。
+    clearContactsCache(String(userData.id));
 
     // 初始化信令服务
     initializeSignalingService(String(userData.id));
@@ -184,6 +197,9 @@ export const useUserStore = defineStore("user", () => {
         // 如果已有用户信息，设置UI Store的用户ID
         const uiSettings = useUiSettings();
         uiSettings.setCurrentUser(user.value.id);
+        // 主题设置也按用户隔离
+        useSiderColor().setCurrentUser(user.value.id);
+        reloadThemeMode();
         // 初始化信令服务
         initializeSignalingService(String(user.value.id));
       }
@@ -224,6 +240,9 @@ export const useUserStore = defineStore("user", () => {
       if (response.data?.id) {
         const uiSettings = useUiSettings();
         uiSettings.setCurrentUser(response.data.id);
+        // 主题设置也按用户隔离
+        useSiderColor().setCurrentUser(response.data.id);
+        reloadThemeMode();
         // 初始化信令服务
         initializeSignalingService(String(response.data.id));
       }
@@ -269,6 +288,13 @@ export const useUserStore = defineStore("user", () => {
       // 合并更新，保留原有字段
       user.value = { ...user.value, ...response.data } as UserInfo;
 
+      // 资料变更（昵称 / 头像）后让联系人缓存失效：
+      // 缓存里保存了「自己」会话的旧昵称 / 旧头像，不清会导致下次进入消息页仍显示旧资料。
+      // 若当前正在消息页，页面内的 watcher 会实时同步，不受影响。
+      if (user.value?.id) {
+        clearContactsCache(String(user.value.id));
+      }
+
       // 如果更新了头像，同步缓存到 localStorage
       if (response.data?.avatar) {
         try {
@@ -298,19 +324,31 @@ export const useUserStore = defineStore("user", () => {
    * 登出
    */
   const logout = async () => {
-    // 登出即清空本地联系人缓存，避免切换账号后读到上一个账号的数据
-    clearContactsCache();
+    // 登出即清空所有账号级缓存（联系人/好友/置顶免打扰/最近消息等），
+    // 统一由 cacheLifecycle 收口，避免切换账号后读到上一个账号的数据。
+    clearAllAccountCaches();
+    // 清除主题 uid，登出后回到全局默认主题（避免残留上一个账号的主题）
+    useSiderColor().setCurrentUser(null);
+    reloadThemeMode();
 
-    try {
-      const response = await request.post("auth/logout");
-      Cookies.remove("token");
-      router.push("/login");
-      token.value = null;
-      user.value = null;
-      message.success(response.data.message);
-    } catch (err) {
-      console.warn("登出接口调用失败:", err);
-    }
+    // 先立即完成本地登出（清 token、清状态、跳转），不被后端接口阻塞；
+    // 接口慢或挂起时也能瞬间退出，避免"等数据丢失才退"。
+    Cookies.remove("token");
+    token.value = null;
+    user.value = null;
+    router.push("/login");
+
+    // 再做后端登出（不阻塞 UI），失败也无所谓，本地已退出
+    request
+      .post("auth/logout")
+      .then((response: any) => {
+        if (response?.data?.message) {
+          message.success(response.data.message);
+        }
+      })
+      .catch((err: any) => {
+        console.warn("登出接口调用失败:", err);
+      });
   };
   return {
     user,

@@ -1,0 +1,97 @@
+/*
+ * 动态主题（个性装扮）按需加载样式。
+ *
+ * 只有用户开启壁纸时才被 import（见 plugins/dynamic-theme.client.ts），
+ * 平时不会进入首屏请求 —— 这就是「请求对应的 CSS」：开哪个主题才拉哪份样式。
+ *
+ * 这里只放通用兜底；具体颜色一律走变量，变量由插件统一注入到 :root。
+ */
+:root {
+  --dt-text: #ffffff;
+  --dt-text-secondary: rgba(255, 255, 255, 0.85);
+  --dt-text-shadow: none;
+  --dt-panel: rgba(0, 0, 0, 0.28);
+  --dt-panel-soft: rgba(0, 0, 0, 0.2);
+  --dt-border: rgba(255, 255, 255, 0.3);
+}
+
+/* 开启壁纸的页面：默认文字转白，保证在壁纸上可读（子元素可自行覆写） */
+.has-dynamic-bg {
+  color: var(--dt-text);
+}
+
+/* 动态主题下补强各面板之间的分隔：壁纸很花，普通主题的浅色边框会完全看不见 */
+.has-dynamic-bg .message-input-area,
+.has-dynamic-bg .chat-header,
+.has-dynamic-bg .qq-sidebar,
+.has-dynamic-bg .content-container {
+  border-color: var(--dt-divider, rgba(255, 255, 255, 0.55));
+}
+
+/* 输入框与消息区之间补一条实线，避免两块半透明面板糊在一起 */
+.has-dynamic-bg .message-input-area {
+  border-top: 1px solid var(--dt-divider, rgba(255, 255, 255, 0.55));
+}
+
+/* 需要显式面板底色的容器：加 .dt-panel 即可跟随动态主题 */
+.has-dynamic-bg .dt-panel {
+  background: var(--dt-panel);
+  border-color: var(--dt-border);
+}
+
+/* ============================================================
+   弹窗 / 抽屉 / 浮层：动态主题下不受壁纸配色影响，统一白卡 + 深色文字
+   ------------------------------------------------------------
+   这些卡面走 var(--dt-panel-solid)（动态主题下注入的是 #1b1b20 深色实底），
+   内部文字走 var(--text-primary) 等（动态主题下是白色）。
+   在容器上把这些变量改回浅色那一套，容器自身与后代一起生效，
+   与 antd 弹窗的默认白卡保持一致（antd 主题接入已移除）。
+   只作用于 html.dynamic-theme，夜间模式不受影响。
+   注意：聊天流里的消息卡片 / 分享卡片 / 消息气泡不在此列（保持跟随壁纸）。
+   ============================================================ */
+/* 通用 modal 容器（覆盖项目里所有弹窗的基础类名） */
+html.dynamic-theme .modal-mask,
+html.dynamic-theme .modal-overlay,
+html.dynamic-theme .modal-wrapper,
+html.dynamic-theme .modal-card,
+html.dynamic-theme .modal-container,
+html.dynamic-theme .modal-dialog,
+html.dynamic-theme .modal-content,
+html.dynamic-theme .modal-panel,
+/* 业务弹窗 / 抽屉 / 浮层 */
+html.dynamic-theme .modern-drawer,
+html.dynamic-theme .group-title-modal,
+html.dynamic-theme .sf-card,
+html.dynamic-theme .detail-panel,
+html.dynamic-theme .feedback-container,
+html.dynamic-theme .success-container,
+html.dynamic-theme .preview-dialog,
+html.dynamic-theme .report-modal-wrapper,
+html.dynamic-theme .report-history-modal,
+html.dynamic-theme .process-report-modal-wrapper,
+html.dynamic-theme .report-detail-content,
+html.dynamic-theme .custom-filter-drawer,
+html.dynamic-theme .notification-card,
+/* 右键菜单 / 表情面板 */
+html.dynamic-theme .context-menu,
+html.dynamic-theme .avatar-context-menu,
+html.dynamic-theme .member-context-menu,
+html.dynamic-theme .emoji-picker,
+/* antd 浮层（默认白卡，这里只为统一文字/边框变量） */
+html.dynamic-theme .ant-modal-content,
+html.dynamic-theme .ant-drawer-content {
+  --dt-panel-solid: #ffffff;
+  --card-bg: #ffffff;
+  /* 浮层描边：动态主题下同样是白卡，避免继承到别处的深色描边变量 */
+  --floating-border: #e5e7eb;
+  --text-primary: #1a1a2e;
+  --text-secondary: #4b5563;
+  --text-tertiary: #9ca3af;
+  --border-color: #e5e7eb;
+  --divider-color: rgba(0, 0, 0, 0.08);
+  --dt-divider: rgba(0, 0, 0, 0.12);
+  --bg-primary: #f5f6fa;
+  --bg-secondary: #e8edf8;
+  --bg-tertiary: #f5f5f5;
+  --bg-hover: rgba(0, 0, 0, 0.04);
+}

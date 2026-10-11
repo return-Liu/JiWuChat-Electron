@@ -384,7 +384,7 @@ const progressPercentage = computed(() => {
   left: 0;
   width: 100vw;
   height: 100vh;
-  background: #f5f5f5;
+  background: var(--bg-tertiary);
   z-index: 9999;
   overflow: hidden;
 }
@@ -394,15 +394,15 @@ const progressPercentage = computed(() => {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: #f5f5f5;
+  background: var(--bg-tertiary);
 }
 
 /* 顶部导航 */
 .modal-header {
   height: 56px;
   padding: 0 16px;
-  background: #ffffff;
-  border-bottom: 1px solid #f0f0f0;
+  background: var(--dt-panel-solid, var(--card-bg));
+  border-bottom: 1px solid var(--border-color);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -419,14 +419,14 @@ const progressPercentage = computed(() => {
     transition: background 0.2s;
 
     &:hover {
-      background: #f5f5f5;
+      background: var(--bg-tertiary);
     }
   }
 
   .header-title {
     font-size: 17px;
     font-weight: 600;
-    color: #1a1a1a;
+    color: var(--text-primary);
   }
 
   .header-placeholder {
@@ -444,7 +444,7 @@ const progressPercentage = computed(() => {
 
 /* 用户卡片 */
 .user-card {
-  background: #ffffff;
+  background: var(--dt-panel-solid, var(--card-bg));
   border-radius: 12px;
   padding: 16px;
   margin-bottom: 12px;
@@ -506,7 +506,7 @@ const progressPercentage = computed(() => {
     .user-name {
       font-size: 18px;
       font-weight: 600;
-      color: #1a1a1a;
+      color: var(--text-primary);
       margin-bottom: 2px;
     }
 
@@ -532,7 +532,7 @@ const progressPercentage = computed(() => {
 
 /* 进度区域 */
 .progress-section {
-  background: #ffffff;
+  background: var(--dt-panel-solid, var(--card-bg));
   border-radius: 12px;
   padding: 16px;
   margin-bottom: 12px;
@@ -550,7 +550,7 @@ const progressPercentage = computed(() => {
     .value {
       font-size: 20px;
       font-weight: 600;
-      color: #1a1a1a;
+      color: var(--text-primary);
       margin-top: 2px;
     }
 
@@ -561,7 +561,7 @@ const progressPercentage = computed(() => {
 
   .progress-track {
     height: 6px;
-    background: #f0f0f0;
+    background: var(--bg-tertiary);
     border-radius: 3px;
     overflow: hidden;
     margin-bottom: 16px;
@@ -578,7 +578,7 @@ const progressPercentage = computed(() => {
     justify-content: space-around;
     align-items: center;
     padding-top: 12px;
-    border-top: 1px solid #f0f0f0;
+    border-top: 1px solid var(--border-color);
 
     > div {
       text-align: center;
@@ -606,7 +606,7 @@ const progressPercentage = computed(() => {
   margin-bottom: 12px;
 
   .stat-card {
-    background: #ffffff;
+    background: var(--dt-panel-solid, var(--card-bg));
     border-radius: 12px;
     padding: 16px;
     text-align: center;
@@ -614,7 +614,7 @@ const progressPercentage = computed(() => {
     .stat-number {
       font-size: 22px;
       font-weight: 600;
-      color: #1a1a1a;
+      color: var(--text-primary);
       margin-bottom: 4px;
     }
 
@@ -627,7 +627,7 @@ const progressPercentage = computed(() => {
 
 /* 特权区域 */
 .privileges-section {
-  background: #ffffff;
+  background: var(--dt-panel-solid, var(--card-bg));
   border-radius: 12px;
   padding: 16px;
   margin-bottom: 12px;
@@ -635,7 +635,7 @@ const progressPercentage = computed(() => {
   .section-title {
     font-size: 16px;
     font-weight: 600;
-    color: #1a1a1a;
+    color: var(--text-primary);
     margin-bottom: 12px;
   }
 
@@ -679,14 +679,14 @@ const progressPercentage = computed(() => {
 
 /* 规则区域 */
 .rules-section {
-  background: #ffffff;
+  background: var(--dt-panel-solid, var(--card-bg));
   border-radius: 12px;
   padding: 16px;
 
   .section-title {
     font-size: 16px;
     font-weight: 600;
-    color: #1a1a1a;
+    color: var(--text-primary);
     margin-bottom: 12px;
   }
 

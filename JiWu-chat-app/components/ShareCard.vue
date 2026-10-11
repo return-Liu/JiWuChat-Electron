@@ -129,9 +129,9 @@ const copyId = async () => {
 /* 名片卡片：复用群邀请卡片（SystemMessageCard）视觉 */
 .msg-card {
   width: 230px;
-  background: #fff;
+  background: var(--dt-panel-solid, var(--card-bg));
   border-radius: 12px;
-  border: 1px solid #e5e5e5;
+  border: 1px solid var(--border-color);
   overflow: hidden;
   cursor: pointer;
   transition: all 0.25s ease;
@@ -151,7 +151,7 @@ const copyId = async () => {
   border-radius: 6px;
   overflow: hidden;
   flex-shrink: 0;
-  background: #f5f5f5;
+  background: var(--bg-tertiary);
 }
 
 .card-avatar img {
@@ -169,7 +169,7 @@ const copyId = async () => {
 .msg-title {
   font-size: 13px;
   font-weight: 500;
-  color: #1a1a1a;
+  color: var(--text-primary);
   line-height: 1.3;
 }
 
@@ -185,7 +185,7 @@ const copyId = async () => {
 
 .card-divider {
   height: 1px;
-  background: #f0f0f0;
+  background: var(--bg-tertiary);
 }
 
 .card-footer {
@@ -208,15 +208,13 @@ const copyId = async () => {
   -webkit-backdrop-filter: blur(8px);
 }
 .share-card-wrap.has-dynamic-bg .msg-title {
-  color: #fff;
-  text-shadow:
-    0 1px 3px rgba(0, 0, 0, 0.75),
-    0 0 8px rgba(0, 0, 0, 0.5);
+  color: var(--dt-text);
+  text-shadow: var(--dt-text-shadow);
 }
 .share-card-wrap.has-dynamic-bg .msg-subtitle,
 .share-card-wrap.has-dynamic-bg .status-text {
   color: rgba(255, 255, 255, 0.85);
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75);
+  text-shadow: var(--dt-text-shadow);
 }
 .share-card-wrap.has-dynamic-bg .card-divider {
   background: rgba(255, 255, 255, 0.25);
@@ -242,14 +240,14 @@ const copyId = async () => {
 .share-detail-card {
   width: 90%;
   max-width: 360px;
-  background: #fff;
+  background: var(--dt-panel-solid, var(--card-bg));
   border-radius: 14px;
   overflow: hidden;
 }
 
 .detail-header {
   padding: 14px 18px;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--border-color);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -259,7 +257,7 @@ const copyId = async () => {
   margin: 0;
   font-size: 15px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--text-primary);
 }
 
 .detail-close {
@@ -270,11 +268,11 @@ const copyId = async () => {
   border-radius: 50%;
   cursor: pointer;
   font-size: 14px;
-  color: #999;
+  color: var(--text-tertiary);
 }
 
 .detail-close:hover {
-  background: #f5f5f5;
+  background: var(--bg-tertiary);
 }
 
 .detail-body {
@@ -288,20 +286,20 @@ const copyId = async () => {
   border-radius: 50%;
   object-fit: cover;
   margin-bottom: 12px;
-  background: #eee;
+  background: var(--bg-tertiary);
 }
 
 .detail-name {
   margin: 0 0 6px;
   font-size: 18px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--text-primary);
 }
 
 .detail-desc {
   margin: 0 0 16px;
   font-size: 13px;
-  color: #999;
+  color: var(--text-tertiary);
   line-height: 1.5;
 }
 
@@ -312,19 +310,19 @@ const copyId = async () => {
   gap: 10px;
   margin-bottom: 14px;
   padding: 10px 12px;
-  background: #f7f8fa;
+  background: var(--bg-tertiary);
   border-radius: 8px;
 }
 
 .detail-id-label {
   font-size: 12px;
-  color: #999;
+  color: var(--text-tertiary);
 }
 
 .detail-id-value {
   font-size: 14px;
   font-weight: 500;
-  color: #333;
+  color: var(--text-primary);
   user-select: text;
 }
 
@@ -346,6 +344,6 @@ const copyId = async () => {
 .detail-tip {
   margin: 12px 0 0;
   font-size: 12px;
-  color: #bbb;
+  color: var(--text-tertiary);
 }
 </style>

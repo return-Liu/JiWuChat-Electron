@@ -127,11 +127,17 @@ async function handleSubmit() {
   }
 
   try {
-    await Modal.confirm(
-      `确定要将此举报标记为"${statusOptions[selectedStatus.value]}"吗？`,
-      "确认处理",
-      { confirmButtonText: "确定", cancelButtonText: "取消", type: "warning" },
-    );
+    await new Promise<void>((resolve, reject) => {
+      Modal.confirm({
+        title: "确认处理",
+        content: `确定要将此举报标记为"${statusOptions[selectedStatus.value]}"吗？`,
+        okText: "确定",
+        cancelText: "取消",
+        type: "warning",
+        onOk: () => resolve(),
+        onCancel: () => reject("cancel"),
+      });
+    });
   } catch {
     return;
   }
@@ -180,7 +186,7 @@ async function handleSubmit() {
 }
 
 .process-report-modal-wrapper {
-  background: #fff;
+  background: var(--dt-panel-solid, var(--card-bg));
   border-radius: 12px;
   width: 90%;
   max-width: 520px;
@@ -194,12 +200,12 @@ async function handleSubmit() {
   justify-content: space-between;
   align-items: center;
   padding: 16px 20px;
-  border-bottom: 1px solid #e5e5e5;
+  border-bottom: 1px solid var(--border-color);
 
   .modal-title {
     font-size: 16px;
     font-weight: 500;
-    color: #1a1a1a;
+    color: var(--text-primary);
     margin: 0;
   }
 
@@ -218,7 +224,7 @@ async function handleSubmit() {
   }
 
   .close-btn:hover:not(:disabled) {
-    background: #f5f5f5;
+    background: var(--bg-tertiary);
   }
 }
 
@@ -236,7 +242,7 @@ async function handleSubmit() {
   .section-label {
     font-size: 13px;
     font-weight: 500;
-    color: #1a1a1a;
+    color: var(--text-primary);
     margin-bottom: 10px;
     display: flex;
     align-items: center;
@@ -265,14 +271,14 @@ async function handleSubmit() {
   display: flex;
   align-items: center;
   padding: 8px 12px;
-  border: 1px solid #e5e5e5;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s;
 
   &:hover:not(.disabled) {
     border-color: #007aff;
-    background: #f5f5f5;
+    background: var(--bg-tertiary);
   }
 
   &.selected {
@@ -303,14 +309,14 @@ async function handleSubmit() {
 
   .status-radio-label {
     font-size: 13px;
-    color: #1a1a1a;
+    color: var(--text-primary);
   }
 }
 
 .note-textarea {
   width: 100%;
   padding: 10px 12px;
-  border: 1px solid #e5e5e5;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   font-size: 13px;
   font-family: inherit;
@@ -323,7 +329,7 @@ async function handleSubmit() {
   }
 
   &:disabled {
-    background: #f5f5f5;
+    background: var(--bg-tertiary);
     cursor: not-allowed;
   }
 }
@@ -333,7 +339,7 @@ async function handleSubmit() {
   justify-content: flex-end;
   gap: 12px;
   padding: 14px 20px;
-  border-top: 1px solid #e5e5e5;
+  border-top: 1px solid var(--border-color);
 }
 
 .modal-btn {
@@ -348,11 +354,11 @@ async function handleSubmit() {
   border: none;
 
   &.cancel-btn {
-    background: #f5f5f5;
-    color: #666;
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
 
     &:hover:not(:disabled) {
-      background: #e5e5e5;
+      background: var(--bg-secondary);
     }
 
     &:disabled {

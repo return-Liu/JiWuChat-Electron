@@ -226,7 +226,7 @@ const handleViewAll = () => {
   }
   emit("update:visible", false);
   setTimeout(() => {
-    router.push("/updateLogs");
+    router.push("/versions/latest");
   }, 200);
 };
 
@@ -297,7 +297,7 @@ defineExpose({
 .modal-container {
   width: 560px;
   max-width: 92%;
-  background: #ffffff;
+  background: var(--dt-panel-solid, var(--card-bg));
   border-radius: 16px;
   box-shadow: 0 8px 40px rgba(0, 0, 0, 0.18);
   overflow: hidden;
@@ -321,7 +321,7 @@ defineExpose({
   align-items: center;
   justify-content: space-between;
   padding: 20px 24px 16px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .header-left {
@@ -333,7 +333,7 @@ defineExpose({
 .header-title {
   font-size: 18px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--text-primary);
 }
 
 .close-btn {
@@ -342,7 +342,7 @@ defineExpose({
   border: none;
   background: transparent;
   font-size: 22px;
-  color: #bbb;
+  color: var(--text-tertiary);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -352,8 +352,8 @@ defineExpose({
 }
 
 .close-btn:hover {
-  background: #f5f5f5;
-  color: #333;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
 }
 
 /* 内容区域 */
@@ -388,13 +388,13 @@ defineExpose({
   justify-content: center;
   padding: 50px 20px;
   gap: 14px;
-  color: #999;
+  color: var(--text-tertiary);
 }
 
 .loading-spinner {
   width: 36px;
   height: 36px;
-  border: 3px solid #f0f0f0;
+  border: 3px solid var(--border-color);
   border-top-color: #1890ff;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
@@ -419,17 +419,17 @@ defineExpose({
   align-items: center;
   justify-content: space-between;
   padding: 10px 14px;
-  background: #f5f7fa;
+  background: var(--bg-tertiary);
   border-radius: 10px;
   cursor: pointer;
   transition: all 0.2s ease;
-  border: 1px solid #e8ecf0;
+  border: 1px solid var(--border-color);
   user-select: none;
 }
 
 .version-selector:hover {
-  background: #eef2f7;
-  border-color: #d0d8e0;
+  background: var(--bg-tertiary);
+  border-color: var(--border-color);
 }
 
 .version-selector-left {
@@ -445,7 +445,7 @@ defineExpose({
 
 .version-selector-label {
   font-size: 13px;
-  color: #333;
+  color: var(--text-primary);
   font-weight: 500;
 }
 
@@ -453,7 +453,7 @@ defineExpose({
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #999;
+  color: var(--text-tertiary);
 }
 
 .current-version {
@@ -465,7 +465,7 @@ defineExpose({
 .version-selector-right .iconfont {
   font-size: 12px;
   transition: transform 0.3s ease;
-  color: #bbb;
+  color: var(--text-tertiary);
 }
 
 .version-selector-right .iconfont.is-open {
@@ -485,8 +485,8 @@ defineExpose({
 }
 
 .version-list {
-  background: #ffffff;
-  border: 1px solid #e8ecf0;
+  background: var(--dt-panel-solid, var(--card-bg));
+  border: 1px solid var(--border-color);
   border-radius: 10px;
   overflow: hidden;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
@@ -510,7 +510,7 @@ defineExpose({
   padding: 10px 14px;
   cursor: pointer;
   transition: background 0.2s ease;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .version-item:last-child {
@@ -518,11 +518,11 @@ defineExpose({
 }
 
 .version-item:hover {
-  background: #f5f7fa;
+  background: var(--bg-tertiary);
 }
 
 .version-item.active {
-  background: #e6f0ff;
+  background: var(--color-primary-light);
 }
 
 .version-item-left {
@@ -534,7 +534,7 @@ defineExpose({
 .version-item-tag {
   font-size: 13px;
   font-weight: 500;
-  color: #333;
+  color: var(--text-primary);
 }
 
 .tag-important {
@@ -555,7 +555,7 @@ defineExpose({
 
 .version-item-date {
   font-size: 12px;
-  color: #999;
+  color: var(--text-tertiary);
 }
 
 /* 版本详情 */
@@ -570,7 +570,7 @@ defineExpose({
 .version-badge {
   display: inline-block;
   padding: 4px 14px;
-  background: #e6f0ff;
+  background: var(--color-primary-light);
   border-radius: 6px;
   font-size: 14px;
   font-weight: 600;
@@ -579,23 +579,23 @@ defineExpose({
 
 .update-time {
   font-size: 13px;
-  color: #aaa;
+  color: var(--text-tertiary);
 }
 
 .update-title {
   font-size: 20px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--text-primary);
   line-height: 1.6;
   margin: 2px 0;
 }
 
 .update-summary {
   font-size: 14px;
-  color: #666;
+  color: var(--text-secondary);
   line-height: 1.8;
   padding: 12px 16px;
-  background: #f8f9fa;
+  background: var(--bg-tertiary);
   border-radius: 10px;
   margin: 4px 0;
 }
@@ -613,7 +613,7 @@ defineExpose({
   max-width: 160px;
   aspect-ratio: 16 / 9;
   border-radius: 8px;
-  border: 1px solid #eee;
+  border: 1px solid var(--border-color);
   cursor: pointer;
   /* object-fit: cover; */
   transition: transform 0.2s ease;
@@ -631,26 +631,36 @@ defineExpose({
 .details-title {
   font-size: 14px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--text-primary);
   margin-bottom: 10px;
   padding-bottom: 8px;
-  border-bottom: 2px solid #f0f0f0;
+  border-bottom: 2px solid var(--border-color);
 }
 
 /* 更新内容样式 */
 .details-content {
   font-size: 14px;
-  color: #333;
+  color: var(--text-primary);
   line-height: 1.8;
+}
+
+.details-content :deep(h1),
+.details-content :deep(h2) {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+  padding: 16px 0 10px;
+  margin: 8px 0 12px;
+  border-bottom: 2px solid var(--border-color);
 }
 
 .details-content :deep(h3) {
   font-size: 18px;
   font-weight: 700;
-  color: #1a1a1a;
+  color: var(--text-primary);
   padding: 16px 0 10px;
   margin: 8px 0 12px;
-  border-bottom: 2px solid #e8ecf0;
+  border-bottom: 2px solid var(--border-color);
 }
 
 .details-content :deep(ul) {
@@ -662,7 +672,7 @@ defineExpose({
 .details-content :deep(li) {
   margin: 2px 0;
   padding: 2px 0;
-  color: #444;
+  color: var(--text-primary);
   line-height: 1.8;
 }
 
@@ -671,7 +681,7 @@ defineExpose({
 }
 
 .details-content :deep(p) {
-  color: #444;
+  color: var(--text-primary);
   line-height: 1.8;
   margin: 6px 0;
 }
@@ -689,7 +699,7 @@ defineExpose({
 .empty-state p {
   margin: 0;
   font-size: 14px;
-  color: #aaa;
+  color: var(--text-tertiary);
 }
 
 /* 底部按钮 */
@@ -698,8 +708,8 @@ defineExpose({
   align-items: center;
   justify-content: space-between;
   padding: 14px 24px 18px;
-  border-top: 1px solid #f0f0f0;
-  background: #fafafa;
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
 }
 
 .footer-left {
@@ -720,7 +730,7 @@ defineExpose({
   padding: 8px 16px;
   background: transparent;
   border: none;
-  color: #999;
+  color: var(--text-tertiary);
   font-size: 13px;
   cursor: pointer;
   border-radius: 6px;
@@ -747,12 +757,12 @@ defineExpose({
 }
 
 .btn-default {
-  background: #f0f0f0;
-  color: #666;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
 }
 
 .btn-default:hover {
-  background: #e5e5e5;
+  background: var(--bg-secondary);
 }
 
 .btn-primary {

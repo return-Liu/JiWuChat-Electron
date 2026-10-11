@@ -126,7 +126,7 @@ const formatFileSize = (bytes: number): string => {
 .file-preview-name {
   font-size: 13px;
   font-weight: 500;
-  color: #333;
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -138,7 +138,7 @@ const formatFileSize = (bytes: number): string => {
 
 .file-preview-size {
   font-size: 11px;
-  color: #999;
+  color: var(--text-tertiary);
   line-height: 1.3;
   /* 阻止文本选择 */
   user-select: none;

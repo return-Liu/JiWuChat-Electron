@@ -25,6 +25,13 @@ export interface ChatMessage {
   recalledAt?: string;
   recalledBy?: string;
   recalledContent?: string;
+  // 引用回复相关
+  replyTo?: {
+    messageId?: string | number;
+    senderName?: string;
+    content?: string;
+    messageType?: string;
+  };
   // 文件相关
   fileName?: string;
   fileSize?: number;
@@ -35,6 +42,11 @@ export interface ChatMessage {
   // 系统消息相关
   groupId?: string | number | null;
   receiverId?: string | number;
+  // AI 深度思考（机器人回复默认开启，前端折叠展示）
+  thinking?: string;
+  deepThinking?: boolean;
+  /** 是否为 AI 机器人回复（后端标记，前端据此做逐字打字机输出） */
+  isBotMessage?: boolean;
 }
 
 export interface Contact {
@@ -49,6 +61,10 @@ export interface Contact {
   isDefault?: boolean;
   isGroup: boolean;
   isFriend?: boolean;
+  /** 是否为机器人（AI 助手）：机器人会话隐藏语音/视频通话等能力 */
+  isBot?: boolean;
+  /** 是否为「当前用户自己」的会话（始终排在列表首位） */
+  isSelf?: boolean;
   groupOwnerId?: string;
   groupMembers?: {
     id: string | number;
@@ -63,9 +79,31 @@ export interface Contact {
     groupTitle?: string;
     useDefaultTitle?: boolean;
     role?: string;
+    /** 是否为 AI 机器人成员（后端 groupmembers 里 isBotId 标记），用于 @ 列表/成员列表显示徽标 */
+    isBot?: boolean;
   }[];
   memberCount?: number;
+  /** @deprecated 由前端从聊天消息里反解，后续统一用 joinNotices */
   joinMessages?: { userId: string; userName: string; time: string }[];
+  /**
+   * 入群通知（后端群详情接口 `joinNotices` 字段，权威数据源）。
+   * 每有人入群追加一条，包含该群全部历史入群记录。
+   */
+  joinNotices?: {
+    id?: number | string;
+    userId: string;
+    userName: string;
+    userAvatar?: string;
+    operatorId?: string | null;
+    operatorName?: string | null;
+    source?: "invite" | "application" | "public" | "create" | string;
+    memberCount?: number | null;
+    message?: string;
+    /** 可解析时间（ISO），用于排序 / 去重 */
+    joinedAt?: string;
+    /** 展示用时间，如「今天 11:02」 */
+    time?: string;
+  }[];
   groupRule?: string;
   groupNumber?: string;
   owner?: { id: string; name: string; avatar: string; nickname?: string };
@@ -74,6 +112,8 @@ export interface Contact {
   lastMessage: string;
   lastMessageTime: string;
   lastMessageAt?: string;
+  /** 已读游标：该会话「读到的最后一条消息 id」（后端 conversation_reads，全局自增，id > 该值即为新消息） */
+  readCursor?: number;
   unreadCount: number;
   role?: string;
   originalIndex?: number;
@@ -90,6 +130,15 @@ export interface Contact {
   allowMemberInvite?: boolean;
   onlineVisibility?: number;
   status?: number;
+  /**
+   * 群聊风险等级（QQ 式安全提醒，仅用于展示提示，不影响消息收发）。
+   * normal-正常，watch-关注，warning-存在风险，high-较高风险，severe-严重风险
+   */
+  riskLevel?: "normal" | "watch" | "warning" | "high" | "severe";
+  /** 近 30 天去重举报人数 */
+  riskReportCount?: number;
+  /** 举报原因分布（中文描述） */
+  riskReasons?: string[];
   chatHistoryPagination?: {
     currentPage: number;
     totalPages: number;
@@ -132,25 +181,23 @@ export interface SelectedVideo {
 }
 
 export interface ImageHandlerOptions {
-  selectedImages: { value: SelectedImage[] };
-  lastImageSelectionTime: { value: number | null };
-  lastImageSendTime: { value: number | null };
+  selectedMedias: { value: SelectedImage[] };
+  lastMediaSelectionTime: { value: number | null };
   activeContact: { value: Contact | undefined };
   showMediaPreview: { value: boolean };
   previewMedias: { value: (string | { url: string; type: string })[] };
   currentPreviewIndex: { value: number };
-  lastRemoveImageTime?: { value: number | null };
+  lastRemoveMediaTime?: { value: number | null };
 }
 
 export interface VideoHandlerOptions {
-  selectedVideos: { value: SelectedVideo[] };
-  lastVideoSelectionTime: { value: number | null };
-  lastVideoSendTime: { value: number | null };
+  selectedMedias: { value: SelectedVideo[] };
+  lastMediaSelectionTime: { value: number | null };
   activeContact: { value: Contact | undefined };
   showMediaPreview: { value: boolean };
   previewMedias: { value: (string | { url: string; type: string })[] };
   currentPreviewIndex: { value: number };
-  lastRemoveVideoTime?: { value: number | null };
+  lastRemoveMediaTime?: { value: number | null };
 }
 
 export interface ContactManagerOptions {

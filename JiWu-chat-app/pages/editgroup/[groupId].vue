@@ -4,27 +4,7 @@
     :class="{ 'has-dynamic-bg': hasDynamicBackground }"
     :style="dynamicThemeStyle"
   >
-    <!-- 个性装扮：动态背景层（视频 / 图片壁纸，铺满整个编辑窗口） -->
-    <div v-if="hasDynamicBackground" class="group-dynamic-bg">
-      <video
-        v-if="chatBgType === 'video' && chatBgVideo"
-        ref="chatBgVideoRef"
-        class="group-dynamic-bg-media"
-        :src="encodeURI(chatBgVideo)"
-        muted
-        loop
-        autoplay
-        playsinline
-        preload="auto"
-      ></video>
-      <img
-        v-else-if="chatBgType === 'image' && chatBgImage"
-        class="group-dynamic-bg-media"
-        :src="chatBgImage"
-        alt=""
-      />
-      <div class="group-dynamic-bg-overlay" :style="{ background: chatBgOverlay }"></div>
-    </div>
+    <DynamicBackground />
 
     <!-- 加载骨架 -->
     <div v-if="loading" class="loading-container">
@@ -276,14 +256,7 @@ import { useDynamicBackground } from "../../composables/useDynamicBackground";
 import { useDynamicThemeVars } from "../../composables/useDynamicThemeVars";
 
 // 个性装扮：动态背景（视频 / 图片壁纸）+ 从壁纸吸取主色
-const {
-  hasDynamicBackground,
-  chatBgType,
-  chatBgVideo,
-  chatBgImage,
-  chatBgOverlay,
-  chatBgVideoRef,
-} = useDynamicBackground();
+const { hasDynamicBackground } = useDynamicBackground();
 
 // 表单密集：动态主题下用半透明深底，保证白字在壁纸上依然清晰
 const { dynamicThemeStyle } = useDynamicThemeVars("dark");
@@ -469,10 +442,16 @@ const submitForm = async () => {
 const cancelEdit = async () => {
   if (hasChanges.value) {
     try {
-      await Modal.confirm("资料尚未保存，确定要离开吗？", "提示", {
-        confirmButtonText: "离开",
-        cancelButtonText: "继续编辑",
-        type: "warning",
+      await new Promise<void>((resolve, reject) => {
+        Modal.confirm({
+          title: "提示",
+          content: "资料尚未保存，确定要离开吗？",
+          okText: "离开",
+          cancelText: "继续编辑",
+          type: "warning",
+          onOk: () => resolve(),
+          onCancel: () => reject("cancel"),
+        });
       });
     } catch {
       return;
@@ -508,30 +487,10 @@ onUnmounted(() => {
 /*
  * 个性装扮：动态背景层（不允许交互，内容层浮在其上）
  * 用 fixed 铺满整个窗口：页面滚动时壁纸始终铺满，不会滚到底部就露出空白
+ * （组件默认是 absolute，该页内容可滚动，需要 fixed）
  */
-.group-dynamic-bg {
+.group-edit-page :deep(.dynamic-bg-layer) {
   position: fixed;
-  inset: 0;
-  z-index: 0;
-  overflow: hidden;
-  pointer-events: none;
-  transform: translateZ(0);
-}
-
-.group-dynamic-bg-media {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center;
-  user-select: none;
-}
-
-.group-dynamic-bg-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
 }
 
 .edit-content {
@@ -555,7 +514,7 @@ onUnmounted(() => {
   justify-content: space-between;
   padding: 12px 16px;
   background: var(--card-bg, #fff);
-  border-bottom: 1px solid var(--border-color, #f0f0f0);
+  border-bottom: 1px solid var(--border-color, var(--border-color));
   position: sticky;
   top: 0;
   z-index: 10;
@@ -670,7 +629,7 @@ onUnmounted(() => {
   display: flex;
   justify-content: space-between;
   padding: 12px 0;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border-color);
 
   .info-label {
     font-size: 14px;
@@ -932,7 +891,7 @@ onUnmounted(() => {
     left: 2px;
     width: 20px;
     height: 20px;
-    background: #fff;
+    background: var(--card-bg);
     border-radius: 50%;
     transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     transform: translateX(0);

@@ -44,6 +44,7 @@
 </template>
 
 <script setup lang="ts">
+import { getErrorMessage } from "../untils/errorMessage";
 import { ref, watch } from "vue";
 import { message } from "ant-design-vue";
 import request from "../untils/request";
@@ -95,7 +96,7 @@ const confirm = async () => {
     close();
     emit("success");
   } catch (err: any) {
-    message.error(err?.response?.data?.data?.message || "分享失败");
+    message.error(getErrorMessage(err, "分享失败"));
   } finally {
     sending.value = false;
   }
@@ -120,7 +121,7 @@ const confirm = async () => {
   width: 90%;
   max-width: 380px;
   max-height: 80vh;
-  background: #fff;
+  background: var(--dt-panel-solid, var(--card-bg));
   border-radius: 14px;
   display: flex;
   flex-direction: column;
@@ -129,7 +130,7 @@ const confirm = async () => {
 
 .sf-header {
   padding: 14px 18px;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--border-color);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -140,7 +141,7 @@ const confirm = async () => {
   margin: 0;
   font-size: 15px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--text-primary);
 }
 
 .sf-close {
@@ -151,11 +152,11 @@ const confirm = async () => {
   border-radius: 50%;
   cursor: pointer;
   font-size: 14px;
-  color: #999;
+  color: var(--text-tertiary);
 }
 
 .sf-close:hover {
-  background: #f5f5f5;
+  background: var(--bg-tertiary);
 }
 
 .sf-body {
@@ -169,7 +170,7 @@ const confirm = async () => {
 .sf-state {
   padding: 40px 0;
   text-align: center;
-  color: #999;
+  color: var(--text-tertiary);
   font-size: 13px;
 }
 
@@ -190,7 +191,7 @@ const confirm = async () => {
 }
 
 .sf-item:hover {
-  background: #f5f7fa;
+  background: var(--bg-tertiary);
 }
 
 .sf-item.selected {
@@ -202,7 +203,7 @@ const confirm = async () => {
   height: 36px;
   border-radius: 50%;
   object-fit: cover;
-  background: #eee;
+  background: var(--bg-tertiary);
   flex-shrink: 0;
 }
 
@@ -210,7 +211,7 @@ const confirm = async () => {
   flex: 1;
   min-width: 0;
   font-size: 14px;
-  color: #333;
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -227,16 +228,16 @@ const confirm = async () => {
   justify-content: flex-end;
   gap: 8px;
   padding: 12px 16px;
-  border-top: 1px solid #eee;
+  border-top: 1px solid var(--border-color);
   flex-shrink: 0;
 }
 
 .sf-cancel {
   padding: 8px 18px;
-  border: 1px solid #e0e0e0;
-  background: #fff;
+  border: 1px solid var(--border-color);
+  background: var(--dt-panel-solid, var(--card-bg));
   border-radius: 8px;
-  color: #666;
+  color: var(--text-secondary);
   font-size: 13px;
   cursor: pointer;
 }

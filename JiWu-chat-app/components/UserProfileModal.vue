@@ -680,7 +680,7 @@ watch(
   animation: fadeIn 0.4s ease forwards;
 }
 .loading-state {
-  color: #666;
+  color: var(--text-secondary);
 }
 .error-state {
   color: #f56c6c;
@@ -717,7 +717,7 @@ watch(
   display: flex;
   flex-direction: column;
   gap: 1px;
-  background: #f7f8fa;
+  background: var(--bg-tertiary);
   border-radius: 14px;
   overflow: hidden;
 }
@@ -727,7 +727,7 @@ watch(
   align-items: center;
   justify-content: space-between;
   padding: 16px 20px;
-  background: #fff;
+  background: var(--dt-panel-solid, var(--card-bg));
   font-size: 14px;
   transition: background 0.2s;
 }

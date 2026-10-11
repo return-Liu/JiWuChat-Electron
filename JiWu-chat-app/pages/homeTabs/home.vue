@@ -130,18 +130,10 @@ const otherPlatforms: DownloadPlatform[] = [
   {
     key: "default",
     label: "Windows",
-    filename: buildFileName(""),
-    tooltip: buildDownloadUrl(buildFileName("")),
-    downloadUrl: buildDownloadUrl(buildFileName("")),
+    filename: buildFileName("_x64"),
+    tooltip: buildDownloadUrl(buildFileName("_x64")),
+    downloadUrl: buildDownloadUrl(buildFileName("_x64")),
     arch: "x64",
-  },
-  {
-    key: "ia32",
-    label: "Windows",
-    filename: buildFileName("_ia32"),
-    tooltip: buildDownloadUrl(buildFileName("_ia32")),
-    downloadUrl: buildDownloadUrl(buildFileName("_ia32")),
-    arch: "ia32",
   },
 ];
 

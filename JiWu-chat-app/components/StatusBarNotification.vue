@@ -89,7 +89,7 @@ defineExpose({ showStatusBarNotification, closeNotification });
   left: 0;
   right: 0;
   z-index: 9999;
-  background: #ffffff;
+  background: var(--card-bg);
   border-bottom: 0.5px solid #e5e7eb;
   cursor: pointer;
 }
@@ -168,5 +168,27 @@ defineExpose({ showStatusBarNotification, closeNotification });
 .overlay-fade-enter-from,
 .overlay-fade-leave-to {
   opacity: 0;
+}
+
+/* ============================================================
+   夜间模式（html.dark）兜底
+   通知条底色是 var(--card-bg)，夜间会变深，但文字是写死的深灰，必须一起转浅。
+   注意：完整选择器必须整个写进 :global()，`:global(html.dark) .foo`
+   会被 Vue 编译成 `html.dark {}` 丢掉后半段。
+   ============================================================ */
+:global(html.dark .statusbar-notification) {
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
+:global(html.dark .statusbar-notification .sender-name) {
+  color: #ffffff;
+}
+
+:global(html.dark .statusbar-notification .message-text) {
+  color: #d1d5db;
+}
+
+:global(html.dark .statusbar-notification .close-btn) {
+  color: #9ca3af;
 }
 </style>

@@ -1,5 +1,5 @@
 import { CALL_CONFIG } from '../../../constants/call.config';
-import { CallError, type LatencyStats } from '../types';
+import { CallError, type LatencyStats, type LatencyLevel } from '../types';
 
 export interface NetworkMonitorOptions {
     onLatencyChange?: (stats: LatencyStats) => void;

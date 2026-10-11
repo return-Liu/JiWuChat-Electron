@@ -5,7 +5,7 @@
   right: 0;
   width: 320px; // 适度加宽，提升操作体验
   height: 100vh;
-  background-color: #fff;
+  background-color: var(--dt-panel-solid, var(--card-bg));
   box-shadow: -2px 0 20px rgba(0, 0, 0, 0.1);
   z-index: 9999;
   display: flex;
@@ -35,7 +35,7 @@
       transition: all 0.2s ease;
 
       &:hover {
-        background-color: #f5f5f5;
+        background-color: var(--bg-tertiary);
         color: var(--drawer-primary-color, #165dff);
       }
     }
@@ -58,7 +58,7 @@
         .contact-name {
           font-size: 18px;
           font-weight: 600;
-          color: #333;
+          color: var(--text-primary);
           margin-bottom: 6px;
           white-space: nowrap;
           overflow: hidden;
@@ -141,7 +141,7 @@
 
       .section-content {
         font-size: 14px;
-        color: #666;
+        color: var(--text-secondary);
       }
     }
 
@@ -162,20 +162,20 @@
     // 群公告样式
     .rule-content {
       font-size: 14px;
-      color: #333;
+      color: var(--text-primary);
       line-height: 1.6;
-      background-color: #fff;
+      background-color: var(--dt-panel-solid, var(--card-bg));
       padding: 12px 16px;
       border-radius: 6px;
       min-height: 60px;
-      border: 1px solid #eee;
+      border: 1px solid var(--border-color);
     }
 
     .rule-edit {
-      background-color: #fff;
+      background-color: var(--dt-panel-solid, var(--card-bg));
       padding: 16px;
       border-radius: 6px;
-      border: 1px solid #eee;
+      border: 1px solid var(--border-color);
 
       .rule-edit-btns {
         display: flex;
@@ -280,7 +280,7 @@
 
         .member-name-list {
           font-size: 14px;
-          color: #333;
+          color: var(--text-primary);
           flex: 1;
         }
       }
@@ -300,20 +300,20 @@
         }
 
         .detail-label {
-          color: #333;
+          color: var(--text-primary);
           font-size: 14px;
           flex: 1;
         }
 
         .detail-value {
-          color: #333;
+          color: var(--text-primary);
           text-align: right;
           font-size: 14px;
           flex: 1;
         }
 
         .detail-hint {
-          color: #333;
+          color: var(--text-primary);
           font-size: 12px;
           margin-left: auto;
         }
@@ -335,12 +335,12 @@
           text-overflow: ellipsis;
 
           &.remark-placeholder {
-            color: #999 !important;
+            color: var(--text-tertiary) !important;
           }
 
           &:focus {
-            color: #333 !important;
-            background-color: #f5f7fa;
+            color: var(--text-primary) !important;
+            background-color: var(--bg-tertiary);
             padding: 4px 8px;
             border-radius: 6px;
           }
@@ -357,7 +357,7 @@
           justify-content: flex-end;
 
           .detail-label {
-            color: #666;
+            color: var(--text-secondary);
             font-size: 14px;
             white-space: nowrap;
           }
@@ -381,12 +381,12 @@
               text-overflow: ellipsis;
 
               &.remark-placeholder {
-                color: #999 !important;
+                color: var(--text-tertiary) !important;
               }
 
               &:focus {
-                color: #333 !important;
-                background-color: #f5f7fa;
+                color: var(--text-primary) !important;
+                background-color: var(--bg-tertiary);
                 padding: 4px 8px;
                 border-radius: 6px;
               }
@@ -520,12 +520,12 @@
         font-size: 14px;
 
         &.danger-btn {
-          background-color: #fff;
+          background-color: var(--dt-panel-solid, var(--card-bg));
           border: 1px solid #f56c6c;
           color: #f56c6c;
 
           &:hover {
-            background: #fff5f5;
+            background: var(--error-bg);
             border-color: #e45656;
             color: #e45656;
           }
@@ -608,10 +608,10 @@
     .tag-category-title {
       font-size: 14px;
       font-weight: 600;
-      color: #333;
+      color: var(--text-primary);
       margin-bottom: 12px;
       padding-bottom: 8px;
-      border-bottom: 1px solid #e8e8e8;
+      border-bottom: 1px solid var(--border-color);
     }
 
     .tag-options {
@@ -708,7 +708,7 @@
     .report-info-section {
       margin-bottom: 24px;
       padding: 16px;
-      background-color: #f5f7fa;
+      background-color: var(--bg-tertiary);
       border-radius: 8px;
 
       .report-avatar-name {
@@ -726,13 +726,13 @@
           .report-name {
             font-size: 16px;
             font-weight: 600;
-            color: #333;
+            color: var(--text-primary);
             margin-bottom: 4px;
           }
 
           .report-id {
             font-size: 12px;
-            color: #999;
+            color: var(--text-tertiary);
           }
         }
       }
@@ -745,7 +745,7 @@
       .report-reason-title {
         font-size: 14px;
         font-weight: 600;
-        color: #333;
+        color: var(--text-primary);
         margin-bottom: 12px;
       }
 
@@ -789,7 +789,7 @@
             justify-content: center;
             flex-shrink: 0;
             transition: all 0.2s ease;
-            background-color: #fff;
+            background-color: var(--dt-panel-solid, var(--card-bg));
 
             .check-mark {
               color: #fff;
@@ -804,13 +804,13 @@
             .reason-title {
               font-size: 14px;
               font-weight: 500;
-              color: #333;
+              color: var(--text-primary);
               margin-bottom: 4px;
             }
 
             .reason-desc {
               font-size: 12px;
-              color: #999;
+              color: var(--text-tertiary);
               line-height: 1.5;
             }
           }
@@ -825,7 +825,7 @@
       .description-title {
         font-size: 14px;
         font-weight: 600;
-        color: #333;
+        color: var(--text-primary);
         margin-bottom: 8px;
       }
 
@@ -839,7 +839,7 @@
       .evidence-title {
         font-size: 14px;
         font-weight: 600;
-        color: #333;
+        color: var(--text-primary);
         margin-bottom: 12px;
       }
 

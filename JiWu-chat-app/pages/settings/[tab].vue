@@ -4,27 +4,7 @@
     :class="{ 'has-dynamic-bg': hasDynamicBackground }"
     :style="dynamicThemeStyle"
   >
-    <!-- 个性装扮：动态背景层（视频 / 图片壁纸，铺满整个设置中心） -->
-    <div v-if="hasDynamicBackground" class="settings-dynamic-bg">
-      <video
-        v-if="chatBgType === 'video' && chatBgVideo"
-        ref="chatBgVideoRef"
-        class="settings-dynamic-bg-media"
-        :src="encodeURI(chatBgVideo)"
-        muted
-        loop
-        autoplay
-        playsinline
-        preload="auto"
-      ></video>
-      <img
-        v-else-if="chatBgType === 'image' && chatBgImage"
-        class="settings-dynamic-bg-media"
-        :src="chatBgImage"
-        alt=""
-      />
-      <div class="settings-dynamic-bg-overlay" :style="{ background: chatBgOverlay }"></div>
-    </div>
+    <DynamicBackground />
 
     <!-- 全局侧边栏导航（与消息 / 好友 / 账户中心保持一致） -->
     <Sidebar :current-area="'settings'" />
@@ -74,7 +54,7 @@
 <script setup lang="ts">
 import { computed, onMounted, watch, ref } from "vue";
 import { useRoute } from "#app";
-import { useTheme } from "../../composables/useTheme";
+import { useTheme, reloadThemeMode } from "../../composables/useTheme";
 import { useDynamicBackground } from "../../composables/useDynamicBackground";
 import { useDynamicThemeVars } from "../../composables/useDynamicThemeVars";
 import { useSiderColor } from "../../stores/siderColor";
@@ -89,25 +69,39 @@ import SettingsFeature from "../../components/settings/SettingsFeature.vue";
 import SettingsSystem from "../../components/settings/SettingsSystem.vue";
 
 const route = useRoute();
-const { initTheme: initThemeMode } = useTheme();
-const siderColorStore = useSiderColor();
-const userStore = useUserStore();
-
-// 个性装扮：动态背景（视频 / 图片壁纸）+ 从壁纸吸取主色
-const {
-  hasDynamicBackground,
-  chatBgType,
-  chatBgVideo,
-  chatBgImage,
-  chatBgOverlay,
-  chatBgVideoRef,
-} = useDynamicBackground();
+const { hasDynamicBackground } = useDynamicBackground();
 
 // 设置中心内容密集，动态主题下面板用半透明深底保证对比度
 const { dynamicThemeStyle } = useDynamicThemeVars("dark");
 
 // 支持浮层场景：从 props 接收 tab（浮层渲染时 route.params 为空）
 const props = defineProps<{ tab?: string }>();
+
+// 🔥 设置窗口是独立窗口，不走 layouts/default 的 initTheme：
+//    明暗模式（含用户选定的夜间）必须在这里初始化，否则夜间模式不生效。
+const siderColorStore = useSiderColor();
+const userStore = useUserStore();
+const { themeMode: currentThemeMode, initTheme: initThemeMode } = useTheme();
+
+/** 当前主题模式对应的明暗（system 模式跟随系统偏好） */
+const resolveIsDark = () =>
+  currentThemeMode.value === "dark" ||
+  (currentThemeMode.value === "system" &&
+    window.matchMedia("(prefers-color-scheme: dark)").matches);
+
+/**
+ * 把当前明暗落到 <html> 与 siderColor store。
+ * 设置页的组件（面板底色 / 文字色票 / 侧边栏）分别依赖 html.dark 和 store 调色板，
+ * 两者必须同时更新，否则会出现「已经切到夜间，设置组件还是日间配色」。
+ */
+const applyThemeToSettings = () => {
+  const dark = resolveIsDark();
+  document.documentElement.classList.toggle("dark", dark);
+  siderColorStore.updateSystemPrefersDark(dark);
+};
+
+// 主题模式一变（本窗口切、其它窗口广播、system 切换）立即重新落地，不依赖初始化时机
+watch(currentThemeMode, applyThemeToSettings);
 
 // ===== 菜单配置 =====
 const menuItems = [
@@ -160,9 +154,18 @@ const navigateTo = (key: string) => {
 
 // ===== 生命周期 =====
 onMounted(async () => {
-  // 🔥 关键：初始化用户状态，触发 uiSettings.setCurrentUser → 加载该用户的字体设置
-  // 否则设置窗口里 currentUserId 为 null，字体保存到 legacy 键，与主窗口的 userId 键不匹配，
-  // 导致「设置了字体，再打开就恢复默认」的 BUG。
+  // 1) 明暗模式最先初始化：注册跨窗口/系统的监听，并立即应用一次。
+  //    不依赖网络：否则 initializeAuth 的请求一旦慢或失败，夜间模式就一直不生效。
+  try {
+    initThemeMode();
+    applyThemeToSettings();
+  } catch (err) {
+    console.error("设置窗口初始化明暗模式失败:", err);
+  }
+
+  // 2) 初始化用户状态：触发 uiSettings.setCurrentUser → 加载该用户的字体设置。
+  //    否则设置窗口里 currentUserId 为 null，字体保存到 legacy 键，与主窗口的 userId 键不匹配，
+  //    导致「设置了字体，再打开就恢复默认」的 BUG。
   try {
     await userStore.initializeAuth();
     if (!userStore.user) {
@@ -172,11 +175,16 @@ onMounted(async () => {
     console.error("设置窗口初始化用户失败:", err);
   }
 
-  // 初始化侧边栏颜色主题（含跨窗口同步监听）
-  await siderColorStore.initTheme();
+  // 3) 初始化侧边栏颜色主题（含跨窗口同步监听）
+  try {
+    await siderColorStore.initTheme();
+  } catch (err) {
+    console.error("设置窗口初始化主题失败:", err);
+  }
 
-  // 初始化明暗模式（含跨窗口同步监听，替代之前手动 setThemeMode/toggleTheme）
-  initThemeMode();
+  // 4) uid 就绪后存储键变为 theme_<uid>_*，重读一次明暗模式并应用（不会重复注册监听）
+  reloadThemeMode();
+  applyThemeToSettings();
 });
 </script>
 
@@ -195,7 +203,7 @@ onMounted(async () => {
   overflow: hidden;
 
   /* 个性装扮（动态背景）时，内容层浮在壁纸之上 */
-  &.has-dynamic-bg > :not(.settings-dynamic-bg) {
+  &.has-dynamic-bg > :not(.dynamic-bg-layer) {
     position: relative;
     z-index: 1;
   }
@@ -203,35 +211,6 @@ onMounted(async () => {
   /* 侧边栏悬浮卡片要始终盖在内容之上，否则会被同层内容遮住 */
   &.has-dynamic-bg .qq-sidebar {
     z-index: 2;
-  }
-
-  /* ===== 动态背景层（视频 / 图片壁纸） ===== */
-  .settings-dynamic-bg {
-    position: absolute;
-    inset: 0;
-    z-index: 0;
-    overflow: hidden;
-    pointer-events: none;
-    /* 独立合成层 + 硬件加速；不使用 contain / will-change，避免视频循环时合成层重建导致闪动 */
-    transform: translateZ(0);
-  }
-
-  .settings-dynamic-bg-media {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    object-position: center;
-    user-select: none;
-    transform: translateZ(0);
-    backface-visibility: hidden;
-  }
-
-  .settings-dynamic-bg-overlay {
-    position: absolute;
-    inset: 0;
-    z-index: 1;
   }
 
   // 左侧边栏

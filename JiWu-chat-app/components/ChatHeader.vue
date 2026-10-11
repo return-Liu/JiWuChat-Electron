@@ -37,11 +37,21 @@
             正在输入中
           </span>
         </div>
+        <!-- 群内 @机器人 后：机器人正在生成回复 -->
+        <div v-else-if="activeContact.isGroup && botThinking" class="typing-wrapper">
+          <span class="typing-status-text" :style="{ color: currentColorPalette.text }">
+            机器人正在思考…
+          </span>
+        </div>
       </div>
       <div class="chat-header-actions">
         <div
           v-if="
-            !hideMenuButton && !activeContact.isGroup && !isCurrentUser && activeContact.isFriend
+            !hideMenuButton &&
+            !activeContact.isGroup &&
+            !isCurrentUser &&
+            !isBotContact &&
+            activeContact.isFriend
           "
           class="chat-header-audio-call-btn"
           :style="{ color: headerIconColor }"
@@ -52,7 +62,11 @@
         </div>
         <div
           v-if="
-            !hideMenuButton && !activeContact.isGroup && !isCurrentUser && activeContact.isFriend
+            !hideMenuButton &&
+            !activeContact.isGroup &&
+            !isCurrentUser &&
+            !isBotContact &&
+            activeContact.isFriend
           "
           class="chat-header-video-call-btn"
           :style="{ color: headerIconColor }"
@@ -209,6 +223,8 @@ interface Props {
   };
   hideMenuButton?: boolean;
   isTyping?: boolean;
+  /** 群内 @机器人 生成回复期间：显示「机器人正在思考…」 */
+  botThinking?: boolean;
 }
 
 interface Emits {
@@ -236,8 +252,13 @@ const isCurrentUser = computed(() => {
   return props.activeContact.id == userStore.user?.id;
 });
 
+/** 机器人（AI 助手）会话：不支持语音 / 视频通话，隐藏通话入口 */
+const isBotContact = computed(() => props.activeContact?.isBot === true);
+
 const shouldShowContactOnlineStatus = computed(() => {
   if (!props.activeContact || props.activeContact.isGroup) return false;
+  // 机器人（AI 助手）不需要展示在线/离线状态
+  if (isBotContact.value) return false;
 
   const currentUserId = userStore.user?.id;
 
@@ -488,6 +509,10 @@ onBeforeUnmount(() => {
 .chat-header-container {
   position: relative;
   --text-primary: v-bind("siderColorStore.currentColorPalette.textPrimary");
+  /* 头部聊天渐变（与 .chat-header 的 inline 背景同源），更新内容条夜间复用它 */
+  --header-bg-start: v-bind("siderColorStore.currentColorPalette.chatBgStart || '#f5f7fa'");
+  --header-bg-middle: v-bind("siderColorStore.currentColorPalette.chatBgMiddle || '#e5e9f2'");
+  --header-bg-end: v-bind("siderColorStore.currentColorPalette.chatBgEnd || '#d0d8e8'");
   border-right: 1px solid v-bind("siderColorStore.panelDividerColor");
 }
 .update-entry {
@@ -515,20 +540,18 @@ onBeforeUnmount(() => {
   background: rgba(0, 0, 0, 0.4);
 }
 .chat-header-container.has-dynamic-bg .update-entry-text {
-  color: #fff;
-  text-shadow:
-    0 1px 3px rgba(0, 0, 0, 0.75),
-    0 0 8px rgba(0, 0, 0, 0.5);
+  color: var(--dt-text);
+  text-shadow: var(--dt-text-shadow);
 }
 /* 更新内容入口：动态主题下图标 / 版本号 / 箭头用吸色主色，避免纯白过亮 */
 .chat-header-container.has-dynamic-bg .update-entry-left .iconfont,
 .chat-header-container.has-dynamic-bg .update-version,
 .chat-header-container.has-dynamic-bg .update-entry-right .iconfont {
-  color: v-bind("siderColorStore.dynamicAccentIcon");
+  color: var(--dt-accent-icon, #ffffff);
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
 }
 .chat-header-container.has-dynamic-bg .update-entry-right {
-  color: #fff;
+  color: var(--dt-text);
 }
 
 /* 个性装扮（动态背景）时，头部文字加阴影，保证在视频背景上清晰可读 */
@@ -536,16 +559,12 @@ onBeforeUnmount(() => {
 .chat-header-container.has-dynamic-bg .member-count,
 .chat-header-container.has-dynamic-bg .chat-header-subtitle,
 .chat-header-container.has-dynamic-bg .typing-status-text {
-  color: #fff;
-  text-shadow:
-    0 1px 3px rgba(0, 0, 0, 0.75),
-    0 0 8px rgba(0, 0, 0, 0.5);
+  color: var(--dt-text);
+  text-shadow: var(--dt-text-shadow);
 }
 .chat-header-container.has-dynamic-bg .online-status-text {
   color: #d0ffd8;
-  text-shadow:
-    0 1px 3px rgba(0, 0, 0, 0.75),
-    0 0 8px rgba(0, 0, 0, 0.5);
+  text-shadow: var(--dt-text-shadow);
 }
 .chat-header-container.has-dynamic-bg .online-status-text.online {
   color: #4ade80;
@@ -554,7 +573,7 @@ onBeforeUnmount(() => {
 .chat-header-container.has-dynamic-bg .chat-header-actions .iconfont,
 .chat-header-container.has-dynamic-bg .chat-header-menu-btn,
 .chat-header-container.has-dynamic-bg .chat-header-actions .icon {
-  color: v-bind("siderColorStore.dynamicAccentIcon");
+  color: var(--dt-accent-icon, #ffffff);
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45));
 }
 
@@ -572,14 +591,14 @@ onBeforeUnmount(() => {
 .update-entry-text {
   font-size: 13px;
   font-weight: 500;
-  color: #1a1a1a;
+  color: var(--text-primary);
 }
 
 .update-entry-right {
   display: flex;
   align-items: center;
   gap: 6px;
-  color: #999;
+  color: var(--text-tertiary);
   font-size: 12px;
 }
 
@@ -590,23 +609,28 @@ onBeforeUnmount(() => {
 
 .update-entry-right .iconfont {
   font-size: 12px;
-  color: #bbb;
+  color: var(--text-tertiary);
 }
 
-.chat-header-container.dark .update-entry {
-  background: rgba(24, 144, 255, 0.08);
-  border-bottom-color: rgba(255, 255, 255, 0.06);
+/* 夜间：更新内容条与下方 .chat-header 共用同一套背景（调色板聊天渐变）与文字色，
+   不再单独压成一块浅蓝。文字沿用基础样式的 var(--text-primary)，与头部名称一致。
+   注意：完整选择器必须整个放进 :global()，`:global(html.dark) .foo` 会被
+   Vue 编译成 `html.dark {}` 并丢掉后半段。 */
+:global(html.dark .chat-header-container .update-entry) {
+  background: linear-gradient(
+    135deg,
+    var(--header-bg-start) 0%,
+    var(--header-bg-middle) 50%,
+    var(--header-bg-end) 100%
+  );
+  border-bottom-color: v-bind("siderColorStore.panelDividerColor");
 }
 
-.chat-header-container.dark .update-entry:hover {
-  background: rgba(24, 144, 255, 0.14);
+:global(html.dark .chat-header-container .update-entry:hover) {
+  filter: brightness(1.18);
 }
 
-.chat-header-container.dark .update-entry-text {
-  color: #e0e0e0;
-}
-
-.chat-header-container.dark .update-entry .iconfont {
+:global(html.dark .chat-header-container .update-entry .iconfont) {
   color: #40a9ff;
 }
 
@@ -659,7 +683,7 @@ onBeforeUnmount(() => {
   font-size: 12px;
   font-weight: normal;
   opacity: 0.9;
-  color: #999;
+  color: var(--text-tertiary);
   line-height: 1.2;
 }
 
@@ -682,6 +706,12 @@ onBeforeUnmount(() => {
   line-height: 1.2;
 }
 
+/* 动态背景（个性装扮）下，覆盖 inline style，确保“正在输入中”文字为白色并带阴影 */
+.chat-header-container.has-dynamic-bg .typing-status-text {
+  color: #fff !important;
+  text-shadow: var(--dt-text-shadow);
+}
+
 .chat-header-subtitle {
   font-size: 12px;
   opacity: 0.9;
@@ -690,6 +720,18 @@ onBeforeUnmount(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  color: var(--text-primary);
+}
+
+/* 夜间模式下群号文字颜色（浅灰色，确保在深色背景上可读） */
+:global(html.dark .chat-header-container .chat-header-subtitle) {
+  color: #b0b0b0;
+}
+
+/* 动态背景（个性装扮）下，群号文字保持白色并带阴影 */
+.chat-header-container.has-dynamic-bg .chat-header-subtitle {
+  color: var(--dt-text);
+  text-shadow: var(--dt-text-shadow);
 }
 
 .chat-header-actions {

@@ -81,8 +81,10 @@
   /* 颜色变量（由主题动态设置） */
   --bg-primary: #f5f6fa;
   --bg-secondary: #e8edf8;
+  --bg-tertiary: #f5f5f5;
   --text-primary: #1a1a2e;
   --text-secondary: #6b7280;
+  --text-tertiary: #8e8e93;
   --border-color: #dce2ef;
   --card-bg: #ffffff;
   --color-primary: #6366f1;
@@ -108,8 +110,10 @@
 html.dark {
   --bg-primary: #0a0a0a;
   --bg-secondary: #141414;
+  --bg-tertiary: #1a1a1a;
   --text-primary: #e8e8e8;
   --text-secondary: #9ca3af;
+  --text-tertiary: #6b7280;
   --border-color: #2a2a2a;
   --card-bg: #1a1a1a;
   --color-primary: #6b8fa8;
@@ -127,6 +131,10 @@ html.dark {
   --purple-color: #a78bfa;
   --purple-bg: rgba(167, 139, 250, 0.15);
   --vt-bg-color: #1a1a1a;
+  /* 浮层（message / modal / notification / dropdown / popover…）描边色：
+     暗色下 antd 的 box-shadow 分层完全看不见，靠这条 1px 描边划出边界。
+     底色直接用 --card-bg(#1a1a1a)，不做提亮（提亮会发灰）。 */
+  --floating-border: rgba(255, 255, 255, 0.14);
 
   --scrollbar-track-color: rgba(255, 255, 255, 0.03);
   --scrollbar-thumb-color: rgba(255, 255, 255, 0.12);
@@ -134,7 +142,292 @@ html.dark {
 }
 
 /* ============================================================
-   基础样式
+  认证页固定浅色（登录 / 注册 / 找回密码）
+  这三页不跟随夜间主题。页面通过
+  useHead({ htmlAttrs: { class: "auth-light" } }) 在 <html> 上打标，
+  这里把夜间变量整体换算回浅色 —— 变量是继承的，
+  所以 antd 浮层（message / modal）也会一起回到浅色。
+  权重上 html.dark.auth-light 高于 html.dark，能压过下方的夜间规则。
+   ============================================================ */
+html.dark.auth-light {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f7f8fa;
+  --bg-tertiary: #f5f5f5;
+  --bg-hover: #f2f3f5;
+  --card-bg: #ffffff;
+  --border-color: #e5e6eb;
+  --text-primary: #1a1a1a;
+  --text-secondary: #6b7280;
+  --text-tertiary: #8e8e93;
+  --color-primary: #1677ff;
+  --color-primary-light: rgba(22, 119, 255, 0.12);
+  --color-primary-hover: #4096ff;
+  --color-primary-active: #0958d9;
+  --color-brand: #8b5cf6;
+  --scrollbar-track-color: rgba(0, 0, 0, 0.03);
+  --scrollbar-thumb-color: rgba(0, 0, 0, 0.12);
+  --scrollbar-thumb-hover-color: rgba(0, 0, 0, 0.22);
+  /* 认证页浮层回到浅色，跟页面保持一致 */
+  --floating-border: #e5e6eb;
+}
+
+/* 表单控件在夜间段里用的是硬编码偏白描边，这里必须改回浅色 */
+html.dark.auth-light .ant-input,
+html.dark.auth-light .ant-input-affix-wrapper,
+html.dark.auth-light .ant-select-selector,
+html.dark.auth-light .ant-picker {
+  background: #ffffff !important;
+  border-color: #e5e6eb !important;
+  color: #1a1a1a !important;
+}
+
+html.dark.auth-light .ant-input::placeholder,
+html.dark.auth-light .ant-select-selection-placeholder {
+  color: #bfbfbf !important;
+}
+
+/* ============================================================
+  Ant Design 浮层适配
+  浮层（Modal / Dropdown / Select / Tooltip…）挂在 body 下，
+  拿不到页面根节点的作用域样式，这里统一用主题变量兜底。
+  「底色 + 文字色」必须成对覆盖：只改底色而文字仍走 antd 亮色
+  token 时，会变成深底深字 —— 也就是「弹窗夜间看不到字」。
+  antd v5 的主题规则由 :where() 包裹，权重极低，可直接覆盖。
+  ============================================================ */
+
+/* ---------- 浮层底色（沿用 --card-bg，不额外提亮成灰调） ---------- */
+html.dark .ant-modal-content,
+html.dark .ant-drawer-content,
+html.dark .ant-dropdown-menu,
+html.dark .ant-select-dropdown,
+html.dark .ant-picker-dropdown,
+html.dark .ant-popover-inner,
+html.dark .ant-notification-notice,
+html.dark .ant-message-notice-content,
+html.dark .ant-tooltip-inner {
+  background: var(--card-bg);
+}
+
+/* 头部/尾部在弹窗内部，跟随浮层底色即可，不能各自带描边 */
+html.dark .ant-modal-header,
+html.dark .ant-drawer-header {
+  background: transparent;
+}
+
+/* ---------- 浮层描边 ----------
+   antd v5 的浮层只用 box-shadow 分层，暗色下阴影几乎不可见，
+   视觉上就是「一大块纯色、没有边界」。统一补 1px 实描边。 */
+html.dark .ant-modal-content,
+html.dark .ant-drawer-content,
+html.dark .ant-dropdown-menu,
+html.dark .ant-select-dropdown,
+html.dark .ant-picker-dropdown,
+html.dark .ant-popover-inner,
+html.dark .ant-notification-notice,
+html.dark .ant-message-notice-content,
+html.dark .ant-tooltip-inner {
+  border: 1px solid var(--floating-border);
+}
+
+/* 描边负责边界后，阴影改成更沉的深色投影，让浮层与页面拉开层次 */
+html.dark .ant-modal-content,
+html.dark .ant-notification-notice,
+html.dark .ant-message-notice-content,
+html.dark .ant-popover-inner,
+html.dark .ant-dropdown-menu {
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.55);
+}
+
+/* ---------- 浮层文字（逐个覆盖，子元素自身声明优先于父级继承） ----------
+   antd v5 把颜色写在各自组件的 CSS-in-JS 规则上（.ant-message / .ant-notification 容器
+   自己带一份 color），仅靠继承会被容器自身声明挡住，所以逐个元素显式覆盖 + !important。 */
+html.dark .ant-message,
+html.dark .ant-message-notice-content,
+html.dark .ant-message-custom-content,
+html.dark .ant-notification,
+html.dark .ant-notification-notice,
+html.dark .ant-notification-notice-message,
+html.dark .ant-notification-notice-description,
+html.dark .ant-notification-notice-close,
+html.dark .ant-modal-content,
+html.dark .ant-modal-title,
+html.dark .ant-modal-body,
+html.dark .ant-modal-confirm-title,
+html.dark .ant-modal-confirm-content,
+html.dark .ant-drawer-content,
+html.dark .ant-drawer-title,
+html.dark .ant-drawer-body,
+html.dark .ant-dropdown-menu,
+html.dark .ant-dropdown-menu-item,
+html.dark .ant-dropdown-menu-title-content,
+html.dark .ant-select-dropdown,
+html.dark .ant-select-item,
+html.dark .ant-select-item-option-content,
+html.dark .ant-select-selection-item,
+html.dark .ant-select-selection-search-input,
+html.dark .ant-picker-dropdown,
+html.dark .ant-picker-header,
+html.dark .ant-picker-content th,
+html.dark .ant-picker-cell,
+html.dark .ant-popover-inner,
+html.dark .ant-popover-title,
+html.dark .ant-popover-inner-content,
+html.dark .ant-tooltip-inner {
+  color: var(--text-primary) !important;
+}
+
+
+/* ---------- 下拉面板专项加固（夜间） ----------
+   下拉是渲染到 body 下的浮层，底色 / 文字 / 选中态 / 悬浮态必须成对覆盖，
+   只改一边就会出现「深底深字」或「浅底浅字」。
+   这里用 antd token 变量 + !important 双保险，避免被 antd 自带的 :where() token 规则、
+   或组件内更高权重的选择器（如 scoped 的 :deep(.ant-select-*)）压回去。 */
+html.dark .ant-select-dropdown {
+  --ant-color-text: var(--text-primary);
+  --ant-color-text-secondary: var(--text-secondary);
+  --ant-color-text-tertiary: var(--text-tertiary);
+  --ant-color-bg-elevated: var(--card-bg);
+  --ant-color-fill-secondary: rgba(255, 255, 255, 0.08);
+}
+
+/* 面板硬描边：antd v5 的下拉浮层只用 box-shadow 分层，暗色下阴影完全看不见，
+   面板会和页面糊成一块「只有背景没有边界」。这里补一条实边框。 */
+html.dark .ant-select-dropdown,
+html.dark .ant-picker-dropdown {
+  border: 1px solid var(--floating-border);
+}
+
+/* 气泡箭头：底色必须跟着浮层走，否则气泡与箭头会分成两块颜色 */
+html.dark .ant-popover .ant-popover-arrow::before,
+html.dark .ant-tooltip .ant-tooltip-arrow::before {
+  background: var(--card-bg);
+}
+
+/* 面板本身与内部虚拟列表容器：统一暗底，避免列表层露出白底 */
+html.dark .ant-select-dropdown,
+html.dark .ant-select-dropdown .rc-virtual-list-holder,
+html.dark .ant-select-dropdown .rc-virtual-list-holder-inner,
+html.dark .ant-select-dropdown .ant-select-item {
+  background-color: var(--card-bg) !important;
+  color: var(--text-primary) !important;
+}
+
+html.dark .ant-select-dropdown .ant-select-item-option-content {
+  color: var(--text-primary) !important;
+}
+
+/* 选中项：深一档的底色 + 浅色文字（--bg-tertiary 缺失时曾回退到 antd 的浅蓝底，
+   配上浅色文字就是「看不到字」的元凶） */
+html.dark .ant-select-dropdown .ant-select-item-option-selected {
+  background-color: var(--bg-tertiary) !important;
+  color: var(--text-primary) !important;
+  font-weight: 600;
+}
+
+html.dark .ant-select-dropdown .ant-select-item-option-active:not(.ant-select-item-option-selected) {
+  background-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+html.dark .ant-select-dropdown .ant-select-empty,
+html.dark .ant-select-dropdown .ant-select-item-option-state {
+  color: var(--text-secondary) !important;
+}
+
+/* 触发框里的已选项 / 占位符 / 箭头 */
+html.dark .ant-select-selection-item {
+  color: var(--text-primary) !important;
+}
+
+html.dark .ant-select-selection-placeholder {
+  color: var(--text-tertiary) !important;
+}
+
+html.dark .ant-select-arrow {
+  color: var(--text-secondary) !important;
+}
+
+/* 浮层里的次要说明文字（!important：与上面的浮层文字规则同权重，靠它翻回次要色） */
+html.dark .ant-modal-confirm-content,
+html.dark .ant-notification-notice-description {
+  color: var(--text-secondary) !important;
+}
+
+/* ---------- 描边 / 分割线 ---------- */
+html.dark .ant-modal-header,
+html.dark .ant-modal-footer,
+html.dark .ant-drawer-header,
+html.dark .ant-dropdown-menu-item-divider,
+html.dark .ant-popover-title,
+html.dark .ant-notification-notice-message {
+  border-color: var(--border-color);
+}
+
+/* ---------- 选中 / 悬浮态 ---------- */
+html.dark .ant-select-item-option-selected,
+html.dark .ant-dropdown-menu-item-selected {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+html.dark .ant-dropdown-menu-item:hover,
+html.dark .ant-select-item-option-active {
+  background: var(--bg-tertiary);
+}
+
+/* ---------- 浮层内的按钮 ----------
+   primary / danger 等按钮自带文字色（白 / 红），不能覆盖 */
+html.dark .ant-modal-content .ant-btn-default,
+html.dark .ant-drawer-content .ant-btn-default,
+html.dark .ant-popover-inner .ant-btn-default {
+  background: var(--bg-secondary);
+  border-color: var(--border-color);
+  color: var(--text-primary);
+}
+
+/* ---------- 表单控件 ----------
+   ⚠️ 这里必须 !important：antd v5 的组件样式由 CSS-in-JS 在运行时插到 head 末尾，
+   像 :where(.css-xxx).ant-select-single .ant-select-selector 这种选择器权重和本段相同，
+   它会靠「后出现」反而赢 —— 于是触发框在夜间仍是白底，
+   再配上我们改过的浅色文字，就变成「白色选择框 + 浅色字」，一个字都看不见。 */
+html.dark .ant-input,
+html.dark .ant-input-affix-wrapper,
+html.dark .ant-select-selector,
+html.dark .ant-picker {
+  background: var(--bg-primary) !important;
+  /* 不用 --border-color(#2a2a2a)：在 #0a0a0a 底上对比度太低，等于没有边框 */
+  border-color: rgba(255, 255, 255, 0.2) !important;
+  color: var(--text-primary) !important;
+}
+
+/* 下拉触发框里正在输入/搜索的文本 */
+html.dark .ant-select-selection-search-input {
+  color: var(--text-primary) !important;
+}
+
+/* 夜间描边：默认亮灰描边在暗底上很刺眼，hover/focus 也统一成品牌色 */
+html.dark .ant-select:not(.ant-select-disabled):hover .ant-select-selector,
+html.dark .ant-select-focused .ant-select-selector {
+  border-color: var(--color-brand, var(--color-primary)) !important;
+}
+
+html.dark .ant-input::placeholder,
+html.dark .ant-select-selection-placeholder {
+  color: var(--text-tertiary);
+}
+
+/* ---------- 表格 ---------- */
+html.dark .ant-table-thead > tr > th {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border-color: var(--border-color);
+}
+
+html.dark .ant-table-tbody > tr > td {
+  border-color: var(--border-color);
+}
+
+/* ============================================================
+  基础样式
    ============================================================ */
 html {
   height: 100%;

@@ -44,6 +44,19 @@
   background-color: #eaf5ff;
 }
 
+/* ========== AI 机器人 · 淡紫色 ========== */
+.badge-bot {
+  background-color: #f1ecfe;
+  color: #7c4dff;
+  font-weight: 700;
+  border: none;
+  box-shadow: none;
+}
+
+.badge-bot:hover {
+  background-color: #f1ecfe;
+}
+
 /* ========== 默认等级徽章颜色 ========== */
 .badge-default,
 .badge-first-meet {

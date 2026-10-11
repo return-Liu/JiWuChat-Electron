@@ -6,6 +6,34 @@
   "description": "",
   "glyphs": [
     {
+      "icon_id": "4028056",
+      "name": "艾特",
+      "font_class": "aite",
+      "unicode": "e697",
+      "unicode_decimal": 59031
+    },
+    {
+      "icon_id": "32404270",
+      "name": "个人",
+      "font_class": "geren",
+      "unicode": "e62e",
+      "unicode_decimal": 58926
+    },
+    {
+      "icon_id": "4111506",
+      "name": "画笔",
+      "font_class": "huabi",
+      "unicode": "e62c",
+      "unicode_decimal": 58924
+    },
+    {
+      "icon_id": "4942647",
+      "name": "禁用",
+      "font_class": "jinyong",
+      "unicode": "e62d",
+      "unicode_decimal": 58925
+    },
+    {
       "icon_id": "9608002",
       "name": "快捷键",
       "font_class": "kuaijiejian",

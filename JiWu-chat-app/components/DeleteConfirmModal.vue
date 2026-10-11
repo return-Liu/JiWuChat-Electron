@@ -66,7 +66,7 @@ const handleCancel = () => {
 }
 
 .modal-container {
-  background: #fff;
+  background: var(--dt-panel-solid, var(--card-bg));
   border-radius: 8px;
   max-width: 100%;
   max-height: 85vh;
@@ -84,7 +84,7 @@ const handleCancel = () => {
   justify-content: space-between;
   align-items: center;
   padding: 16px 20px;
-  border-bottom: 1px solid #e0e0e0;
+  border-bottom: 1px solid var(--border-color);
   font-weight: 600;
   font-size: 16px;
   flex-shrink: 0;
@@ -95,12 +95,12 @@ const handleCancel = () => {
   border: none;
   font-size: 20px;
   cursor: pointer;
-  color: #999;
+  color: var(--text-tertiary);
   padding: 0 4px;
   line-height: 1;
 
   &:hover {
-    color: #333;
+    color: var(--text-primary);
   }
 }
 
@@ -111,16 +111,16 @@ const handleCancel = () => {
 
   .confirm-text {
     font-size: 14px;
-    color: #333;
+    color: var(--text-primary);
   }
 
   .delete-preview {
     margin-top: 12px;
     padding: 8px 12px;
-    background: #f5f5f5;
+    background: var(--bg-tertiary);
     border-radius: 6px;
     font-size: 13px;
-    color: #666;
+    color: var(--text-secondary);
     word-break: break-all;
     line-height: 1.5;
   }
@@ -128,7 +128,7 @@ const handleCancel = () => {
 
 .modal-footer {
   padding: 12px 20px;
-  border-top: 1px solid #e0e0e0;
+  border-top: 1px solid var(--border-color);
   display: flex;
   justify-content: flex-end;
   gap: 10px;
@@ -151,11 +151,11 @@ const handleCancel = () => {
 }
 
 .cancel-btn {
-  background: #f0f0f0;
-  color: #333;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
 
   &:hover:not(:disabled) {
-    background: #e0e0e0;
+    background: var(--bg-secondary);
   }
 }
 

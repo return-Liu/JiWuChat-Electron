@@ -1,7 +1,7 @@
 <template>
   <div class="input-tools-left" :class="{ 'has-dynamic-bg': siderColorStore.hasDynamicBackground }">
-    <!-- 表情包 -->
-    <div class="tooltip-wrapper">
+    <!-- 表情包（机器人会话等场景可隐藏） -->
+    <div v-if="!hideMediaTools" class="tooltip-wrapper">
       <div
         class="input-tool-btn clickable-text"
         :class="{ disabled: disabled }"
@@ -19,8 +19,8 @@
       </transition>
     </div>
 
-    <!-- 图片 -->
-    <div class="tooltip-wrapper">
+    <!-- 图片（机器人会话等场景可隐藏） -->
+    <div v-if="!hideMediaTools" class="tooltip-wrapper">
       <div
         class="input-tool-btn clickable-text"
         :class="{ disabled: disabled }"
@@ -38,8 +38,8 @@
       </transition>
     </div>
 
-    <!-- 语音 -->
-    <div class="tooltip-wrapper">
+    <!-- 语音（机器人会话等场景可隐藏） -->
+    <div v-if="!hideVoice" class="tooltip-wrapper">
       <div
         class="input-tool-btn clickable-text"
         :class="{ disabled: disabled }"
@@ -57,8 +57,8 @@
       </transition>
     </div>
 
-    <!-- 文件 -->
-    <div class="tooltip-wrapper">
+    <!-- 文件（机器人会话等场景可隐藏） -->
+    <div v-if="!hideMediaTools" class="tooltip-wrapper">
       <div
         class="input-tool-btn clickable-text"
         :class="{ disabled: disabled }"
@@ -112,10 +112,16 @@ import { useSiderColor } from "../stores/siderColor";
 
 interface Props {
   disabled?: boolean;
+  /** 隐藏语音入口（机器人会话只保留输入相关能力） */
+  hideVoice?: boolean;
+  /** 隐藏表情包/图片/文件入口（机器人会话只保留纯文本输入） */
+  hideMediaTools?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   disabled: false,
+  hideVoice: false,
+  hideMediaTools: false,
 });
 
 const siderColorStore = useSiderColor();
@@ -196,12 +202,12 @@ onUnmounted(() => {
 
 /* 动态主题（个性装扮）下图标用壁纸吸色渲染，跟随壁纸主色而非固定白色 */
 .input-tools-left.has-dynamic-bg .input-tool-btn {
-  color: v-bind("siderColorStore.dynamicAccentIcon");
+  color: var(--dt-accent-icon, #ffffff);
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45));
 }
 
 .input-tools-left.has-dynamic-bg .input-tool-btn:hover {
-  background-color: v-bind("siderColorStore.dynamicAccentBg");
+  background-color: var(--dt-accent-bg, transparent);
 }
 
 .input-tool-btn:hover {
@@ -278,7 +284,7 @@ onUnmounted(() => {
   bottom: calc(100% + 8px);
   left: 0;
   min-width: 240px;
-  background: #ffffff;
+  background: var(--card-bg);
   border-radius: 12px;
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
   padding: 8px 0;
@@ -291,7 +297,7 @@ onUnmounted(() => {
   left: 12px;
   width: 12px;
   height: 12px;
-  background: #ffffff;
+  background: var(--card-bg);
   transform: rotate(45deg);
   box-shadow: 4px 4px 8px rgba(0, 0, 0, 0.05);
 }
@@ -303,7 +309,7 @@ onUnmounted(() => {
 }
 
 .custom-dropdown-item:hover {
-  background-color: #f5f5f5;
+  background-color: var(--bg-tertiary);
 }
 
 .dropdown-item-content {
@@ -319,12 +325,12 @@ onUnmounted(() => {
 .dropdown-text {
   flex: 1;
   font-size: 14px;
-  color: #333;
+  color: var(--text-primary);
 }
 
 .dropdown-shortcut {
   font-size: 12px;
-  color: #999;
+  color: var(--text-tertiary);
 }
 
 .dropdown-fade-enter-active,

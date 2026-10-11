@@ -434,7 +434,7 @@ defineExpose({ addCustomNotification, closeNotification });
 
 /* QQ风格通知卡片 */
 .notification-card {
-  background: #ffffff;
+  background: var(--dt-panel-solid, var(--card-bg));
   border-radius: 16px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
   transition: all 0.3s ease;
@@ -511,11 +511,15 @@ defineExpose({ addCustomNotification, closeNotification });
   color: #a0b0c8;
   flex-shrink: 0;
   margin-left: 8px;
+  padding: 2px 8px;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 10px;
+  white-space: nowrap;
 }
 
 /* 消息预览区域 */
 .message-preview-area {
-  background: #f5f7fa;
+  background: var(--bg-tertiary);
   border-radius: 12px;
   padding: 10px 12px;
   margin-top: 4px;
@@ -629,7 +633,7 @@ defineExpose({ addCustomNotification, closeNotification });
   align-items: baseline;
   gap: 8px;
   padding: 8px 10px;
-  background: #fff;
+  background: var(--dt-panel-solid, var(--card-bg));
   border-radius: 10px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
@@ -638,6 +642,10 @@ defineExpose({ addCustomNotification, closeNotification });
   font-size: 10px;
   color: #b0bedb;
   flex-shrink: 0;
+  padding: 1px 6px;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 8px;
+  white-space: nowrap;
 }
 
 .message-content {
@@ -791,5 +799,102 @@ defineExpose({ addCustomNotification, closeNotification });
 
 .message-list::-webkit-scrollbar-thumb:hover {
   background: #b0bedb;
+}
+
+/* ============================================================
+   夜间模式（html.dark）兜底
+   ------------------------------------------------------------
+   卡片底色走 var(--card-bg)，夜间会变成 #1a1a1a，但下面这些文字/底色
+   原本都是写死的日间色（深灰文字 + 白底），夜间直接糊成一片看不清。
+   这里统一回落成浅色文字 / 深色底。
+   注意：完整选择器必须整个写进 :global()，写成 `:global(html.dark) .foo`
+   会被 Vue 编译成 `html.dark {}` 并丢掉后半段，规则等于不存在。
+   ============================================================ */
+:global(html.dark .notification-header-bar) {
+  background: rgba(26, 26, 26, 0.95);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.32);
+}
+
+:global(html.dark .notification-header-bar .header-title) {
+  color: #ffffff;
+}
+
+:global(html.dark .notification-header-bar .action-btn) {
+  color: #9ca3af;
+}
+
+:global(html.dark .notification-header-bar .action-btn:hover) {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ff7875;
+}
+
+:global(html.dark .notification-card) {
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+}
+
+:global(html.dark .notification-card:hover) {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+}
+
+/* 预览区：夜间 --bg-tertiary 与卡片底同色，补一点亮度做出层次 */
+:global(html.dark .notification-card .message-preview-area) {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+:global(html.dark .notification-card .sender-name) {
+  color: #ffffff;
+}
+
+:global(html.dark .notification-card .send-time) {
+  color: #9ca3af;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+:global(html.dark .notification-card .message-icon) {
+  color: #9ca3af;
+}
+
+:global(html.dark .notification-card .message-text) {
+  color: #d1d5db;
+}
+
+:global(html.dark .notification-card .stack-header) {
+  color: #60a5fa;
+}
+
+:global(html.dark .notification-card .expand-icon) {
+  color: #9ca3af;
+}
+
+:global(html.dark .notification-card .collapsed-preview) {
+  border-top-color: rgba(255, 255, 255, 0.08);
+}
+
+:global(html.dark .notification-card .latest-message) {
+  color: #d1d5db;
+}
+
+:global(html.dark .notification-card .message-time) {
+  color: #9ca3af;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+:global(html.dark .notification-card .message-content) {
+  color: #e5e7eb;
+}
+
+:global(html.dark .notification-card .close-btn) {
+  color: #6b7280;
+}
+
+:global(html.dark .notification-card .close-btn:hover) {
+  background: rgba(255, 255, 255, 0.08);
+  color: #e5e7eb;
+}
+
+/* 消息数角标描边跟随卡片底色，避免白圈突兀 */
+:global(html.dark .notification-card .message-badge) {
+  border-color: #1a1a1a;
 }
 </style>

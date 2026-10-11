@@ -39,8 +39,7 @@
           </h1>
           <p>
             JiwuChat 是一款基于 Electron 和 Nuxt3
-            构建的轻量(~10MB)多平台聊天应用，具备多种实时消息、AI
-            群聊机器人（讯飞星火、KimiAI等已接入）、WebRTC 音视频通话、屏幕共享以及 AI
+            构建的轻量(~10MB)多平台聊天应用，具备多种实时消息、AI 智能助手（接入 DeepSeek、讯飞星火、KimiAI，支持 Function Calling 实时取数与动态知识库）、WebRTC 音视频通话、屏幕共享以及 AI
             购物功能。它支持无缝跨设备通信，涵盖文本、图片、文件和语音等多种消息，还支持群聊和可定制化设置。提供浅色/深色模式，助力高效社交网络。
           </p>
         </div>
@@ -69,13 +68,62 @@
             <li><strong>音视频通话：</strong>基于 WebRTC 的一对一音视频通话，低延迟、高清晰度</li>
             <li><strong>屏幕共享：</strong>一键共享屏幕，适合远程协作、在线教学与演示场景</li>
             <li>
-              <strong>AI 群聊机器人：</strong>支持 DeepSeek、讯飞星火、KimiAI 等多种 AI 机器人
+              <strong>AI 智能助手：</strong>支持 DeepSeek、讯飞星火、KimiAI 等模型，通过 Function
+              Calling 实时查询真实数据、结合动态知识库作答，多层级降级保障稳定
             </li>
             <li><strong>AI 购物：</strong>内置商城系统，支持商品展示、订单管理、在线支付</li>
             <li><strong>社区系统：</strong>帖子发布、评论互动、内容管理等社区功能</li>
             <li><strong>端到端加密：</strong>消息与文件全程加密，保护聊天内容安全</li>
             <li><strong>多端数据同步：</strong>聊天记录、联系人跨设备自动同步，切换设备无缝衔接</li>
             <li><strong>个性化主题：</strong>支持浅色/深色模式、自定义界面主题，打造专属体验</li>
+          </ul>
+        </div>
+
+        <!-- 技术亮点与工程能力 -->
+        <div v-if="shouldShowSection('anchor-tech-highlights')">
+          <div class="section-divider"></div>
+          <h1 id="anchor-tech-highlights" class="anchor-heading">
+            <span class="heading-hash">#</span>
+            技术亮点与工程能力
+          </h1>
+
+          <h2>跨端架构</h2>
+          <ul>
+            <li>基于 Nuxt3 + Electron + Node.js + Ant Design，Web 与桌面端共用 UI 层，一套代码多端运行</li>
+          </ul>
+
+          <h2>实时消息与群组</h2>
+          <ul>
+            <li>Socket.IO 毫秒级实时推送，支持文本 / 图片 / 视频 / 语音 / 文件全类型消息</li>
+            <li>完整群权限体系：创建群组、邀请成员、管理员设置、群公告、群号搜索</li>
+            <li>QQ 快捷授权登录</li>
+          </ul>
+
+          <h2>音视频通话</h2>
+          <ul>
+            <li>WebRTC + Simple-Peer 实现语音 / 视频通话，自建 STUN/TURN 解决网络穿透</li>
+            <li>AudioProcessingService：噪音抑制、回声消除、自动增益控制</li>
+            <li>信令服务独立部署，JWT 鉴权 + XSS 过滤，通话状态机完整</li>
+            <li>通话悬浮小窗：最小化为浮动窗口，拖拽移动、点击恢复，通话不中断</li>
+          </ul>
+
+          <h2>性能与体验</h2>
+          <ul>
+            <li>虚拟滚动 + 分页加载：历史消息按需拉取，千条消息不卡顿</li>
+            <li>Electron 原生优化：自定义标题栏、窗口预热池（预创建隐藏窗口秒开）、辅助窗口防并发创建</li>
+          </ul>
+
+          <h2>AI 智能助手</h2>
+          <ul>
+            <li>
+              @AI 智能助手接入 DeepSeek / 讯飞星火 / KimiAI，支持 Function Calling 实时查询真实数据、动态知识库检索、多层级降级，杜绝编造
+            </li>
+          </ul>
+
+          <h2>工程与监控</h2>
+          <ul>
+            <li>音视频质量监控：实时采集 RTT / Jitter / 丢包率 / 收发包数，辅助弱网排查</li>
+            <li>后端 Winston 日志 + node-cron 定时清理（临时文件、过期邀请）</li>
           </ul>
         </div>
 
@@ -250,6 +298,7 @@ import { Table as ATable } from "ant-design-vue";
 const startNavItems = [
   { label: "项目介绍", anchor: "anchor-project-intro" },
   { label: "项目特点", anchor: "anchor-project-features" },
+  { label: "技术亮点", anchor: "anchor-tech-highlights" },
   { label: "如何开始", anchor: "anchor-how-to-start" },
   { label: "技术栈", anchor: "anchor-tech-stack" },
   { label: "联系方式", anchor: "anchor-contact" },
@@ -259,6 +308,7 @@ const introNavItems = [
   { label: "项目介绍", anchor: "anchor-project-intro" },
   { label: "多端适配", anchor: "anchor-multi-platform" },
   { label: "功能列表", anchor: "anchor-feature-list" },
+  { label: "技术亮点", anchor: "anchor-tech-highlights" },
   { label: "技术栈", anchor: "anchor-tech-stack" },
   { label: "项目截图", anchor: "anchor-screenshot" },
   { label: "联系方式", anchor: "anchor-contact" },
@@ -405,7 +455,8 @@ const featureData = [
   {
     key: "5",
     module: "AI 模块",
-    description: "群聊支持多种 AI 聊天机器人（DeepSeek、讯飞星火、KimiAI 等），智能客服",
+    description:
+      "群聊/单聊 @AI 智能助手，接入 DeepSeek、讯飞星火、KimiAI 等模型；通过 Function Calling 实时查询用户/群真实数据，结合动态知识库作答，多层级降级保障稳定可靠",
     status: true,
     rowSpan: 1,
   },

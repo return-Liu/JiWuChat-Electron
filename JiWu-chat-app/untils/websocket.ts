@@ -23,6 +23,8 @@ class WebSocketService {
   private connectionTimeout: ReturnType<typeof setTimeout> | null = null;
   /** 是否手动断开连接 */
   private isManuallyDisconnected = false;
+  /** 进行中的连接 Promise（复用，避免并发调用重复创建 socket） */
+  private connectPromise: Promise<boolean> | null = null;
 
   /**
    * 建立 WebSocket 连接
@@ -33,6 +35,11 @@ class WebSocketService {
     // 如果已经连接，直接返回
     if (this.socket?.connected) {
       return Promise.resolve(true);
+    }
+
+    // 已有进行中的连接请求，直接复用，避免并发调用重复创建 socket
+    if (this.connectPromise) {
+      return this.connectPromise;
     }
 
     // 获取用户认证信息
@@ -49,7 +56,7 @@ class WebSocketService {
     const wsPort = localStorage.getItem("ws-port") || "8081";
     const wsUrl = `ws://${HOST_IP}:${wsPort}`;
 
-    return new Promise<boolean>((resolve, reject) => {
+    const promise = new Promise<boolean>((resolve, reject) => {
       try {
         // 重置手动断开标志
         this.isManuallyDisconnected = false;
@@ -57,6 +64,16 @@ class WebSocketService {
 
         if (!authToken) {
           throw new Error("Token 为空，无法建立连接");
+        }
+
+        // 关键修复：若已存在一个「未连接 / 正在重连」的 socket，先彻底清理。
+        // 否则新旧两个 socket 会同时存在并各自注册事件处理器，
+        // 消息被分散到不同 socket 上，导致丢消息 / 重复推送
+        // （表现为「切回页面后新消息不同步」）。
+        if (this.socket) {
+          this.socket.removeAllListeners();
+          this.socket.disconnect();
+          this.socket = null;
         }
 
         // 创建 Socket.IO 连接
@@ -91,6 +108,19 @@ class WebSocketService {
         reject(error);
       }
     });
+
+    // 缓存连接 Promise，连接 settle 后清空（无论成功失败），
+    // 避免下次 connect 复用已 settle 的旧 Promise。
+    this.connectPromise = promise;
+    void promise
+      .finally(() => {
+        this.connectPromise = null;
+      })
+      .catch(() => {
+        /* 连接失败由调用方处理 */
+      });
+
+    return promise;
   }
 
   /**
@@ -114,10 +144,6 @@ class WebSocketService {
         const auth = this.socket?.auth as any;
         if (auth) {
           userId = auth.user?.id || auth.userId || null;
-        }
-        if (!userId && this.socket?.handshake) {
-          const handshake = this.socket.handshake as any;
-          userId = handshake.auth?.user?.id || handshake.auth?.userId || null;
         }
       } catch (error) {
         console.warn("获取用户ID失败:", error);
@@ -266,6 +292,8 @@ class WebSocketService {
       group_info_updated: "group_info_updated",
       group_member_removed: "group_member_removed",
       typing_status: "typing_status",
+      // 群机器人「正在思考」状态（群内 @机器人 后由后端推送）
+      bot_thinking_status: "bot_thinking_status",
       group_application_received: "group_application_received",
       upload_progress: "upload_progress",
       // 群邀请相关事件
@@ -383,14 +411,14 @@ class WebSocketService {
         if (response.success) {
           resolve(response);
         } else {
-          reject(new Error(response.message || "操作失败"));
+          reject(new Error(response.message));
         }
         cleanup();
       };
 
       const errorHandler = (error: any) => {
         clearTimeout(timeoutId);
-        reject(error);
+        reject(error.response.data.data.message);
         cleanup();
       };
 
@@ -482,7 +510,7 @@ class WebSocketService {
         if (response && response.success) {
           resolve(response);
         } else {
-          reject(new Error(response?.message || "发送失败"));
+          reject(new Error(response.message));
         }
       });
     });
@@ -634,7 +662,7 @@ if (typeof window !== 'undefined') {
 
       // 监听用户认证状态变化
       userStore.$subscribe((mutation, state) => {
-        if (state.token && state.isAuthenticated) {
+        if (state.token && userStore.isAuthenticated) {
           // 用户已认证，建立连接
           websocketService.connect().catch(() => { });
         } else if (!state.token) {

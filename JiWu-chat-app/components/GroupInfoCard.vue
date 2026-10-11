@@ -118,7 +118,7 @@ const formatTime = (time: string | number | Date | undefined): string => {
   width: 100%;
   padding: 20px;
   box-sizing: border-box;
-  background: #fff;
+  background: var(--card-bg);
   border-radius: 12px;
 }
 
@@ -134,14 +134,14 @@ const formatTime = (time: string | number | Date | undefined): string => {
 
 /* 标签样式 */
 .label {
-  color: #666;
+  color: var(--text-secondary);
   font-weight: 500;
   white-space: nowrap;
 }
 
 /* 值样式 */
 .value {
-  color: #333;
+  color: var(--text-primary);
   word-break: break-word;
 }
 
@@ -159,9 +159,9 @@ const formatTime = (time: string | number | Date | undefined): string => {
 .notice-box {
   margin-top: 8px;
   padding: 12px 14px;
-  background: #f5f7fa;
+  background: var(--bg-tertiary);
   border-radius: 8px;
-  color: #606266;
+  color: var(--text-secondary);
   line-height: 1.6;
   white-space: pre-wrap;
   word-break: break-word;

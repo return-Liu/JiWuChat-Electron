@@ -37,7 +37,7 @@ export const FEATURE_ICONS = [
     "icon-xiaoxi",
     "icon-shipintonghua",
     "icon-pingmugongxiang",
-    "icon-wenjianjia",
+    "icon-a-087_wenjian tool-icon",
     "icon-jiami",
     "icon-tongbu",
     "icon-pifu",
@@ -136,14 +136,6 @@ export const DOWNLOAD_PLATFORMS: DownloadPlatform[] = [
         tooltip: getGithubReleaseUrl(`JiwuChat_${VERSION}_x64-setup.exe`),
         downloadUrl: getGithubReleaseUrl(`JiwuChat_${VERSION}_x64-setup.exe`),
         arch: "x64",
-    },
-    {
-        key: "windows-ia32-setup",
-        label: "Windows",
-        filename: `JiwuChat_${VERSION}_ia32-setup.exe`,
-        tooltip: getGithubReleaseUrl(`JiwuChat_${VERSION}_ia32-setup.exe`),
-        downloadUrl: getGithubReleaseUrl(`JiwuChat_${VERSION}_ia32-setup.exe`),
-        arch: "ia32",
     },
     // macOS（DMG + ZIP）
     {

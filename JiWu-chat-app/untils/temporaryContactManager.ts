@@ -8,11 +8,19 @@ import type { Contact } from "../types/chatTypes";
 export const getTemporaryContacts = async (): Promise<Contact[]> => {
   try {
     const response = await request.get("/temporary-contacts");
+    const payload = response?.data ?? response;
 
-    // 后端返回: { "0": {...}, "1": {...}, "message": "..." }
-    const contacts = Object.keys(response.data)
-      .filter(key => !isNaN(Number(key)))
-      .map(key => response.data[key]);
+    // 兼容多种格式：统一格式 data.list / 直接数组 / 旧格式数字键对象
+    let contacts: any[] = [];
+    if (Array.isArray(payload)) {
+      contacts = payload;
+    } else if (Array.isArray(payload?.list)) {
+      contacts = payload.list;
+    } else if (payload && typeof payload === "object") {
+      contacts = Object.keys(payload)
+        .filter((key) => !isNaN(Number(key)))
+        .map((key) => payload[key]);
+    }
 
     return contacts.map((item: any) => ({
       id: item.id,

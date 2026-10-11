@@ -65,7 +65,7 @@ onMounted(() => {
   display: flex;
   justify-content: center;
   align-items: center;
-  background: #f5f5f5;
+  background: var(--bg-tertiary);
 }
 
 .bind-container {
@@ -82,7 +82,7 @@ onMounted(() => {
 .spinner {
   width: 28px;
   height: 28px;
-  border: 2px solid #e5e5e5;
+  border: 2px solid var(--border-color);
   border-top: 2px solid #007aff;
   border-radius: 50%;
   animation: spin 1s linear infinite;
@@ -100,7 +100,7 @@ onMounted(() => {
 .status-text {
   font-size: 15px;
   text-align: center;
-  color: #333;
+  color: var(--text-primary);
 }
 
 .status-text.error {
@@ -113,6 +113,6 @@ onMounted(() => {
 
 .bind-info {
   font-size: 13px;
-  color: #999;
+  color: var(--text-tertiary);
 }
 </style>

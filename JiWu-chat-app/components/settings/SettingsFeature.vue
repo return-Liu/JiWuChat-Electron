@@ -84,6 +84,14 @@
         </div>
         <button class="action-btn" @click.stop="checkVersion">检查更新</button>
       </div>
+
+      <div v-if="userStore.userId === 1" class="setting-item">
+        <div class="item-info">
+          <span class="label">更新日志管理</span>
+          <span class="desc">上传 / 编辑各版本的说明内容</span>
+        </div>
+        <button class="action-btn" @click.stop="showUpdateLogsAdmin">管理</button>
+      </div>
     </div>
 
     <!-- 精细化界面弹窗 -->
@@ -175,9 +183,12 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from "vue";
 import { useRouter } from "#app";
+import { message } from "ant-design-vue";
 import request from "../../untils/request";
+import { useUserStore } from "../../stores/user";
 
 const router = useRouter();
+const userStore = useUserStore();
 
 // ===== 通用 =====
 const appVersion = ref("1.0.0");
@@ -235,7 +246,8 @@ const ftMessageListAnimation = ref(true);
 const ftSkeletonScreen = ref(true);
 
 // ===== 版本更新 =====
-const showUpdateLogs = () => router.push("/updateLogs");
+const showUpdateLogs = () => router.push("/versions/latest");
+const showUpdateLogsAdmin = () => router.push("/admin-updatelogs");
 const checkVersion = async () => {
   try {
     const res = await request.get("/updatelogs/latest");
@@ -250,7 +262,7 @@ const checkVersion = async () => {
       return;
     }
     message.success(`发现新版本: ${latestLog.version}`);
-    router.push("/updateLogs");
+    router.push("/versions/latest");
   } catch {
     message.error("检查更新失败");
   }
@@ -304,7 +316,17 @@ onMounted(async () => {
 
 // Watch 保存
 watch(smoothMode, (val) => localStorage.setItem("smoothMode", String(val)));
-watch(animationStyle, (val) => localStorage.setItem("animationStyle", val));
+watch(animationStyle, (val, oldVal) => {
+  localStorage.setItem("animationStyle", val);
+  // 切换 DOM class：移除旧动画风格、应用新风格，
+  // 否则切换「过渡动效」后 class 不更新，需刷新页面才生效。
+  if (oldVal && oldVal !== "default") {
+    document.documentElement.classList.remove(`animation-${oldVal}`);
+  }
+  if (val && val !== "default") {
+    document.documentElement.classList.add(`animation-${val}`);
+  }
+});
 watch(themeAnimationEnabled, (val) => localStorage.setItem("themeAnimationEnabled", String(val)));
 watch(ftComponentAnimation, (val) => localStorage.setItem("ftComponentAnimation", String(val)));
 watch(ftGpuAcceleration, (val) => localStorage.setItem("ftGpuAcceleration", String(val)));

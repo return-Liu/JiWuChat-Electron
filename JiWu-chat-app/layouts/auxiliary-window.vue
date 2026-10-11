@@ -50,12 +50,6 @@ const pageTitle = computed(() => {
   const name = (route.name as string) || "";
   const firstSegment = (route.path || "").replace(/^\//, "").split("/")[0];
 
-  // 聊天记录：标题栏显示联系人的名字（从 query.title 读取）
-  if (firstSegment === "chat-history") {
-    const contactTitle = (route.query.title as string) || "";
-    return contactTitle ? `${contactTitle}的聊天记录` : "聊天记录";
-  }
-
   // 通话：标题栏显示通话类型
   if (firstSegment === "call") {
     const callType = (route.query.type as string) || "audio";

@@ -1,6 +1,6 @@
 {
   "name": "jiwu-chat",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "极物聊天即时通讯聊天软件-JiWu-Chat",
   "author": "JiWuChat",
   "main": "electron/main.js",
@@ -19,9 +19,9 @@
     "electron:dev": "cross-env NODE_ENV=development nodemon --watch electron --ext js,json --exec 'electron .'",
     "electron:dev:full": "concurrently \"npm run dev\" \"npm run electron:dev\"",
     "generate:dist": "npm run wallpapers && nuxt generate && node scripts/copy-dist.js",
-    "electron:build": "npm run generate:dist && electron-builder && node scripts/clean-release.js",
+    "electron:build": "cross-env NUXT_PUBLIC_WALLPAPER_BASE=https://jiwuchat.com npm run generate:dist && electron-builder && node scripts/clean-release.js",
     "electron:build:prod": "cross-env NODE_ENV=production npm run electron:build",
-    "electron:pack": "npm run generate:dist && electron-builder --dir && node scripts/clean-release.js",
+    "electron:pack": "cross-env NUXT_PUBLIC_WALLPAPER_BASE=https://jiwuchat.com npm run generate:dist && electron-builder --dir && node scripts/clean-release.js",
     "electron:pack:prod": "cross-env NODE_ENV=production npm run electron:pack",
     "clean:release": "node scripts/clean-release.js",
     "clean": "rimraf dist .nuxt node_modules/.cache release"
@@ -88,9 +88,9 @@
     },
     "files": [
       "dist/**/*",
+      "!dist/theme/**/*.mp4",
+      "!**/*.map",
       "electron/**/*",
-      "public/**/*",
-      "!public/downloads/**",
       "!electron/**/*.test.js",
       "!electron/**/*.spec.js",
       "!node_modules/**/*",
@@ -119,8 +119,7 @@
         {
           "target": "nsis",
           "arch": [
-            "x64",
-            "ia32"
+            "x64"
           ]
         }
       ],

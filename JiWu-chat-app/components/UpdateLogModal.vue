@@ -1,153 +1,152 @@
 <template>
-  <div v-if="visible" class="modal-mask">
-    <div class="modal-wrapper">
-      <div class="modal-container">
-        <div class="modal-header">
-          <span>{{ isEdit ? "编辑" : "新增" }}</span>
-          <button class="close-btn" @click="handleCancel">×</button>
-        </div>
-
-        <div class="modal-body">
-          <!-- 标题 -->
-          <div class="field">
-            <label>标题 <span style="color: red">*</span></label>
-            <input v-model="formState.title" placeholder="请输入标题" />
+  <Teleport to="body">
+    <div v-if="visible" class="modal-mask">
+      <div class="modal-wrapper">
+        <div class="modal-container">
+          <div class="modal-header">
+            <span>{{ isEdit ? "编辑" : "新增" }}</span>
+            <button class="close-btn" @click="handleCancel">×</button>
           </div>
 
-          <!-- 摘要 -->
-          <div class="field">
-            <label>摘要</label>
-            <input v-model="formState.summary" placeholder="请输入摘要" />
-          </div>
-
-          <!-- 版本号 -->
-          <div class="field">
-            <label class="checkbox-label">
-              <input
-                type="checkbox"
-                v-model="formState.autoGenerateVersion"
-                @change="handleAutoGenerateChange"
-              />
-              自动生成版本号
-            </label>
-          </div>
-
-          <div class="field" v-if="formState.autoGenerateVersion">
-            <label>版本类型</label>
-            <div class="btn-group">
-              <button
-                v-for="type in versionTypes"
-                :key="type.value"
-                :class="{ active: formState.versionType === type.value }"
-                @click="formState.versionType = type.value"
-              >
-                {{ type.label }}
-              </button>
+          <div class="modal-body">
+            <!-- 标题 -->
+            <div class="field">
+              <label>标题 <span style="color: red">*</span></label>
+              <input v-model="formState.title" placeholder="请输入标题" />
             </div>
-          </div>
 
-          <div class="field" v-else>
-            <label>版本号 <span style="color: red">*</span></label>
-            <input v-model="formState.version" placeholder="v1.2.3" />
-          </div>
-
-          <!-- 更新类型 -->
-          <div class="field">
-            <label>更新类型</label>
-            <div class="btn-group">
-              <button
-                v-for="type in updateTypes"
-                :key="type.value"
-                :class="{ active: formState.updateType === type.value }"
-                @click="formState.updateType = type.value"
-              >
-                {{ type.label }}
-              </button>
+            <!-- 摘要 -->
+            <div class="field">
+              <label>摘要</label>
+              <input v-model="formState.summary" placeholder="请输入摘要" />
             </div>
-          </div>
 
-          <!-- 平台 -->
-          <div class="field">
-            <label>平台</label>
-            <div class="btn-group">
-              <button
-                v-for="platform in platformOptions"
-                :key="platform.value"
-                :class="{ active: formState.platform === platform.value }"
-                @click="formState.platform = platform.value"
-              >
-                {{ platform.label }}
-              </button>
+            <!-- 版本号 -->
+            <div class="field">
+              <label class="checkbox-label">
+                <input
+                  type="checkbox"
+                  v-model="formState.autoGenerateVersion"
+                  @change="handleAutoGenerateChange"
+                />
+                自动生成版本号
+              </label>
             </div>
-          </div>
 
-          <!-- 标签颜色 -->
-          <div class="field">
-            <label>标签颜色</label>
-            <div class="color-list">
-              <button
-                v-for="c in colorOptions"
-                :key="c.value"
-                class="color-option"
-                :style="{ background: c.value }"
-                :class="{ active: formState.tagColor === c.value }"
-                @click="formState.tagColor = c.value"
-              />
-            </div>
-          </div>
-
-          <!-- 重要标记 -->
-          <div class="field">
-            <label class="checkbox-label">
-              <input type="checkbox" v-model="formState.isImportant" />
-              标记为重要
-            </label>
-          </div>
-
-          <!-- 封面图 -->
-          <div class="field">
-            <label>封面图（最多6张）</label>
-            <CoverUpload
-              :model-value="coverPreviewUrls"
-              :max-count="6"
-              @upload="handleCoverUpload"
-              @remove="removeCover"
-            />
-            <!-- ✅ 修复：添加图片预览 -->
-            <div v-if="coverPreviewUrls.length" class="cover-preview-list">
-              <div v-for="(url, idx) in coverPreviewUrls" :key="idx" class="cover-preview-item">
-                <img :src="url" alt="封面图" />
-                <button class="remove-cover-btn" @click="removeCover(idx)">×</button>
+            <div class="field" v-if="formState.autoGenerateVersion">
+              <label>版本类型</label>
+              <div class="btn-group">
+                <button
+                  v-for="type in versionTypes"
+                  :key="type.value"
+                  :class="{ active: formState.versionType === type.value }"
+                  @click="formState.versionType = type.value"
+                >
+                  {{ type.label }}
+                </button>
               </div>
             </div>
+
+            <div class="field" v-else>
+              <label>版本号 <span style="color: red">*</span></label>
+              <input v-model="formState.version" placeholder="v1.2.3" />
+            </div>
+
+            <!-- 更新类型 -->
+            <div class="field">
+              <label>更新类型</label>
+              <div class="btn-group">
+                <button
+                  v-for="type in updateTypes"
+                  :key="type.value"
+                  :class="{ active: formState.updateType === type.value }"
+                  @click="formState.updateType = type.value"
+                >
+                  {{ type.label }}
+                </button>
+              </div>
+            </div>
+
+            <!-- 平台 -->
+            <div class="field">
+              <label>平台</label>
+              <div class="btn-group">
+                <button
+                  v-for="platform in platformOptions"
+                  :key="platform.value"
+                  :class="{ active: formState.platform === platform.value }"
+                  @click="formState.platform = platform.value"
+                >
+                  {{ platform.label }}
+                </button>
+              </div>
+            </div>
+
+            <!-- 标签颜色 -->
+            <div class="field">
+              <label>标签颜色</label>
+              <div class="color-list">
+                <button
+                  v-for="c in colorOptions"
+                  :key="c.value"
+                  class="color-option"
+                  :style="{ background: c.value }"
+                  :class="{ active: formState.tagColor === c.value }"
+                  @click="formState.tagColor = c.value"
+                />
+              </div>
+            </div>
+
+            <!-- 重要标记 -->
+            <div class="field">
+              <label class="checkbox-label">
+                <input type="checkbox" v-model="formState.isImportant" />
+                标记为重要
+              </label>
+            </div>
+
+            <!-- 封面图 -->
+            <div class="field">
+              <label>封面图（最多6张）</label>
+              <CoverUpload
+                :model-value="coverPreviewUrls"
+                :max-count="6"
+                @upload="handleCoverUpload"
+                @remove="removeCover"
+              />
+              <!-- ✅ 修复：添加图片预览 -->
+              <div v-if="coverPreviewUrls.length" class="cover-preview-list">
+                <div v-for="(url, idx) in coverPreviewUrls" :key="idx" class="cover-preview-item">
+                  <img :src="url" alt="封面图" />
+                  <button class="remove-cover-btn" @click="removeCover(idx)">×</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- 内容（分块编辑器：大标题 + 正文块） -->
+            <div class="field">
+              <label>内容 <span style="color: red">*</span></label>
+              <UpdateLogContentEditor v-model="formState.content" />
+            </div>
           </div>
 
-          <!-- 内容 -->
-          <div class="field">
-            <label>内容 <span style="color: red">*</span></label>
-            <textarea
-              v-model="formState.content"
-              rows="8"
-              placeholder="支持 #PC客户端 和 #安卓版 自动分栏"
-            />
+          <div class="modal-footer">
+            <button class="cancel-btn" @click="handleCancel">取消</button>
+            <button class="submit-btn" @click="handleOk" :disabled="loading">
+              {{ loading ? "提交中" : "确定" }}
+            </button>
           </div>
-        </div>
-
-        <div class="modal-footer">
-          <button class="cancel-btn" @click="handleCancel">取消</button>
-          <button class="submit-btn" @click="handleOk" :disabled="loading">
-            {{ loading ? "提交中" : "确定" }}
-          </button>
         </div>
       </div>
     </div>
-  </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, watch, computed } from "vue";
 import { message } from "ant-design-vue";
 import request from "../untils/request";
+import UpdateLogContentEditor from "./UpdateLogContentEditor.vue";
 // import CoverUpload from "./CoverUpload.vue"; // 如果有这个组件
 
 const COVER_SEPARATOR = "|||";
@@ -385,7 +384,7 @@ const handleCancel = () => {
 }
 
 .modal-container {
-  background: var(--card-bg);
+  background: var(--dt-panel-solid, var(--card-bg));
   border-radius: 8px;
   width: 580px;
   max-width: 95vw;

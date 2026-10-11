@@ -225,6 +225,7 @@
 </template>
 
 <script setup lang="ts">
+import { getErrorMessage } from "../untils/errorMessage";
 import { ref, watch, onMounted, toRef } from "vue";
 import { useRouter } from "vue-router";
 import { message } from "ant-design-vue";
@@ -236,6 +237,9 @@ import { isElectron } from "../untils/electronHelper";
 const router = useRouter();
 
 const isElectronEnv = ref(false);
+
+// 找回密码页固定浅色外观：即使处于夜间模式也不套用夜间样式
+useHead({ htmlAttrs: { class: "auth-light" } });
 
 const activeStep = ref(0);
 
@@ -327,7 +331,7 @@ const handleVerifySubmit = async () => {
     message.success(respnse.data.message);
     activeStep.value = 1;
   } catch (err: any) {
-    message.error(err.response?.data?.data?.message || "验证失败");
+    message.error(getErrorMessage(err, "验证失败"));
   } finally {
     loading.value = false;
   }
@@ -346,7 +350,7 @@ const handleResetSubmit = async () => {
     message.success(response.data.data.message);
     activeStep.value = 2;
   } catch (err: any) {
-    message.error(err.response?.data?.data?.message || "重置失败");
+    message.error(getErrorMessage(err, "重置失败"));
   } finally {
     loading.value = false;
   }
@@ -376,7 +380,7 @@ const goToLogin = () => router.push("/login");
   align-items: center;
   padding: 26px 34px 20px;
   box-sizing: border-box;
-  background: #ffffff;
+  background: var(--card-bg);
   overflow-y: auto;
 }
 
@@ -423,7 +427,7 @@ const goToLogin = () => router.push("/login");
 
   &:focus-within {
     border-color: var(--brand-700);
-    background: #ffffff;
+    background: var(--card-bg);
     box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.12);
   }
 
@@ -545,7 +549,7 @@ const goToLogin = () => router.push("/login");
   justify-content: center;
   position: relative;
   padding: 0 20px;
-  background: #ffffff;
+  background: var(--card-bg);
   flex-direction: column;
   overflow: auto;
 
@@ -564,9 +568,9 @@ const goToLogin = () => router.push("/login");
 .forgot-password-wrapper {
   width: 400px;
   padding: 40px;
-  background: #ffffff;
+  background: var(--card-bg);
   border-radius: 20px;
-  border: 1px solid #eee;
+  border: 1px solid var(--border-color);
   box-sizing: border-box;
   margin-top: 40px;
 
@@ -616,7 +620,7 @@ const goToLogin = () => router.push("/login");
     height: 46px;
     border-radius: 12px;
     border: 1px solid #e5e6eb;
-    background: #fff;
+    background: var(--card-bg);
     box-shadow: none;
   }
   :deep(.ant-input:focus) {
@@ -648,7 +652,7 @@ const goToLogin = () => router.push("/login");
 .login-link {
   margin-top: 12px;
   font-size: 14px;
-  color: #666;
+  color: var(--text-secondary);
   text-align: center;
   :deep(.ant-btn-link) {
     color: #1677ff !important;

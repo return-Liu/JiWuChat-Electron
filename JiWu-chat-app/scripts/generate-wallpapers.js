@@ -82,19 +82,29 @@ function mtime(file) {
  *   2) scale：把宽度限制到 maxWidth（不会放大比源更小的视频）
  * 之后再用更快的 x264 预设编码，整体通常能快 5~10 倍。
  *
+ * 体积优化（壁纸作为背景使用，无需高码率）：
+ *   - 默认宽度 1280（720p 级别，背景足够清晰）
+ *   - 默认帧率上限 30fps（壁纸无需 60fps，可省约一半体积）
+ *   - 默认 CRF 26（视觉几乎无感，体积显著下降）
+ *
  * 可用环境变量覆盖：
- *   WALLPAPER_MAX_WIDTH=1920   输出最大宽度
+ *   WALLPAPER_MAX_WIDTH=1280   输出最大宽度
  *   WALLPAPER_MAX_SECONDS=15   参与循环的最长时长（秒），0 = 不裁剪
- *   WALLPAPER_PRESET=veryfast  x264 预设
+ *   WALLPAPER_FPS=30           输出帧率上限（0 = 保持源帧率）
+ *   WALLPAPER_CRF=26           质量（越大体积越小，18~28 合理）
+ *   WALLPAPER_PRESET=medium    x264 预设
  */
 function makeSeamlessLoop(input, output) {
-  const maxWidth = Number(process.env.WALLPAPER_MAX_WIDTH || 1920);
+  const maxWidth = Number(process.env.WALLPAPER_MAX_WIDTH || 1280);
   const maxSeconds = Number(process.env.WALLPAPER_MAX_SECONDS || 15);
-  const preset = process.env.WALLPAPER_PRESET || "veryfast";
+  const fps = Number(process.env.WALLPAPER_FPS || 30);
+  const crf = String(process.env.WALLPAPER_CRF || 26);
+  const preset = process.env.WALLPAPER_PRESET || "medium";
 
   const head = maxSeconds > 0 ? `trim=start=0:end=${maxSeconds},setpts=PTS-STARTPTS,` : "";
+  const fpsFilter = fps > 0 ? `fps=${fps},` : "";
   const filter =
-    `[0:v]${head}scale='min(${maxWidth},iw)':-2:flags=bicubic,` +
+    `[0:v]${head}scale='min(${maxWidth},iw)':-2:flags=bicubic,${fpsFilter}` +
     `split[a][b];[b]reverse[r];[a][r]concat=n=2:v=1[out]`;
 
   execFileSync(
@@ -113,7 +123,7 @@ function makeSeamlessLoop(input, output) {
       "-preset",
       preset,
       "-crf",
-      "23",
+      crf,
       "-pix_fmt",
       "yuv420p",
       "-movflags",
@@ -121,6 +131,45 @@ function makeSeamlessLoop(input, output) {
       output,
     ],
     // stderr 直接继承，让 ffmpeg 的 frame/fps/speed 进度实时显示，避免看起来像卡死
+    { stdio: ["ignore", "ignore", "inherit"] },
+  );
+}
+
+/**
+ * 重压缩已有 -loop.mp4（无需源视频）。
+ * 用于对历史生成的超大壁纸做体积瘦身，保持相同文件名与循环特性。
+ * 参数与 makeSeamlessLoop 保持一致，但不做 reverse 拼接（已是循环成品）。
+ */
+function recompressLoop(input, output) {
+  const maxWidth = Number(process.env.WALLPAPER_MAX_WIDTH || 1280);
+  const fps = Number(process.env.WALLPAPER_FPS || 30);
+  const crf = String(process.env.WALLPAPER_CRF || 26);
+  const preset = process.env.WALLPAPER_PRESET || "medium";
+
+  const fpsFilter = fps > 0 ? `,fps=${fps}` : "";
+  const filter = `scale='min(${maxWidth},iw)':-2:flags=bicubic${fpsFilter}`;
+
+  execFileSync(
+    ffmpegPath,
+    [
+      "-y",
+      "-i",
+      input,
+      "-vf",
+      filter,
+      "-an",
+      "-c:v",
+      "libx264",
+      "-preset",
+      preset,
+      "-crf",
+      crf,
+      "-pix_fmt",
+      "yuv420p",
+      "-movflags",
+      "+faststart",
+      output,
+    ],
     { stdio: ["ignore", "ignore", "inherit"] },
   );
 }
@@ -162,6 +211,73 @@ function makePoster(input, output) {
 // 主流程
 // ============================================================
 const files = fs.readdirSync(themeDir);
+
+// ============================================================
+// 可选模式：--recompress 对已有 -loop.mp4 做体积瘦身
+//   用法：node scripts/generate-wallpapers.js --recompress
+//   仅重压缩超过阈值的视频，压缩到临时文件后原子替换，避免中断损坏。
+// ============================================================
+const RECOMPRESS = process.argv.includes("--recompress");
+// 只重压缩大于该体积（MB）的文件，避免对小文件做无谓处理
+const RECOMPRESS_MIN_MB = Number(process.env.WALLPAPER_RECOMPRESS_MIN_MB || 1.5);
+
+if (RECOMPRESS) {
+  const loopFiles = files.filter((f) => f.endsWith("-loop.mp4"));
+  const targets = loopFiles
+    .map((f) => ({ file: f, size: fs.statSync(path.join(themeDir, f)).size }))
+    .filter((t) => t.size / 1024 / 1024 >= RECOMPRESS_MIN_MB)
+    .sort((a, b) => b.size - a.size);
+
+  console.log(
+    `\n[recompress] 共 ${loopFiles.length} 个 loop 视频，` +
+      `其中 ${targets.length} 个 ≥ ${RECOMPRESS_MIN_MB}MB 需要瘦身`,
+  );
+  console.log(
+    `[recompress] 参数：最宽 ${process.env.WALLPAPER_MAX_WIDTH || 1280}px，` +
+      `${process.env.WALLPAPER_FPS || 30}fps，CRF ${process.env.WALLPAPER_CRF || 26}，` +
+      `preset=${process.env.WALLPAPER_PRESET || "medium"}\n`,
+  );
+
+  let beforeTotal = 0;
+  let afterTotal = 0;
+
+  for (const { file, size } of targets) {
+    const input = path.join(themeDir, file);
+    const tmp = path.join(themeDir, `${file}.tmp.mp4`);
+    beforeTotal += size;
+    const startedAt = Date.now();
+    console.log(`重压缩: ${file}（${(size / 1024 / 1024).toFixed(2)} MB）`);
+    try {
+      recompressLoop(input, tmp);
+      const newSize = fs.statSync(tmp).size;
+      const ratio = ((1 - newSize / size) * 100).toFixed(1);
+      // 只有确实变小才替换，否则保留原文件
+      if (newSize < size) {
+        fs.renameSync(tmp, input);
+        afterTotal += newSize;
+        const seconds = ((Date.now() - startedAt) / 1000).toFixed(1);
+        console.log(
+          `  完成: ${(newSize / 1024 / 1024).toFixed(2)} MB ` + `(↓${ratio}%, 耗时 ${seconds}s)`,
+        );
+      } else {
+        fs.unlinkSync(tmp);
+        afterTotal += size;
+        console.log(`  跳过（重压缩后未变小，保留原文件）`);
+      }
+    } catch (err) {
+      if (fs.existsSync(tmp)) fs.unlinkSync(tmp);
+      afterTotal += size;
+      console.error(`  失败: ${(err.stderr || err.message || "").toString().slice(-300)}`);
+    }
+  }
+
+  const saved = (beforeTotal - afterTotal) / 1024 / 1024;
+  console.log(
+    `\n[recompress] 完成：${(beforeTotal / 1024 / 1024).toFixed(1)} MB → ` +
+      `${(afterTotal / 1024 / 1024).toFixed(1)} MB，共节省 ${saved.toFixed(1)} MB`,
+  );
+  process.exit(0);
+}
 
 // 第一步：处理需要转换的源视频（生成 -loop.mp4 后删除源文件）
 for (const file of files) {

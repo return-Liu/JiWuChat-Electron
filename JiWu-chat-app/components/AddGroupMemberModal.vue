@@ -401,17 +401,16 @@ const handleClose = () => {
 </script>
 
 <style scoped>
-/* ===== CSS 变量 ===== */
+/* ===== CSS 变量 =====
+   注意：--text-primary / --text-secondary / --border-color / --bg-hover
+   与全局主题同名，这里绝不能重新赋值，否则夜间模式会被固定成日间色。
+   只保留组件私有变量，私有色一律引用全局主题变量。 */
 .modal-mask {
-  --border-color: #e5e6eb;
-  --bg-hover: #f5f6f7;
-  --bg-selected: #e8f0fe;
-  --text-primary: #1d2129;
-  --text-secondary: #4e5969;
-  --text-muted: #86909c;
+  --bg-selected: var(--color-primary-light);
+  --text-muted: var(--text-tertiary);
   --primary-color: #4080ff;
   --primary-hover: #3366ff;
-  --warning-color: #ff9800;
+  --warning-color: var(--warning-color);
   --radius-sm: 4px;
   --radius-md: 8px;
   --radius-lg: 12px;
@@ -440,7 +439,7 @@ const handleClose = () => {
   width: 820px;
   height: 600px;
   max-height: 80vh;
-  background: #fff;
+  background: var(--dt-panel-solid, var(--card-bg));
   border-radius: var(--radius-lg);
   display: flex;
   flex-direction: column;
@@ -571,7 +570,7 @@ const handleClose = () => {
 .panel-header .panel-count {
   font-size: 12px;
   color: var(--text-muted);
-  background: #f2f3f5;
+  background: var(--bg-tertiary);
   padding: 0 var(--spacing-sm);
   min-width: 20px;
   height: 20px;
@@ -623,7 +622,7 @@ const handleClose = () => {
 .selected-empty .empty-icon {
   margin-bottom: var(--spacing-md);
   opacity: 0.4;
-  color: #d0d5dd;
+  color: var(--text-tertiary);
 }
 
 .empty-box p,
@@ -664,7 +663,7 @@ const handleClose = () => {
   width: 4px;
 }
 .friend-list::-webkit-scrollbar-thumb {
-  background: #d0d5dd;
+  background: var(--text-tertiary);
   border-radius: 2px;
 }
 .friend-list::-webkit-scrollbar-track {
@@ -759,7 +758,7 @@ const handleClose = () => {
 }
 
 .tag-invited {
-  background: #fff3e0;
+  background: var(--warning-bg);
   color: var(--warning-color);
 }
 
@@ -774,7 +773,7 @@ const handleClose = () => {
   width: 4px;
 }
 .selected-members-container::-webkit-scrollbar-thumb {
-  background: #d0d5dd;
+  background: var(--text-tertiary);
   border-radius: 2px;
 }
 .selected-members-container::-webkit-scrollbar-track {
@@ -890,7 +889,7 @@ const handleClose = () => {
   padding: 0 10px;
   height: 22px;
   line-height: 22px;
-  background: #fff3e0;
+  background: var(--warning-bg);
   color: var(--warning-color);
   border-radius: var(--radius-sm);
   flex-shrink: 0;
@@ -924,7 +923,7 @@ const handleClose = () => {
 
 .btn-cancel {
   padding: 7px 20px;
-  background: #f2f3f5;
+  background: var(--bg-tertiary);
   border: none;
   border-radius: var(--radius-md);
   font-size: 14px;
@@ -935,7 +934,7 @@ const handleClose = () => {
 }
 
 .btn-cancel:hover {
-  background: #e5e6eb;
+  background: var(--border-color);
 }
 
 .btn-confirm {

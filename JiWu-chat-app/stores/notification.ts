@@ -1,7 +1,7 @@
-import { defineStore } from "pinia";
+﻿import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import type { Contact } from "../types/chatTypes";
-import type { MessagePageOptions } from "../untils/messageManager";
+import type { MessagePageOptions } from "../types/untilsTypes";
 
 export interface NotificationHistoryItem {
   id: string;
@@ -25,7 +25,7 @@ export const useNotificationStore = defineStore("notification", () => {
   // ==========================================
   // 内部状态
   // ==========================================
-  
+
   let currentAudioInstance: HTMLAudioElement | null = null;
   let lastRingtoneUrl: string = "";
   let isAudioReady: boolean = false; // 标记音频是否已就绪
@@ -62,7 +62,7 @@ export const useNotificationStore = defineStore("notification", () => {
     lastUpdateTime: number;
     timeoutId?: number;
   }
-  
+
   const groupedNotifications = new Map<string, GroupedNotification>();
   const GROUPING_TIME_WINDOW = 5000; // 5秒时间窗口
 
@@ -111,37 +111,37 @@ export const useNotificationStore = defineStore("notification", () => {
         currentAudioInstance.pause();
         currentAudioInstance = null;
       }
-      
+
       isAudioReady = false; // 重置就绪状态
-      
+
       const a = new Audio(url);
       a.preload = "auto";
-      
+
       // 从localStorage读取音量设置
       const savedVolume = typeof window !== "undefined" ? localStorage.getItem("notificationSoundVolume") : null;
       a.volume = savedVolume ? Number(savedVolume) / 100 : 0.5;
-      
+
       // 预加载音频，确保可以快速播放
       a.load();
-      
+
       // 监听加载完成事件
       a.addEventListener('canplaythrough', () => {
         isAudioReady = true;
         console.log('[音频] 预加载完成，可以立即播放');
       }, { once: false }); // 改为false，因为URL可能变化需要重新监听
-      
+
       // 监听加载错误
       a.addEventListener('error', (e) => {
         isAudioReady = false;
         console.error('[音频] 加载失败:', e);
       });
-      
+
       // 监听播放结束，重置就绪状态以便下次完整播放
       a.addEventListener('ended', () => {
         isAudioReady = true; // 播放结束后仍然保持就绪状态
         console.log('[音频] 播放完成');
       });
-      
+
       currentAudioInstance = a;
       lastRingtoneUrl = url;
     }
@@ -193,7 +193,7 @@ export const useNotificationStore = defineStore("notification", () => {
   /**
    * 格式化并截断消息内容
    */
-  const formatMessageContent = (msg: any): string => {
+  const buildNotificationText = (msg: any): string => {
     let contentText = "";
     if (msg.messageType === "text") {
       contentText = msg.content;
@@ -238,7 +238,7 @@ export const useNotificationStore = defineStore("notification", () => {
 
     if (existingGroup && (now - existingGroup.lastUpdateTime) < GROUPING_TIME_WINDOW) {
       // 更新现有分组
-      const contentText = formatMessageContent(msg);
+      const contentText = buildNotificationText(msg);
       existingGroup.messages.push({
         content: contentText,
         time: msg.time || new Date().toLocaleTimeString("zh-CN", {
@@ -262,7 +262,7 @@ export const useNotificationStore = defineStore("notification", () => {
       console.log(`[消息分组] 联系人 ${contactId} 的消息已聚合，当前共 ${existingGroup.messages.length} 条`);
     } else {
       // 创建新分组或刷新旧分组
-      const contentText = formatMessageContent(msg);
+      const contentText = buildNotificationText(msg);
       const senderName = msg.sender?.nickname || msg.sender?.username || "未知用户";
       const avatar = msg.sender?.avatar || contact.avatar;
 
@@ -381,7 +381,7 @@ export const useNotificationStore = defineStore("notification", () => {
    */
   const updateUnreadBadge = (count: number) => {
     unreadBadgeCount.value = count;
-    
+
     if (typeof document !== "undefined") {
       if (count > 0) {
         document.title = `(${count}) ${APP_NAME}`;
@@ -465,7 +465,7 @@ export const useNotificationStore = defineStore("notification", () => {
       const cutoffTime = Date.now() - days * 24 * 60 * 60 * 1000;
       const removedItems = notificationHistory.value.filter(n => n.timestamp < cutoffTime);
       const unreadRemoved = removedItems.filter(n => !n.isRead).length;
-      
+
       notificationHistory.value = notificationHistory.value.filter(n => n.timestamp >= cutoffTime);
       updateUnreadBadge(Math.max(0, unreadBadgeCount.value - unreadRemoved));
     } else {
@@ -508,7 +508,7 @@ export const useNotificationStore = defineStore("notification", () => {
         handleGroupedNotification(msg, contact, options);
       } else {
         // 不使用分组，直接显示单条通知（原有逻辑）
-        const contentText = formatMessageContent(msg);
+        const contentText = buildNotificationText(msg);
         const timeStr =
           msg.time ||
           new Date().toLocaleTimeString("zh-CN", {
@@ -565,7 +565,7 @@ export const useNotificationStore = defineStore("notification", () => {
       // if (!shouldShowNotification(msg.id)) return;
 
       // 使用统一的格式化函数
-      const contentText = formatMessageContent(msg);
+      const contentText = buildNotificationText(msg);
 
       // 获取发送者信息
       const senderName =
@@ -622,7 +622,7 @@ export const useNotificationStore = defineStore("notification", () => {
       }
 
       // 使用统一的格式化函数
-      const contentText = formatMessageContent(msg);
+      const contentText = buildNotificationText(msg);
 
       // 获取发送者信息
       const senderName =
@@ -669,19 +669,19 @@ export const useNotificationStore = defineStore("notification", () => {
       const url =
         typeof window !== "undefined"
           ? localStorage.getItem("messageRingTone") ||
-            "/messageRingtone/水滴-短信提示音 - 天天鈴聲.mp3"
+          "/messageRingtone/水滴-短信提示音 - 天天鈴聲.mp3"
           : "/messageRingtone/水滴-短信提示音 - 天天鈴聲.mp3";
-      
+
       const audio = getOrCreateAudio(url);
-      
+
       // 关键优化：确保音频完全停止并重置
       audio.pause();
       audio.currentTime = 0;
-      
+
       // 如果音频还未就绪，等待就绪后再播放
       if (!isAudioReady) {
         console.log('[音频] 音频未就绪，等待加载完成...');
-        
+
         // 创建一个Promise等待音频就绪
         const waitForReady = new Promise<void>((resolve) => {
           const onReady = () => {
@@ -689,7 +689,7 @@ export const useNotificationStore = defineStore("notification", () => {
             resolve();
           };
           audio.addEventListener('canplaythrough', onReady, { once: true });
-          
+
           // 设置超时，避免无限等待
           setTimeout(() => {
             audio.removeEventListener('canplaythrough', onReady);
@@ -697,33 +697,33 @@ export const useNotificationStore = defineStore("notification", () => {
             resolve();
           }, 2000);
         });
-        
+
         waitForReady.then(() => {
           // 再次确保从头开始
           audio.currentTime = 0;
           const playPromise = audio.play();
-          
+
           if (playPromise !== undefined) {
             playPromise.catch((error) => {
               console.error('[音频] 播放失败:', error.name, error.message);
-              
+
               if (error.name === 'NotAllowedError') {
                 console.warn('[音频] 浏览器阻止了自动播放，需要用户交互');
               }
             });
           }
         });
-        
+
         return;
       }
-      
+
       // 音频已就绪，立即播放
       const playPromise = audio.play();
-      
+
       if (playPromise !== undefined) {
         playPromise.catch((error) => {
           console.error('[音频] 播放失败:', error.name, error.message);
-          
+
           // 如果是自动播放策略限制，尝试用户交互后播放
           if (error.name === 'NotAllowedError') {
             console.warn('[音频] 浏览器阻止了自动播放，需要用户交互');
@@ -748,19 +748,19 @@ export const useNotificationStore = defineStore("notification", () => {
   const startTitleFlash = () => {
     if (typeof document === "undefined") return;
     if (isFlashing) return;
-    
+
     isFlashing = true;
     flashCount = 0;
     originalTitle = document.title;
-    
+
     flashInterval = window.setInterval(() => {
       flashCount++;
-      
+
       if (flashCount >= MAX_FLASH_COUNT) {
         stopTitleFlash();
         return;
       }
-      
+
       // 交替显示"【新消息】"和原始标题
       document.title = flashCount % 2 === 0 ? originalTitle : "【新消息】" + originalTitle;
     }, 1000);
@@ -775,7 +775,7 @@ export const useNotificationStore = defineStore("notification", () => {
       clearInterval(flashInterval);
       flashInterval = null;
     }
-    
+
     isFlashing = false;
     flashCount = 0;
     document.title = originalTitle;

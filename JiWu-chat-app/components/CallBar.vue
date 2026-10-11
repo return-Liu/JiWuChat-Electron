@@ -87,7 +87,7 @@ defineEmits<{
   border-radius: 50%;
   object-fit: cover;
   flex-shrink: 0;
-  background: #f0f0f0;
+  background: var(--bg-tertiary);
 }
 
 .call-bar-info {

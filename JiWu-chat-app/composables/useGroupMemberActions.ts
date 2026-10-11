@@ -1,6 +1,7 @@
 import { reactive, computed } from "vue";
 import { message, Modal } from "ant-design-vue";
 import request from "../untils/request";
+import { normalizeGroupRouteId } from "./useGroupMembers";
 
 /**
  * 群成员右键菜单操作 composable
@@ -14,7 +15,7 @@ import request from "../untils/request";
  * @param options.onViewProfile - 查看资料回调
  */
 export function useGroupMemberActions(options: {
-    groupId: () => string;
+    groupId: () => string | number;
     isGroupOwner: () => boolean;
     isGroupAdmin: () => boolean;
     groupOwner: () => any;
@@ -60,7 +61,7 @@ export function useGroupMemberActions(options: {
         closeContextMenu();
 
         const memberId = Number(member.id);
-        const groupId = options.groupId();
+        const groupId = normalizeGroupRouteId(options.groupId());
 
         switch (action) {
             case "profile":
@@ -71,20 +72,20 @@ export function useGroupMemberActions(options: {
                 break;
             case "setAdmin":
                 try {
-                    await request.put(`/group/${groupId}/admin/${memberId}`);
-                    message.success("已设为管理员");
+                    const response = await request.put(`/group/${groupId}/admin/${memberId}`);
+                    message.success(response.data.message);
                     options.onRefresh?.();
                 } catch (e: any) {
-                    message.error(e.response?.data?.message || "操作失败");
+                    message.error(e.response.data.data.message);
                 }
                 break;
             case "removeAdmin":
                 try {
-                    await request.delete(`/group/${groupId}/admin/${memberId}`);
-                    message.success("已取消管理员");
+                    const response = await request.delete(`/group/${groupId}/admin/${memberId}`);
+                    message.success(response.data.message);
                     options.onRefresh?.();
                 } catch (e: any) {
-                    message.error(e.response?.data?.message || "操作失败");
+                    message.error(e.response.data.data.message);
                 }
                 break;
             case "transferOwner":
@@ -95,11 +96,11 @@ export function useGroupMemberActions(options: {
                     cancelText: "取消",
                     async onOk() {
                         try {
-                            await request.put(`/group/${groupId}/transfer`, { newOwnerId: memberId });
-                            message.success("群主已转让");
+                            const response = await request.put(`/group/${groupId}/transfer`, { newOwnerId: memberId });
+                            message.success(response.data.message);
                             options.onRefresh?.();
                         } catch (e: any) {
-                            message.error(e.response?.data?.message || "操作失败");
+                            message.error(e.response.data.data.message);
                         }
                     },
                 });
@@ -112,11 +113,11 @@ export function useGroupMemberActions(options: {
                     cancelText: "取消",
                     async onOk() {
                         try {
-                            await request.delete(`/group/${groupId}/members/${memberId}`);
-                            message.success("已移出群聊");
+                            const response = await request.delete(`/group/${groupId}/members/${memberId}`);
+                            message.success(response.data.message);
                             options.onRefresh?.();
                         } catch (e: any) {
-                            message.error(e.response?.data?.message || "操作失败");
+                            message.error(e.response.data.data.message);
                         }
                     },
                 });

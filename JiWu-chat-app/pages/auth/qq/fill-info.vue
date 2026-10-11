@@ -60,7 +60,7 @@ const skipBind = () => {
   align-items: center;
   justify-content: center;
   padding: 20px;
-  background: #f5f5f5;
+  background: var(--bg-tertiary);
 }
 
 .content {
@@ -73,7 +73,7 @@ const skipBind = () => {
 .header-section p {
   font-size: 20px;
   font-weight: 500;
-  color: #1a1a1a;
+  color: var(--text-primary);
   margin: 0 0 8px;
 }
 
@@ -110,7 +110,7 @@ const skipBind = () => {
 }
 
 .text-skip:hover:not(.disabled) {
-  color: #666;
+  color: var(--text-secondary);
   text-decoration: underline;
 }
 </style>

@@ -1,10 +1,10 @@
+import { getErrorMessage } from ".//errorMessage";
 import { message, Modal } from "ant-design-vue";
 import request from "./request";
 import type { Ref } from "vue";
 import type { Contact } from "../types/chatTypes";
 import { getSystemMessagePreview } from "./systemMessageUtils";
-import { GROUP_INVITE_TYPES } from "../types/constants";
-import { useNotificationStore } from "../stores/notification";
+import { useChatWorkspaceStore } from "../stores/chatWorkspace";
 
 // ==================== 接口定义 ====================
 interface SendMessageOptions {
@@ -63,6 +63,45 @@ export const getMuteStatusFromLocalStorage = (): Map<string, boolean> => {
     );
   }
   return muteStatusCache;
+};
+
+/**
+ * 重置模块级缓存（登出 / 切换账号时调用）。
+ *
+ * 这些缓存是模块单例，跨账号不会自动失效：
+ *   - 置顶 / 免打扰状态来自 localStorage，换账号后必须重新读取；
+ *   - 联系人「原始顺序」若不清空，新账号的排序会被旧账号顺序影响；
+ *   - 会话历史请求序号会持续累积，一并清空释放内存。
+ * 不重置会导致「换账号后仍显示上一个账号的置顶/免打扰状态」或排序异常。
+ */
+export const resetContactManagerCaches = (): void => {
+  topStatusCache = null;
+  muteStatusCache = null;
+  topStatusRaw = {};
+  muteStatusRaw = {};
+  clearJsonCache();
+  // 原始顺序管理器：清空后新账号会重新初始化顺序
+  globalOriginalOrderManager.clear();
+  // 会话历史请求序号：仅用于并发去重，清空即可（避免长期累积）
+  chatHistoryRequestSeq.clear();
+};
+
+export const restoreContactStates = (
+  contacts: Contact[],
+  currentUserId: string,
+): void => {
+  useChatWorkspaceStore().restoreContactStates(contacts, currentUserId);
+};
+
+export const triggerContactsUpdate = (contacts: Contact[]) => {
+  return useChatWorkspaceStore().triggerContactsUpdate(contacts);
+};
+
+export const triggerContactUpdate = (
+  contacts: Contact[],
+  contactId: string,
+) => {
+  return useChatWorkspaceStore().triggerContactUpdate(contacts, contactId);
 };
 
 // ==================== 撤回文案 ====================
@@ -433,6 +472,7 @@ const getContactOriginalOrder = (
 
 /**
  * 稳定比较两个联系人
+ * 0. 「当前用户自己」始终排在最前
  * 1. 置顶优先
  * 2. 最新消息时间降序
  * 3. 时间相同时保持原始顺序（防止跳动）
@@ -443,6 +483,11 @@ export const compareContacts = (
   originalOrderA: number,
   originalOrderB: number,
 ): number => {
+  // 0. 「当前用户自己」始终排在最前（不受置顶/时间影响）
+  if (!!a.isSelf !== !!b.isSelf) {
+    return a.isSelf ? -1 : 1;
+  }
+
   // 1. 置顶优先
   if (!!a.isTop !== !!b.isTop) {
     return a.isTop ? -1 : 1;
@@ -527,6 +572,13 @@ export const ensureOriginalOrderInitialized = (contacts: Contact[]) => {
 
 // ==================== 格式化消息 ====================
 
+/**
+ * JSON 解析结果缓存（LRU）。
+ * 消息内容多为重复 JSON 字符串（如系统通知），缓存可避免重复解析。
+ * 加容量上限，避免长会话持续增长导致内存泄漏：
+ * 超过上限时淘汰最早写入的条目（Map 保持插入顺序，取第一个 key 即可）。
+ */
+const JSON_CACHE_MAX = 500;
 const jsonCache = new Map<string, any>();
 
 const safeJsonParse = (value: unknown) => {
@@ -538,14 +590,31 @@ const safeJsonParse = (value: unknown) => {
     return null;
   }
 
-  if (jsonCache.has(value)) return jsonCache.get(value);
+  if (jsonCache.has(value)) {
+    // 命中：移到末尾，维持 LRU 顺序
+    const hit = jsonCache.get(value);
+    jsonCache.delete(value);
+    jsonCache.set(value, hit);
+    return hit;
+  }
+
   try {
     const res = JSON.parse(value);
+    // 超限时淘汰最旧的一条
+    if (jsonCache.size >= JSON_CACHE_MAX) {
+      const oldestKey = jsonCache.keys().next().value;
+      if (oldestKey !== undefined) jsonCache.delete(oldestKey);
+    }
     jsonCache.set(value, res);
     return res;
   } catch {
     return null;
   }
+};
+
+/** 清空 JSON 解析缓存（登出 / 切换账号时调用，避免跨账号残留） */
+export const clearJsonCache = (): void => {
+  jsonCache.clear();
 };
 
 const normalizeFallbackText = (value: unknown): string => {
@@ -571,10 +640,11 @@ export const formatMessageContent = (
   isRecalled: boolean = false,
   currentUserId?: string | number,
   senderId?: string | number,
-  recalledContent?: string,
+  _recalledContent?: string,
 ): string => {
   if (isRecalled) {
-    if (recalledContent) return recalledContent;
+    // 撤回消息的列表摘要一律显示「撤回文案」，绝不能返回 recalledContent（被撤回的原始内容），
+    // 否则联系人列表会泄漏已撤回的消息内容。
     const isSelf =
       currentUserId && senderId && String(currentUserId) === String(senderId);
     const custom = getCustomRecallText();
@@ -642,6 +712,62 @@ export const formatMessageContent = (
   return displayText;
 };
 
+/**
+ * 聚合「连续同类型媒体消息」的摘要文案。
+ *
+ * 背景：一次发送多张图片 / 多个视频 / 多个文件时，后端会创建多条消息，
+ * 每条 formatMessageContent 都返回单个 "[图片]"，contact.lastMessage 被最后一条覆盖，
+ * 列表里就只看到一个 "[图片]"。
+ *
+ * 这里从 contact.messages 末尾向前扫描，把「连续的同类型媒体消息」聚合起来：
+ *   [图片][图片][图片]      （最多 4 个，超出显示 …）
+ * 只聚合紧邻的同类型消息；遇到其它类型（文本 / 语音 / 系统消息等）立即停止。
+ *
+ * @param messages 会话消息列表（按时间正序）
+ * @param maxCount 最多展示的图标数量，默认 4
+ * @returns 聚合后的文案；若不是媒体消息，返回空字符串（由调用方回退到普通文案）
+ */
+export const buildMediaSummaryText = (
+  messages: Contact["messages"] | undefined,
+  maxCount = 4,
+): string => {
+  if (!Array.isArray(messages) || messages.length === 0) return "";
+
+  const MEDIA_ICONS: Record<string, string> = {
+    image: "[图片]",
+    video: "[视频]",
+    file: "[文件]",
+  };
+
+  // 从最后一条开始向前找连续的媒体消息
+  const tail = messages[messages.length - 1];
+  const tailType = String(tail?.messageType || "");
+  if (!MEDIA_ICONS[tailType]) return "";
+
+  let count = 0;
+  let sameSenderId = String(tail?.senderId ?? "");
+
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    // 撤回的消息不算
+    if (m?.isRecalled) break;
+    // 类型必须相同
+    if (String(m?.messageType || "") !== tailType) break;
+    // 同一发送者才算「一次发送」
+    if (String(m?.senderId ?? "") !== sameSenderId) break;
+    count++;
+    // 数量足够就停止扫描
+    if (count > maxCount) break;
+  }
+
+  if (count <= 1) return MEDIA_ICONS[tailType];
+
+  const icon = MEDIA_ICONS[tailType];
+  const shown = Math.min(count, maxCount);
+  const suffix = count > maxCount ? "…" : "";
+  return `${icon.repeat(shown)}${suffix}`;
+};
+
 export const updateContactLastMessage = (
   contacts: Contact[],
   contactId: string | number,
@@ -698,7 +824,7 @@ export const handleToggleTop = async (
     message.success(isTop ? "已设为置顶" : "已取消置顶");
   } catch (error: any) {
     message.error(
-      error.response?.data?.data?.message || "操作失败，请稍后重试",
+      getErrorMessage(error, "操作失败，请稍后重试"),
     );
   }
 };
@@ -727,7 +853,7 @@ export const handleToggleMute = async (
     message.success(isMuted ? "已开启消息免打扰" : "已关闭消息免打扰");
   } catch (error: any) {
     message.error(
-      error.response?.data?.data?.message || "操作失败，请稍后重试",
+      getErrorMessage(error, "操作失败，请稍后重试"),
     );
   }
 };
@@ -845,7 +971,7 @@ export const createNewMessage = (
     createdAt: msg.createdAt || msg.time,
     _timestamp: msg.createdAt
       ? new Date(msg.createdAt).getTime()
-      : new Date().getTime(),
+      : undefined,
     avatar: enhancedSender?.avatar || "",
     isMe: senderId === currentUserId,
     senderId,
@@ -943,570 +1069,6 @@ export const triggerContactReactiveUpdate = (
   return updatedContacts;
 };
 
-// ==================== 统一的消息通知辅助函数 ====================
-
-const handleNotificationsForContact = (
-  msg: any,
-  contact: Contact,
-  contactId: string,
-  currentUserId: string,
-  activeContactId: string,
-  refs: {
-    contacts: Contact[];
-    notificationComponentRef?: any;
-    statusBarNotificationRef?: any;
-    router?: any;
-  },
-) => {
-  try {
-    const notificationEnabled = localStorage.getItem("notificationEnabled") !== "false";
-    if (!notificationEnabled) return;
-
-    const notificationMode = localStorage.getItem("notificationMode") || "sound-and-system";
-    if (notificationMode === "dnd") return;
-
-    const notificationStore = useNotificationStore();
-    const isActiveContact = activeContactId === contactId;
-    const isDocumentHidden = typeof document !== "undefined" && document.hidden;
-
-    const options: any = {
-      contacts: refs.contacts,
-      activeContactId: { value: activeContactId },
-      currentUserId,
-      router: refs.router,
-      notificationComponentRef: refs.notificationComponentRef,
-      statusBarNotificationRef: refs.statusBarNotificationRef,
-    };
-
-    if (!["statusbar-only", "desktop-only"].includes(notificationMode)) {
-      notificationStore.playMessageSound();
-    }
-
-    if (["system-only", "sound-and-system"].includes(notificationMode)) {
-      notificationStore.showCustomNotification(msg, contact, options);
-    }
-
-    if (["statusbar-only", "sound-and-statusbar"].includes(notificationMode)) {
-      notificationStore.showStatusBarNotification(msg, contact, options);
-    }
-
-    if (["desktop-only", "sound-and-desktop"].includes(notificationMode)) {
-      notificationStore.showDesktopNotification(msg, contact, options);
-    }
-
-    if (!isActiveContact && isDocumentHidden) {
-      notificationStore.startTitleFlash();
-    }
-  } catch (err) {
-    console.error("[通知] 处理失败:", err);
-  }
-};
-
-// ==================== 处理实时消息的核心逻辑 ====================
-
-export interface HandleRealtimeMessageOptions {
-  contacts: Contact[];
-  currentUserId: string;
-  activeContactId: string;
-  rightChatAreaRef?: any;
-  nextTick?: Function;
-  notificationComponentRef?: any;
-  statusBarNotificationRef?: any;
-  router?: any;
-}
-
-export const handleRealtimeMessageCore = (
-  data: any,
-  type: "private" | "group",
-  options: HandleRealtimeMessageOptions,
-) => {
-  const {
-    contacts,
-    currentUserId,
-    activeContactId,
-    rightChatAreaRef,
-    nextTick,
-    notificationComponentRef,
-    statusBarNotificationRef,
-    router,
-  } = options;
-
-  try {
-    const msg = data.message || data;
-    const senderId = String(msg.senderId);
-    const isGroup = !!msg.groupId;
-
-    if (
-      msg.messageType === GROUP_INVITE_TYPES.PENDING ||
-      msg.messageType === GROUP_INVITE_TYPES.ACCEPTED ||
-      msg.messageType === GROUP_INVITE_TYPES.REJECTED
-    ) {
-      try {
-        const inviteData = JSON.parse(msg.content);
-
-        if (msg.messageType === GROUP_INVITE_TYPES.PENDING) {
-          message.info({
-            content: `${inviteData.inviter?.nickname || inviteData.inviter?.username} 邀请你加入群聊「${inviteData.groupName}」`,
-            duration: 5,
-          });
-        } else if (msg.messageType === GROUP_INVITE_TYPES.ACCEPTED) {
-          message.success({
-            content: `你已成功加入群聊「${inviteData.groupName}」`,
-            duration: 3,
-          });
-        } else if (msg.messageType === GROUP_INVITE_TYPES.REJECTED) {
-          message.info({
-            content: `你已拒绝加入群聊「${inviteData.groupName}」`,
-            duration: 3,
-          });
-        }
-      } catch {
-        // 静默失败
-      }
-    }
-
-    let contactId: string;
-    if (isGroup) {
-      const groupId = String(msg.groupId);
-      contactId = groupId.startsWith("group_") ? groupId : `group_${groupId}`;
-    } else {
-      contactId =
-        senderId === currentUserId ? String(msg.receiverId) : senderId;
-    }
-
-    let contactIndex = contacts.findIndex((c) => c.id === contactId);
-    let contact = contactIndex !== -1 ? contacts[contactIndex] : undefined;
-
-    if (!contact && !isGroup) {
-      contact = {
-        id: contactId,
-        name: msg.sender?.nickname || msg.sender?.username || "未知用户",
-        avatar:
-          msg.sender?.avatar ||
-          "https://cube.elemecdn.com/9/c2/f0ee8a3c7c9638a54940382568c9dpng.png",
-        lastMessage: "",
-        lastMessageTime: "",
-        unreadCount: 0,
-        isOnline: false,
-        messages: [],
-        remark: "",
-        isTop: false,
-        isMuted: false,
-        isGroup: false,
-        username: msg.sender?.username || "",
-      };
-      contacts.push(contact);
-      contactIndex = contacts.length - 1;
-    }
-
-    if (!contact) {
-      return contacts;
-    }
-
-    invalidateChatHistoryCache(contacts, contactId);
-
-    updateContactGroupNickname(contact, msg, currentUserId);
-
-    const enhancedSender = enhanceSenderWithGroupNickname(
-      msg.sender,
-      contact,
-      senderId,
-      currentUserId,
-    );
-
-    contact.lastMessage = formatMessageContent(
-      msg.messageType || "text",
-      msg.content,
-      isGroup,
-      enhancedSender,
-      msg.isRecalled || false,
-      currentUserId,
-      msg.senderId,
-    );
-    contact.lastMessageTime = msg.time;
-
-    if (isGroup && enhancedSender) {
-      contact.lastMessageSender = {
-        nickname:
-          enhancedSender.groupNickname || enhancedSender.nickname || "未知用户",
-        id: senderId,
-      };
-    }
-
-    const newMessage = createNewMessage(msg, enhancedSender, currentUserId);
-
-    if (!Array.isArray(contact.messages)) {
-      contact.messages = [];
-    }
-
-    if (!isMessageExists(contact.messages, newMessage)) {
-      contact.messages.push(newMessage);
-    }
-
-    if (activeContactId !== contactId) {
-      contact.unreadCount = (contact.unreadCount || 0) + 1;
-    }
-
-    updateJoinMessages(contact, msg);
-
-    // 使用稳定排序
-    const originalOrderMap = globalOriginalOrderManager.getMap();
-    sortContacts(contacts, currentUserId, originalOrderMap);
-
-    const sortedIndex = contacts.findIndex((c) => c.id === contactId);
-    if (sortedIndex !== -1) {
-      contacts[sortedIndex] = { ...contacts[sortedIndex] };
-    }
-
-    // 触发响应式更新
-    const newContactsArray = [...contacts];
-    contacts.splice(0, contacts.length, ...newContactsArray);
-
-    if (
-      activeContactId === contactId &&
-      rightChatAreaRef?.value?.scrollToBottom &&
-      nextTick
-    ) {
-      setTimeout(() => {
-        nextTick(() => {
-          rightChatAreaRef.value.scrollToBottom();
-        });
-      }, 50);
-    }
-
-    const isMe = senderId === currentUserId;
-    if (!isMe) {
-      handleNotificationsForContact(msg, contact, contactId, currentUserId, activeContactId, {
-        contacts,
-        notificationComponentRef,
-        statusBarNotificationRef,
-        router,
-      });
-    }
-
-    return contacts;
-  } catch (err) {
-    console.error("[handleRealtimeMessageCore] 处理消息失败:", err);
-    return contacts;
-  }
-};
-
-// ==================== 处理撤回消息 ====================
-
-export const handleRecallMessageCore = (
-  data: any,
-  contacts: Contact[],
-  currentUserId: string,
-): Contact[] => {
-  try {
-    const { messageId, groupId, receiverId, senderId, time } = data;
-
-    const isGroup = !!groupId;
-    const contactId = isGroup
-      ? `group_${groupId}`
-      : String(senderId) === currentUserId
-        ? String(receiverId)
-        : String(senderId);
-
-    const contact = contacts.find((c) => c.id === contactId);
-    if (!contact) {
-      return contacts;
-    }
-
-    const messageIndex = contact.messages.findIndex(
-      (msg: any) => msg.id === messageId,
-    );
-
-    if (messageIndex !== -1) {
-      const message = contact.messages[messageIndex];
-
-      if (!message.recalledContent && message.content) {
-        message.recalledContent = message.content;
-      }
-
-      message.content = "";
-      message.isRecalled = true;
-      message.recalledAt = time || new Date().toISOString();
-
-      contact.messages = [...contact.messages];
-    }
-
-    const messages = contact.messages;
-    if (messages && messages.length > 0) {
-      let lastValidMessage = null;
-      for (let i = messages.length - 1; i >= 0; i--) {
-        if (!messages[i].isRecalled) {
-          lastValidMessage = messages[i];
-          break;
-        }
-      }
-
-      if (lastValidMessage) {
-        contact.lastMessage = formatMessageContent(
-          lastValidMessage.messageType || "text",
-          lastValidMessage.content,
-          contact.isGroup,
-          lastValidMessage.sender,
-          false,
-          currentUserId,
-          lastValidMessage.senderId,
-        );
-        contact.lastMessageTime = lastValidMessage.time;
-      } else {
-        contact.lastMessage = "暂无消息";
-        contact.lastMessageTime = "";
-      }
-    } else {
-      contact.lastMessage = "暂无消息";
-      contact.lastMessageTime = "";
-    }
-
-    return [...contacts];
-  } catch (err) {
-    console.error("[handleRecallMessageCore] 处理撤回失败:", err);
-    return contacts;
-  }
-};
-
-// ==================== 处理删除单条消息 ====================
-
-export const handleDeleteMessageCore = (
-  data: any,
-  contacts: Contact[],
-  currentUserId: string,
-): Contact[] => {
-  try {
-    const { messageId, groupId, receiverId, senderId } = data;
-
-    const isGroup = !!groupId;
-    const contactId = isGroup
-      ? `group_${groupId}`
-      : String(senderId) === currentUserId
-        ? String(receiverId)
-        : String(senderId);
-
-    const contact = contacts.find((c) => c.id === contactId);
-    if (!contact) {
-      return contacts;
-    }
-
-    const messageIndex = contact.messages.findIndex(
-      (msg: any) => msg.id === messageId,
-    );
-
-    if (messageIndex > -1) {
-      contact.messages.splice(messageIndex, 1);
-
-      const messages = contact.messages;
-      if (messages && messages.length > 0) {
-        const lastMsg = messages[messages.length - 1];
-        const lastMessageText = formatMessageContent(
-          lastMsg.messageType || "text",
-          lastMsg.content,
-          contact.isGroup,
-          lastMsg.sender,
-          lastMsg.isRecalled || false,
-          currentUserId,
-          lastMsg.senderId,
-        );
-        const lastMessageTime = lastMsg.time || new Date().toISOString();
-
-        updateContactLastMessage(
-          contacts,
-          contactId,
-          lastMessageText,
-          lastMessageTime,
-        );
-      } else {
-        updateContactLastMessage(contacts, contactId, "", "");
-      }
-    }
-
-    return [...contacts];
-  } catch (err) {
-    console.error("[handleDeleteMessageCore] 处理删除失败:", err);
-    return contacts;
-  }
-};
-
-// ==================== 处理批量删除消息 ====================
-
-export const handleBatchDeleteMessagesCore = (
-  data: any,
-  contacts: Contact[],
-  currentUserId: string,
-): Contact[] => {
-  try {
-    const { messageIds, groupId } = data;
-    if (!Array.isArray(messageIds) || messageIds.length === 0) {
-      return contacts;
-    }
-
-    const contactId = `group_${groupId}`;
-    const contact = contacts.find((c) => c.id === contactId);
-
-    if (!contact) {
-      return contacts;
-    }
-
-    const messageIdSet = new Set(messageIds.map(String));
-    contact.messages = contact.messages.filter(
-      (msg: any) => !messageIdSet.has(String(msg.id)),
-    );
-
-    const messages = contact.messages;
-    if (messages && messages.length > 0) {
-      const lastMsg = messages[messages.length - 1];
-      const lastMessageText = formatMessageContent(
-        lastMsg.messageType || "text",
-        lastMsg.content,
-        contact.isGroup,
-        lastMsg.sender,
-        lastMsg.isRecalled || false,
-        currentUserId,
-        lastMsg.senderId,
-      );
-      const lastMessageTime = lastMsg.time || new Date().toISOString();
-
-      updateContactLastMessage(
-        contacts,
-        contactId,
-        lastMessageText,
-        lastMessageTime,
-      );
-    } else {
-      updateContactLastMessage(contacts, contactId, "", "");
-    }
-
-    return [...contacts];
-  } catch (err) {
-    console.error("[handleBatchDeleteMessagesCore] 处理批量删除失败:", err);
-    return contacts;
-  }
-};
-
-// ==================== 处理群成员等级更新 ====================
-
-export const handleGroupMemberLevelUpdateCore = (
-  data: any,
-  contacts: Contact[],
-  activeContactId: string,
-): {
-  contacts: Contact[];
-  showNotification?: boolean;
-  notificationMessage?: string;
-} => {
-  try {
-    const { userId, groupId, messageCount, chatLevel, nickname, role } = data;
-
-    const contactId = `group_${groupId}`;
-    const contact = contacts.find((c) => c.id === contactId);
-
-    if (!contact || !contact.isGroup) {
-      return { contacts };
-    }
-
-    if (!contact.groupMembers) {
-      return { contacts };
-    }
-
-    const memberIndex = contact.groupMembers.findIndex(
-      (m: any) =>
-        String(m.id) === String(userId) || String(m.userId) === String(userId),
-    );
-
-    if (memberIndex === -1) {
-      return { contacts };
-    }
-
-    const member = contact.groupMembers[memberIndex];
-    member.chatLevel = chatLevel;
-    member.messageCount = messageCount;
-
-    if (nickname) {
-      member.nickname = nickname;
-    }
-    if (role) {
-      member.role = role;
-    }
-
-    contact.groupMembers = [...contact.groupMembers];
-
-    let updatedContacts = [...contacts];
-    let showNotification = false;
-    let notificationMessage = "";
-
-    if (activeContactId === contactId) {
-      const contactIndex = updatedContacts.findIndex((c) => c.id === contactId);
-      if (contactIndex !== -1) {
-        updatedContacts[contactIndex] = { ...updatedContacts[contactIndex] };
-      }
-
-      showNotification = true;
-      notificationMessage = `${nickname || member.nickname || "用户"} 升级到 LV${chatLevel}`;
-    }
-
-    return {
-      contacts: updatedContacts,
-      showNotification,
-      notificationMessage,
-    };
-  } catch (err) {
-    console.error("[handleGroupMemberLevelUpdateCore] 处理等级更新失败:", err);
-    return { contacts };
-  }
-};
-
-// ==================== 处理群成员头衔更新 ====================
-
-export const handleGroupMemberTitleUpdateCore = (
-  data: any,
-  contacts: Contact[],
-  activeContactId: string,
-): Contact[] => {
-  try {
-    const { userId, groupId, groupTitle, nickname } = data;
-
-    const contactId = `group_${groupId}`;
-    const contact = contacts.find((c) => c.id === contactId);
-
-    if (!contact || !contact.isGroup) {
-      return contacts;
-    }
-
-    if (!contact.groupMembers) {
-      return contacts;
-    }
-
-    const memberIndex = contact.groupMembers.findIndex(
-      (m: any) =>
-        String(m.id) === String(userId) || String(m.userId) === String(userId),
-    );
-
-    if (memberIndex === -1) {
-      return contacts;
-    }
-
-    const member = contact.groupMembers[memberIndex];
-    member.groupTitle = groupTitle || undefined;
-
-    contact.groupMembers = [...contact.groupMembers];
-
-    let updatedContacts = [...contacts];
-
-    if (activeContactId === contactId) {
-      const contactIndex = updatedContacts.findIndex((c) => c.id === contactId);
-      if (contactIndex !== -1) {
-        updatedContacts[contactIndex] = { ...updatedContacts[contactIndex] };
-      }
-    }
-
-    return updatedContacts;
-  } catch (err) {
-    console.error("[handleGroupMemberTitleUpdateCore] 处理头衔更新失败:", err);
-    return contacts;
-  }
-};
 
 // ==================== 添加或更新临时联系人 ====================
 
@@ -1580,6 +1142,13 @@ export const handleSendMessage = async (
   tempFilenames?: string[],
   originalFilenames?: string[],
   fileSizes?: number[],
+  replyTo?: {
+    messageId?: string | number;
+    senderName?: string;
+    content?: string;
+    messageType?: string;
+  },
+  clientMessageId?: string,
 ) => {
   if (!msgContent && !tempFilenames?.length) {
     const { currentUserId, contacts } = options;
@@ -1648,7 +1217,9 @@ export const handleSendMessage = async (
   const isGroup = targetId.startsWith("group_");
   const pureId = isGroup ? targetId.replace("group_", "") : targetId;
 
-  const tempId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  // 幂等消息 ID：重试时复用传入的 clientMessageId，确保后端能去重、不重复入库
+  const tempId =
+    clientMessageId || `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   const now = Date.now();
   const time = new Date(now).toLocaleTimeString("zh-CN", {
     hour: "2-digit",
@@ -1688,6 +1259,7 @@ export const handleSendMessage = async (
     sender: senderInfo,
     isPending: true,
     status: "sending",
+    ...(replyTo ? { replyTo } : {}),
   };
 
   if (!Array.isArray(contact.messages)) {
@@ -1696,12 +1268,19 @@ export const handleSendMessage = async (
   contact.messages.push(pendingMessage);
 
   const displayContent = ["image", "video", "file"].includes(messageType) ? "" : msgContent;
-  contact.lastMessage = formatMessageContent(
+  const baseLastMessage = formatMessageContent(
     messageType,
     displayContent,
     isGroup,
     isGroup ? senderInfo : undefined,
   );
+  // 媒体消息聚合：连发多张图 / 多个文件时，摘要显示 [图片][图片][图片]
+  const mediaSummary = buildMediaSummaryText(contact.messages);
+  contact.lastMessage = mediaSummary
+    ? isGroup
+      ? `${senderInfo.name}: ${mediaSummary}`
+      : mediaSummary
+    : baseLastMessage;
   if (isGroup) contact.lastMessageSender = senderInfo;
   contact.lastMessageTime = time;
 
@@ -1722,6 +1301,7 @@ export const handleSendMessage = async (
         ? (requestData.groupId = pureId)
         : (requestData.receiverId = pureId);
       if (tempFilenames?.length) requestData.tempFilenames = tempFilenames;
+      if (replyTo) requestData.replyTo = replyTo;
 
       if (messageType === "file") {
         if (originalFilenames?.length) {
@@ -1747,6 +1327,9 @@ export const handleSendMessage = async (
         ...(isGroup ? { groupId: pureId } : { receiverId: pureId }),
         content: msgContent,
         messageType,
+        ...(replyTo ? { replyTo } : {}),
+        // 幂等消息 ID：发送失败重试时复用同一 ID，后端据此去重，避免重复入库
+        clientMessageId: tempId,
       });
     }
 
@@ -1774,6 +1357,7 @@ export const handleSendMessage = async (
           senderName: senderInfo.name,
           messageType: msg.messageType || messageType,
           sender: senderInfo,
+          replyTo: (msg as any).replyTo || replyTo,
         };
       } else {
         const wsTimestamp = msg.createdAt ? new Date(msg.createdAt).getTime() : now;
@@ -1795,6 +1379,7 @@ export const handleSendMessage = async (
             senderName: senderInfo.name,
             messageType: msg.messageType || messageType,
             sender: senderInfo,
+            replyTo: (msg as any).replyTo || replyTo,
           });
         }
       }
@@ -1847,7 +1432,7 @@ export const handleSendMessage = async (
     }
 
     const msg =
-      error.response?.data?.data?.message || "消息发送失败，请稍后重试";
+      getErrorMessage(error, "消息发送失败，请稍后重试");
     message.error(msg);
     throw error;
   }
@@ -1867,10 +1452,16 @@ export const invalidateChatHistoryCache = (
 const emptyHistoryFromLatestHint = (contact: Contact) => {
   if (String(contact.id).startsWith("self_")) return false;
   if (typeof document !== "undefined" && document.hidden) return false;
-  // 🔥 如果消息列表为空（首次加载），不跳过，允许加载历史
-  if (!contact.messages || contact.messages.length === 0) return false;
+  // 已经加载过消息：说明该会话有历史，绝不能判定为「空历史」。
+  // ⚠️ 原逻辑在这里写反了（有消息 -> 继续判断 -> 最终 return true），
+  //    导致「当前用户自己」这类 lastMessage 为空、unreadCount 为 0 的会话，
+  //    在第二次加载时被误判为空历史，getChatHistory 返回空数组并覆盖 messages，
+  //    表现为「聊天记录一开始有，过一会儿就没了」。
+  if (contact.messages && contact.messages.length > 0) return false;
+  // 有 lastMessage 或未读，说明有历史
   if (String(contact.lastMessage || "").trim()) return false;
   if (Number(contact.unreadCount) > 0) return false;
+  // 仅当「没有任何消息痕迹」时才认为该会话可能是空的
   return true;
 };
 
@@ -1879,6 +1470,13 @@ const emptyHistoryConfirmed = (contact: Contact) => {
   if (!p) return false;
   return p.total === 0 && !p.hasNextPage;
 };
+
+/**
+ * 会话历史请求序号：按会话 id 记录最新一次 page1 请求的序号。
+ * 用于并发保护——旧请求返回时若序号已过期，则丢弃其写入结果，
+ * 避免「后返回的旧请求」覆盖「先返回的新请求」。
+ */
+const chatHistoryRequestSeq = new Map<string, number>();
 
 const pickHistoryPayload = (response: unknown) => {
   if (
@@ -1902,6 +1500,18 @@ export const getChatHistory = async (
   const targetId = String(contactId);
   const contact = contacts.find((c) => String(c.id) === targetId);
 
+  // ============================================================
+  // 并发保护：同一会话的 page 1 请求只保留「最后一次」的结果。
+  // 场景：onMounted 默认选中加载 + 后台预加载 + 用户点击切换 可能同时请求同一会话，
+  //       旧请求后返回时会把新结果覆盖掉（表现为「聊天记录一会儿有一会儿没有」）。
+  // ============================================================
+  if (page === 1) {
+    const seq = (chatHistoryRequestSeq.get(targetId) || 0) + 1;
+    chatHistoryRequestSeq.set(targetId, seq);
+    // 请求返回后校验序号，若期间已有更新的请求，则丢弃本次写入
+    (options as any).__seq = seq;
+  }
+
   const emptyPage1Payload = () => ({
     messages: [],
     pagination: {
@@ -1913,10 +1523,20 @@ export const getChatHistory = async (
     },
   });
 
+  // 该会话是否从未加载过历史（还没有分页游标）
+  const neverLoadedHistory = !contact?.chatHistoryPagination;
+
   if (
     page === 1 &&
     !forceFetch &&
     contact &&
+    // 已有消息时不走「空历史」捷径：宁可多请求一次，也不能返回空数组把已加载的聊天记录覆盖掉
+    !(contact.messages && contact.messages.length > 0) &&
+    // 🔥 群聊「从未加载过历史」时必须真正请求一次，不能走空历史捷径：
+    //    刚入群的会话里唯一一条消息往往就是「入群通知」，此时 lastMessage / unreadCount
+    //    都可能是空的，emptyHistoryFromLatestHint 会判定为「空历史」直接返回空数组，
+    //    导致 extractJoinMessages 取不到 group_invite_accepted，群里永远不出现入群通知。
+    !(contact.isGroup && neverLoadedHistory) &&
     (emptyHistoryConfirmed(contact) || emptyHistoryFromLatestHint(contact))
   ) {
     return emptyPage1Payload();
@@ -1950,6 +1570,23 @@ export const getChatHistory = async (
       | undefined;
 
     if (contact) {
+      // 并发保护：若期间已有更新的 page1 请求，丢弃本次结果，避免旧数据覆盖新数据
+      if (page === 1 && (options as any).__seq !== undefined) {
+        const latestSeq = chatHistoryRequestSeq.get(targetId);
+        if (latestSeq !== (options as any).__seq) {
+          return {
+            messages,
+            pagination: pagination && {
+              currentPage: Number(pagination.currentPage) || page,
+              totalPages: Number(pagination.totalPages) || 0,
+              total: Number(pagination.total) || 0,
+              hasNextPage: false,
+              hasPrevPage: false,
+            },
+          };
+        }
+      }
+
       // 兼容缓存/异常数据：messages 缺失时按空数组处理，避免整段历史加载失败
       const existIds = new Set((contact.messages || []).map((m: any) => m.id));
       const memberNicknameMap = new Map<string, string>();
@@ -2017,7 +1654,9 @@ export const getChatHistory = async (
           content: displayContent,
           time: msg.time,
           createdAt: msg.createdAt || msg.time,
-          _timestamp: new Date(msg.createdAt || msg.time).getTime(),
+          _timestamp: msg.createdAt
+            ? new Date(msg.createdAt).getTime()
+            : undefined,
           avatar: enhancedSender?.avatar || "",
           isMe: senderId === currentUserId,
           senderId,
@@ -2028,6 +1667,7 @@ export const getChatHistory = async (
             "未知用户",
           sender: enhancedSender,
           messageType: msg.messageType || "text",
+          status: msg.status || null,
           isRecalled: msg.isRecalled || false,
           recalledAt: msg.recalledAt || null,
           recalledContent: msg.recalledContent || "",
@@ -2049,17 +1689,40 @@ export const getChatHistory = async (
         return timeA - timeB;
       });
 
-      contact.messages =
-        page === 1
-          ? sortedMessages
-          : [
-            ...sortedMessages.filter((m: any) => !existIds.has(m.id)),
-            ...contact.messages,
-          ];
+      // page 1：合并而非直接覆盖。
+      // 服务器第一页可能不包含本地刚通过 WebSocket 收到、尚未落库的消息，
+      // 直接覆盖会把它们丢掉（表现为「刚收到的消息刷新后消失」）。
+      // 这里以服务器结果为准，同时补回本地独有的「新消息」（发送中 / 失败 / 比服务器最新还新）。
+      if (page === 1) {
+        const serverIds = new Set(sortedMessages.map((m: any) => String(m.id)));
+        const serverLatestTs = sortedMessages.reduce(
+          (max: number, m: any) => Math.max(max, Number(m._timestamp) || 0),
+          0,
+        );
+        const tailLocal = (contact.messages || []).filter((m: any) => {
+          if (m.id === undefined || m.id === null) return false;
+          if (serverIds.has(String(m.id))) return false;
+          return (
+            m.status === "sending" ||
+            m.status === "failed" ||
+            (Number(m._timestamp) || 0) >= serverLatestTs
+          );
+        });
+        contact.messages = [...sortedMessages, ...tailLocal].sort((a: any, b: any) => {
+          const ta = Number(a._timestamp) || 0;
+          const tb = Number(b._timestamp) || 0;
+          return ta - tb;
+        }) as Contact["messages"];
+      } else {
+        contact.messages = [
+          ...sortedMessages.filter((m: any) => !existIds.has(m.id)),
+          ...contact.messages,
+        ] as Contact["messages"];
+      }
 
       if (sortedMessages.length > 0) {
         const lastMessage = sortedMessages[sortedMessages.length - 1];
-        contact.lastMessage = formatMessageContent(
+        const baseLastMessage = formatMessageContent(
           lastMessage.messageType || "text",
           lastMessage.content,
           isGroup,
@@ -2069,6 +1732,8 @@ export const getChatHistory = async (
           lastMessage.senderId,
           lastMessage.recalledContent || "",
         );
+        // 媒体消息聚合：连发多张图 / 多个文件时，摘要显示 [图片][图片][图片]
+        contact.lastMessage = buildMediaSummaryText(contact.messages) || baseLastMessage;
         contact.lastMessageTime = lastMessage.time || lastMessage.createdAt;
       }
     }
@@ -2132,52 +1797,6 @@ export const getChatHistory = async (
     return { messages: [], pagination: undefined };
   }
 };
-export const getChatHistoryForModal = async (
-  contactId: string | number,
-  currentUserId: string,
-  contacts: any[],
-  page: number = 1,
-  pageSize: number = 20,
-) => {
-  try {
-    const targetId = String(contactId);
-    const apiUrl = `/message/chat/${targetId}`;
-
-    const response = await request.get(apiUrl, {
-      params: { page, limit: pageSize }
-    });
-    const payload = response?.data?.data || response?.data || response;
-
-    // 确保返回统一的数据结构
-    return {
-      messages: payload.messages || [],
-      pagination: payload.pagination || {
-        currentPage: page,
-        totalPages: 0,
-        total: 0,
-        hasNextPage: false,
-        hasPrevPage: false,
-      },
-      chatType: payload.chatType || 'private',
-      message: payload.message || '获取聊天记录成功',
-    };
-  } catch (error: any) {
-    console.error("[getChatHistoryForModal] 获取聊天历史失败:", error);
-    return {
-      messages: [],
-      pagination: {
-        currentPage: page,
-        totalPages: 0,
-        total: 0,
-        hasNextPage: false,
-        hasPrevPage: false,
-      },
-      chatType: 'private',
-      message: error?.message || '获取聊天记录失败',
-    };
-  }
-};
-
 // ==================== 搜索聊天记录 ====================
 
 export const handleSearchChatHistory = async (
@@ -2223,7 +1842,7 @@ export const handleSearchChatHistory = async (
     return list;
   } catch (error: any) {
     message.error(
-      error.response?.data?.data?.message || "搜索失败，请稍后重试",
+      getErrorMessage(error, "搜索失败，请稍后重试"),
     );
     return [];
   }
@@ -2253,7 +1872,7 @@ export const handleEditRemark = async (
     message.success("备注修改成功");
   } catch (error: any) {
     message.error(
-      error.response?.data?.data?.message || "修改备注失败，请稍后重试",
+      getErrorMessage(error, "修改备注失败，请稍后重试"),
     );
   }
 };
@@ -2284,7 +1903,7 @@ export const handleUpdateGroupRule = async (
     message.success("群公告更新成功");
   } catch (error: any) {
     message.error(
-      error.response?.data?.data?.message || "更新群公告失败，请稍后重试",
+      getErrorMessage(error, "更新群公告失败，请稍后重试"),
     );
     throw error;
   }
@@ -2332,7 +1951,7 @@ export const deleteMessage = async (
   } catch (error: any) {
     if (error !== "cancel") {
       message.error(
-        error.response?.data?.data?.message || "删除消息失败，请稍后重试",
+        getErrorMessage(error, "删除消息失败，请稍后重试"),
       );
     }
     return false;
@@ -2359,6 +1978,18 @@ export const markMessagesAsRead = async (
   } catch (error) {
     console.error("[markMessagesAsRead] 标记已读失败:", error);
     return false;
+  }
+};
+
+/** 获取某会话的已读游标（上次读到的最后一条消息 id） */
+export const getReadCursor = async (targetId: string | number): Promise<number> => {
+  try {
+    const response = await request.get(`/message/read-cursor/${targetId}`);
+    const cursor = response?.data?.lastReadMessageId;
+    return typeof cursor === "number" ? cursor : 0;
+  } catch (error) {
+    console.error("[getReadCursor] 获取已读游标失败:", error);
+    return 0;
   }
 };
 

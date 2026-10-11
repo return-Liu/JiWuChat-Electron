@@ -18,19 +18,9 @@
             class="new-search-input"
             ref="searchInputRef"
           />
-          <div
-            v-if="searchKeyword"
-            class="new-clear-search"
-            @click="clearSearch"
-          >
-            ✕
-          </div>
+          <div v-if="searchKeyword" class="new-clear-search" @click="clearSearch">✕</div>
         </div>
-        <button
-          class="new-search-button"
-          :disabled="isSearching"
-          @click="performSearch"
-        >
+        <button class="new-search-button" :disabled="isSearching" @click="performSearch">
           {{ isSearching ? "搜索中..." : "搜索" }}
         </button>
       </div>
@@ -49,10 +39,7 @@
             v-else-if="!isSelfChat"
             >私聊模式</span
           >
-          <span
-            class="type-tab-text"
-            :class="{ active: chatType === 'self' }"
-            v-else
+          <span class="type-tab-text" :class="{ active: chatType === 'self' }" v-else
             >自聊模式</span
           >
         </div>
@@ -117,9 +104,7 @@
         <div class="search-results-header">
           <div class="search-results-title">
             找到 {{ searchResults.length }} 条相关消息
-            <span v-if="searchKeyword" class="search-keyword"
-              >"{{ searchKeyword }}"</span
-            >
+            <span v-if="searchKeyword" class="search-keyword">"{{ searchKeyword }}"</span>
           </div>
           <button
             class="clear-results-btn"
@@ -150,9 +135,9 @@
                   class="avatar-img"
                   @click.stop="
                     result.sender?.id
-                      ? navigateToUserInfo(result.sender.id)
+                      ? navigateToUserInfo(String(result.sender.id))
                       : result.senderId
-                        ? navigateToUserInfo(result.senderId)
+                        ? navigateToUserInfo(String(result.senderId))
                         : null
                   "
                 />
@@ -162,9 +147,7 @@
                   <span class="result-sender">{{
                     result.sender?.nickname || result.senderName
                   }}</span>
-                  <span class="result-time">{{
-                    result.time || result.createdAt || ""
-                  }}</span>
+                  <span class="result-time">{{ result.time || result.createdAt || "" }}</span>
                 </div>
                 <div class="result-message">
                   <div
@@ -172,11 +155,7 @@
                     class="result-media-wrapper"
                     @click.stop="handleResultClick(result)"
                   >
-                    <img
-                      :src="result.content"
-                      class="result-image-thumb"
-                      alt="图片缩略图"
-                    />
+                    <img :src="result.content" class="result-image-thumb" alt="图片缩略图" />
                     <span class="media-tag">图片</span>
                   </div>
                   <div
@@ -215,11 +194,7 @@
                       @open-detail="handleSystemMessageDetail"
                     />
                   </div>
-                  <span
-                    v-else
-                    class="message-text"
-                    @click.stop="handleResultClick(result)"
-                  >
+                  <span v-else class="message-text" @click.stop="handleResultClick(result)">
                     <span
                       v-for="(segment, segmentIndex) in segmentHighlightedText(
                         result.content,
@@ -227,7 +202,8 @@
                       )"
                       :key="segmentIndex"
                       :class="{ highlight: segment.highlighted }"
-                    >{{ segment.text }}</span>
+                      >{{ segment.text }}</span
+                    >
                   </span>
                 </div>
               </div>
@@ -236,9 +212,7 @@
         </div>
 
         <div v-if="totalPages > 1" class="search-pagination">
-          <span class="pagination-text"
-            >第 {{ currentSearchPage }} / {{ totalPages }} 页</span
-          >
+          <span class="pagination-text">第 {{ currentSearchPage }} / {{ totalPages }} 页</span>
           <div class="pagination-controls">
             <button
               class="page-btn"
@@ -333,8 +307,7 @@ const props = defineProps({
 
 const emit = defineEmits<Emits>();
 
-const defaultAvatar =
-  "https://cube.elemecdn.com/9/c2/f0ee8a3c7c9638a54940382568c9dpng.png";
+const defaultAvatar = "https://cube.elemecdn.com/9/c2/f0ee8a3c7c9638a54940382568c9dpng.png";
 
 const searchDateRange = ref<string[]>([]);
 const searchMemberId = ref<string>("");
@@ -342,10 +315,7 @@ const searchMessageType = ref<string>("");
 
 const isSelfChat = computed(() => {
   if (!props.activeContact) return false;
-  return (
-    String(props.activeContact.id).startsWith("self_") ||
-    props.activeContact.isSelf === true
-  );
+  return String(props.activeContact.id).startsWith("self_") || props.activeContact.isSelf === true;
 });
 
 const chatType = computed(() => {
@@ -357,14 +327,11 @@ const chatType = computed(() => {
 
 const groupMembers = computed(() => {
   if (!props.activeContact?.isGroup) return [];
-  const members =
-    props.activeContact.groupMembers || props.activeContact.members || [];
+  const members = props.activeContact.groupMembers || props.activeContact.members || [];
   return Array.isArray(members) ? members.filter((m) => m && m.userId) : [];
 });
 
-const totalPages = computed(() =>
-  Math.ceil(props.searchResults.length / props.pageSize),
-);
+const totalPages = computed(() => Math.ceil(props.searchResults.length / props.pageSize));
 const paginatedResults = computed(() => {
   const start = (props.currentSearchPage - 1) * props.pageSize;
   return props.searchResults.slice(start, start + props.pageSize);
@@ -387,8 +354,7 @@ const performSearch = () => {
 };
 const clearSearchResults = () => emit("clear-search-results");
 const navigateToUserInfo = (id: string) => emit("navigate-to-user-info", id);
-const handlePageChange = (page: number) =>
-  emit("update:currentSearchPage", page);
+const handlePageChange = (page: number) => emit("update:currentSearchPage", page);
 
 const onSearchFilterChange = () => {
   if (props.hasSearched) performSearch();
@@ -433,7 +399,6 @@ const onSearchKeywordUpdate = (event: Event) => {
   const target = event.target as HTMLInputElement;
   emit("update:searchKeyword", target.value);
 };
-
 </script>
 
 <style scoped>
@@ -442,10 +407,10 @@ const onSearchKeywordUpdate = (event: Event) => {
   top: 56px;
   left: 0;
   right: 0;
-  background: #fff;
+  background: var(--card-bg);
   z-index: 9999;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  border-bottom: 1px solid #e5e5e5;
+  border-bottom: 1px solid var(--border-color);
   overflow: hidden;
 }
 
@@ -454,7 +419,7 @@ const onSearchKeywordUpdate = (event: Event) => {
   justify-content: space-between;
   align-items: center;
   padding: 12px 16px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .search-panel-title {
@@ -463,7 +428,7 @@ const onSearchKeywordUpdate = (event: Event) => {
   gap: 6px;
   font-size: 15px;
   font-weight: 500;
-  color: #1a1a1a;
+  color: var(--text-primary);
 }
 
 .search-panel-close {
@@ -479,14 +444,14 @@ const onSearchKeywordUpdate = (event: Event) => {
 }
 
 .search-panel-close:hover {
-  background: #f5f5f5;
+  background: var(--bg-tertiary);
 }
 
 .new-search-input-container {
   display: flex;
   gap: 10px;
   padding: 12px 16px;
-  background: #fafafa;
+  background: var(--bg-tertiary);
 }
 
 .new-search-input-wrapper {
@@ -500,11 +465,11 @@ const onSearchKeywordUpdate = (event: Event) => {
   width: 100%;
   height: 36px;
   padding: 0 32px 0 12px;
-  border: 1px solid #e5e5e5;
+  border: 1px solid var(--border-color);
   border-radius: 18px;
   font-size: 13px;
-  background: #fff;
-  color: #1a1a1a;
+  background: var(--card-bg);
+  color: var(--text-primary);
   outline: none;
 }
 
@@ -531,7 +496,7 @@ const onSearchKeywordUpdate = (event: Event) => {
 }
 
 .new-clear-search:hover {
-  background: #f5f5f5;
+  background: var(--bg-tertiary);
 }
 
 .new-search-button {
@@ -561,7 +526,7 @@ const onSearchKeywordUpdate = (event: Event) => {
   justify-content: space-between;
   gap: 16px;
   padding: 10px 16px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border-color);
   flex-wrap: wrap;
 }
 
@@ -615,7 +580,7 @@ const onSearchKeywordUpdate = (event: Event) => {
 .search-tips-title {
   font-size: 14px;
   font-weight: 500;
-  color: #666;
+  color: var(--text-secondary);
   margin-bottom: 4px;
 }
 
@@ -625,7 +590,7 @@ const onSearchKeywordUpdate = (event: Event) => {
 }
 
 .search-results-container {
-  background: #fff;
+  background: var(--card-bg);
   max-height: 460px;
   overflow-y: auto;
 }
@@ -635,13 +600,13 @@ const onSearchKeywordUpdate = (event: Event) => {
   justify-content: space-between;
   align-items: center;
   padding: 10px 16px;
-  background: #fafafa;
-  border-bottom: 1px solid #f0f0f0;
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .search-results-title {
   font-size: 13px;
-  color: #666;
+  color: var(--text-secondary);
 }
 
 .search-keyword {
@@ -652,13 +617,13 @@ const onSearchKeywordUpdate = (event: Event) => {
   padding: 4px 12px;
   border-radius: 4px;
   font-size: 12px;
-  border: 1px solid #e5e5e5;
-  background: #fff;
+  border: 1px solid var(--border-color);
+  background: var(--card-bg);
   cursor: pointer;
 }
 
 .clear-results-btn:hover:not(:disabled) {
-  background: #f5f5f5;
+  background: var(--bg-tertiary);
 }
 
 .clear-results-btn:disabled {
@@ -673,7 +638,7 @@ const onSearchKeywordUpdate = (event: Event) => {
 }
 
 .search-result-item:hover {
-  background: #fafafa;
+  background: var(--bg-tertiary);
 }
 
 .result-item-container {
@@ -707,17 +672,21 @@ const onSearchKeywordUpdate = (event: Event) => {
 .result-sender {
   font-size: 13px;
   font-weight: 500;
-  color: #1a1a1a;
+  color: var(--text-primary);
 }
 
 .result-time {
   font-size: 11px;
   color: #8e8e93;
+  padding: 2px 8px;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 10px;
+  white-space: nowrap;
 }
 
 .result-message {
   font-size: 13px;
-  color: #666;
+  color: var(--text-secondary);
   line-height: 1.4;
 }
 
@@ -750,7 +719,7 @@ const onSearchKeywordUpdate = (event: Event) => {
   position: relative;
   display: inline-block;
   padding: 4px 8px;
-  background: #f5f5f5;
+  background: var(--bg-tertiary);
   border-radius: 8px;
 }
 
@@ -759,7 +728,7 @@ const onSearchKeywordUpdate = (event: Event) => {
 }
 
 .highlight {
-  background: #fff3e0;
+  background: var(--warning-bg);
   color: #ff9800;
   padding: 0 2px;
   border-radius: 2px;
@@ -772,7 +741,7 @@ const onSearchKeywordUpdate = (event: Event) => {
 
 .no-results-title {
   font-size: 14px;
-  color: #666;
+  color: var(--text-secondary);
   margin-bottom: 4px;
 }
 
@@ -786,8 +755,8 @@ const onSearchKeywordUpdate = (event: Event) => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: #fafafa;
-  border-top: 1px solid #f0f0f0;
+  background: var(--bg-tertiary);
+  border-top: 1px solid var(--border-color);
 }
 
 .pagination-text {
@@ -805,14 +774,14 @@ const onSearchKeywordUpdate = (event: Event) => {
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  border: 1px solid #e5e5e5;
-  background: #fff;
+  border: 1px solid var(--border-color);
+  background: var(--card-bg);
   cursor: pointer;
   font-size: 12px;
 }
 
 .page-btn:hover:not(:disabled) {
-  background: #f5f5f5;
+  background: var(--bg-tertiary);
 }
 
 .page-btn:disabled {
@@ -822,7 +791,7 @@ const onSearchKeywordUpdate = (event: Event) => {
 
 .page-current {
   font-size: 13px;
-  color: #1a1a1a;
+  color: var(--text-primary);
 }
 
 .slide-down-enter-active,
@@ -841,11 +810,11 @@ const onSearchKeywordUpdate = (event: Event) => {
 }
 
 .search-results-container::-webkit-scrollbar-track {
-  background: #f5f5f5;
+  background: var(--bg-tertiary);
 }
 
 .search-results-container::-webkit-scrollbar-thumb {
-  background: #ddd;
+  background: var(--bg-secondary);
   border-radius: 2px;
 }
 </style>

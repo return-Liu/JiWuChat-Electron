@@ -40,7 +40,13 @@ $spacing-xl: 20px;
   flex-direction: column;
 
   // 优化渲染性能
-  will-change: transform;
+  //
+  // ⚠️ 这里不要再写 will-change: transform / transform: translateZ(0)：
+  // 二者都会让本元素成为 position:fixed 的「包含块」，其内部所有 fixed 弹层
+  // （消息右键菜单等）会改按本元素的 padding box 定位，而不是视口，
+  // 再叠加祖先 .qq-chat-area 的 overflow:hidden，弹层会被偏移并裁剪掉。
+  // 本元素上并没有真实的 transform 动画，长期预留合成层反而常驻占用显存，弊大于利。
+  // 合成层优化已下沉到 .dynamic-bg-media（壁纸视频 / 图片）上。
   backface-visibility: hidden;
 }
 
@@ -107,9 +113,10 @@ $spacing-xl: 20px;
   scroll-behavior: smooth;
 
   // 优化滚动性能
+  // will-change: scroll-position 只提示滚动，不会成为 position:fixed 的包含块，可安全保留。
+  // ⚠️ 原 transform: translateZ(0) 已移除：它会让滚动容器成为 fixed 的包含块并裁剪弹层。
   will-change: scroll-position;
   backface-visibility: hidden;
-  transform: translateZ(0);
 }
 
 // 主样式
@@ -120,33 +127,13 @@ $spacing-xl: 20px;
   height: 100%;
   position: relative;
   overflow: hidden;
-  /* 独立合成层，避免视频循环时半透明层重新合成导致闪动；不使用 background transition */
-  transform: translateZ(0);
+  /* ⚠️ 原 transform: translateZ(0) 已移除：
+     它会让本元素成为 position:fixed 的包含块，叠加 overflow:hidden 后，
+     内部 fixed 弹层（消息右键菜单等）会被偏移并按本区域裁剪，表现为「右键没反应」。
+     合成层优化下沉到 .dynamic-bg-media（真正需要提层的壁纸视频 / 图片）上，
+     同样能避免视频循环时半透明层重新合成导致闪动；这里不使用 background transition。 */
 
   // 动态背景层（图片 / 视频壁纸）
-  .chat-dynamic-bg {
-    position: absolute;
-    inset: 0;
-    z-index: 0;
-    overflow: hidden;
-    pointer-events: none;
-
-    .chat-dynamic-bg-media {
-      position: absolute;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      object-position: center;
-      user-select: none;
-    }
-
-    .chat-dynamic-bg-overlay {
-      position: absolute;
-      inset: 0;
-      z-index: 1;
-    }
-  }
 
   .chat-header {
     height: 60px;
@@ -467,7 +454,7 @@ $spacing-xl: 20px;
               }
 
               .highlight {
-                background-color: #fff7e6;
+                background-color: var(--warning-bg);
                 color: #fa8c16;
                 padding: 0 2px;
                 border-radius: 2px;
@@ -535,7 +522,7 @@ $spacing-xl: 20px;
       z-index: 100;
       flex-shrink: 0; // 防止输入框被挤压
       min-height: 160px; // 设置最小高度
-      background: white;
+      background: var(--card-bg);
 
       .input-tools {
         display: flex;
@@ -679,7 +666,7 @@ $spacing-xl: 20px;
     height: 100% !important;
     border-radius: 16px 0 0 16px;
     box-shadow: -3px 0 15px rgba(0, 0, 0, 0.06);
-    background-color: white;
+    background-color: var(--card-bg);
   }
 
   .el-drawer__body {
@@ -694,7 +681,7 @@ $spacing-xl: 20px;
   display: flex;
   flex-direction: column;
   padding: 20px;
-  background-color: white;
+  background-color: var(--card-bg);
   position: relative;
 
   .drawer-close-btn {
@@ -757,7 +744,7 @@ $spacing-xl: 20px;
       font-size: 14px;
       color: $text-color-primary;
       padding: 8px 12px;
-      background-color: #f5f7fa;
+      background-color: var(--bg-tertiary);
       border-radius: $border-radius-base;
       display: inline-block;
       min-width: 120px;
@@ -776,7 +763,7 @@ $spacing-xl: 20px;
       .section-title {
         font-size: 14px;
         font-weight: 600;
-        color: #333;
+        color: var(--text-primary);
       }
     }
 
@@ -858,14 +845,14 @@ $spacing-xl: 20px;
       font-size: 14px;
       color: $text-color-primary;
       line-height: 1.6;
-      background-color: #f5f7fa;
+      background-color: var(--bg-tertiary);
       padding: 12px 16px;
       border-radius: $border-radius-base;
       min-height: 60px;
     }
 
     .rule-edit {
-      background-color: #f5f7fa;
+      background-color: var(--bg-tertiary);
       padding: 16px;
       border-radius: $border-radius-base;
 
@@ -1057,7 +1044,7 @@ $spacing-xl: 20px;
 
           &:focus {
             color: $text-color-primary !important;
-            background-color: #f5f7fa;
+            background-color: var(--bg-tertiary);
             padding: 4px 8px;
             border-radius: $border-radius-base;
           }
@@ -1086,13 +1073,13 @@ $spacing-xl: 20px;
         transition: all 0.2s ease;
 
         &.danger-btn {
-          background-color: white;
+          background-color: var(--card-bg);
           border: 1px solid $danger-color;
           color: $danger-color;
           justify-content: center;
 
           &:hover {
-            background: #fff5f5;
+            background: var(--error-bg);
             border-color: $danger-hover-color;
             color: $danger-hover-color;
             transform: translateY(-1px);
@@ -1141,14 +1128,14 @@ $spacing-xl: 20px;
 
   .sender-name {
     font-size: 12px;
-    color: #666;
+    color: var(--text-secondary);
     font-weight: 500;
     flex-shrink: 0;
   }
 
   .message-text {
     font-size: 13px;
-    color: #333;
+    color: var(--text-primary);
     flex: 1;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1404,7 +1391,7 @@ $spacing-xl: 20px;
   align-items: stretch;
   gap: 12px;
   padding: 16px;
-  background: white;
+  background: var(--card-bg);
   // border-top: 1px solid var(--border-color);
 
   .input-tools {
@@ -1554,7 +1541,7 @@ $spacing-xl: 20px;
 
     .recalled-text {
       font-size: 13px;
-      color: #999;
+      color: var(--text-tertiary);
       font-style: italic;
       user-select: none;
     }
@@ -1579,7 +1566,7 @@ $spacing-xl: 20px;
     }
 
     .close-recall-btn {
-      color: #999;
+      color: var(--text-tertiary);
       font-size: 14px;
       padding: 0;
       width: 20px;

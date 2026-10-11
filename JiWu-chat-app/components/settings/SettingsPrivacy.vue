@@ -179,6 +179,7 @@
 </template>
 
 <script setup lang="ts">
+import { getErrorMessage } from "../../untils/errorMessage";
 import { ref, onMounted } from "vue";
 import { useUserStore } from "../../stores/user";
 import { message, Modal } from "ant-design-vue";
@@ -221,7 +222,7 @@ const updatePrivacySetting = async (key: string, val: any) => {
     await request.put("/users/update-profile", { [key]: val });
     userStore.user = { ...userStore.user!, [key]: val };
   } catch (error: any) {
-    message.error(error.response?.data?.data?.message || "更新失败");
+    message.error(getErrorMessage(error, "更新失败"));
     if (map[key]) map[key].value = originalVal;
   }
 };

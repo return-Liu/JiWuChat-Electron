@@ -285,6 +285,9 @@ const router = useRouter();
 const userStore = useUserStore();
 const isElectronEnv = ref(false);
 
+// 注册页固定浅色外观：即使处于夜间模式也不套用夜间样式
+useHead({ htmlAttrs: { class: "auth-light" } });
+
 onMounted(() => {
   isElectronEnv.value = isElectron();
 
@@ -524,7 +527,7 @@ onUnmounted(() => {
   justify-content: center;
   padding: 0;
   box-sizing: border-box;
-  background: #ffffff; /* 纯白背景，无渐变 */
+  background: var(--card-bg); /* 纯白背景，无渐变 */
   overflow-y: auto;
 }
 
@@ -540,7 +543,7 @@ onUnmounted(() => {
     object-fit: contain;
     border-radius: 14px;
     margin-bottom: 12px;
-    background: #f5f5f5; /* 扁平占位 */
+    background: var(--bg-tertiary); /* 扁平占位 */
     box-shadow: 0 4px 14px rgba(139, 92, 246, 0.18);
   }
 
@@ -569,9 +572,9 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 10px;
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--border-color);
   border-radius: 10px;
-  background: #fafafa;
+  background: var(--bg-tertiary);
   margin-bottom: 12px;
   padding: 0 14px;
   box-sizing: border-box;
@@ -582,12 +585,12 @@ onUnmounted(() => {
 
   &:hover {
     border-color: #c4b5fd;
-    background: #ffffff;
+    background: var(--card-bg);
   }
 
   &:focus-within {
     border-color: var(--brand-500);
-    background: #ffffff;
+    background: var(--card-bg);
     box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.14);
   }
 
@@ -728,12 +731,12 @@ onUnmounted(() => {
   }
 
   .electron-agreement-link {
-    color: #000000;
+    color: var(--text-primary);
     cursor: pointer;
     text-decoration: none;
 
     &:hover {
-      color: #000000;
+      color: var(--text-primary);
       text-decoration: underline;
     }
   }
@@ -746,13 +749,13 @@ onUnmounted(() => {
 
   .electron-link {
     font-size: 13px;
-    color: #000000;
+    color: var(--text-primary);
     cursor: pointer;
     transition: color 0.2s ease;
     text-decoration: none;
 
     &:hover {
-      color: #000000;
+      color: var(--text-primary);
       text-decoration: underline;
     }
   }
@@ -907,7 +910,7 @@ onUnmounted(() => {
 
     .star {
       position: absolute;
-      background: white;
+      background: var(--card-bg);
       border-radius: 50%;
       animation: starTwinkle 3s ease-in-out infinite;
     }
@@ -1014,7 +1017,7 @@ onUnmounted(() => {
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border-radius: 20px;
-  border: 1px solid #eee;
+  border: 1px solid var(--border-color);
   box-sizing: border-box;
   position: relative;
   z-index: 10;

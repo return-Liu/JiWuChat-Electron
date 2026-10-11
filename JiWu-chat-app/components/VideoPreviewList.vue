@@ -21,7 +21,7 @@
 </template>
 
 <script setup lang="ts">
-import type { SelectedVideo } from "../untils/videoHandler";
+import type { SelectedVideo } from "../types/chatTypes";
 
 interface Props {
   videos: SelectedVideo[];
@@ -71,7 +71,7 @@ const handlePauseVideoOnLeave = (event: MouseEvent) => {
   overflow: hidden;
   cursor: pointer;
   border: 1px solid rgba(0, 0, 0, 0.05);
-  background: #f5f5f5;
+  background: var(--bg-tertiary);
 }
 
 .media-preview-thumb {

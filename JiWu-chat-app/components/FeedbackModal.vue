@@ -295,7 +295,7 @@ const handleSubmit = async () => {
 .feedback-container {
   width: 520px;
   max-width: 92%;
-  background: #ffffff;
+  background: var(--dt-panel-solid, var(--card-bg));
   border-radius: 16px;
   box-shadow: 0 8px 40px rgba(0, 0, 0, 0.18);
   overflow: hidden;
@@ -322,7 +322,7 @@ const handleSubmit = async () => {
   align-items: center;
   justify-content: space-between;
   padding: 18px 24px 14px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
 }
 
@@ -340,7 +340,7 @@ const handleSubmit = async () => {
 .header-title {
   font-size: 17px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--text-primary);
 }
 
 .close-btn {
@@ -349,7 +349,7 @@ const handleSubmit = async () => {
   border: none;
   background: transparent;
   font-size: 22px;
-  color: #bbb;
+  color: var(--text-tertiary);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -359,8 +359,8 @@ const handleSubmit = async () => {
 }
 
 .close-btn:hover {
-  background: #f5f5f5;
-  color: #333;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
 }
 
 /* 内容区域 */
@@ -406,7 +406,7 @@ const handleSubmit = async () => {
 
 .feedback-tip span {
   font-size: 13px;
-  color: #666;
+  color: var(--text-secondary);
 }
 
 /* 表单 */
@@ -418,7 +418,7 @@ const handleSubmit = async () => {
   display: block;
   font-size: 13px;
   font-weight: 500;
-  color: #333;
+  color: var(--text-primary);
   margin-bottom: 6px;
 }
 
@@ -438,17 +438,17 @@ const handleSubmit = async () => {
   align-items: center;
   gap: 4px;
   padding: 6px 14px;
-  background: #f5f5f5;
+  background: var(--bg-tertiary);
   border: 2px solid transparent;
   border-radius: 20px;
   font-size: 13px;
-  color: #666;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .type-btn:hover {
-  background: #e8e8e8;
+  background: var(--bg-secondary);
 }
 
 .type-btn.active {
@@ -465,7 +465,7 @@ const handleSubmit = async () => {
 .feedback-textarea {
   width: 100%;
   padding: 10px 12px;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   font-size: 13px;
   resize: vertical;
@@ -483,7 +483,7 @@ const handleSubmit = async () => {
 .char-count {
   text-align: right;
   font-size: 12px;
-  color: #bbb;
+  color: var(--text-tertiary);
   margin-top: 4px;
 }
 
@@ -495,7 +495,7 @@ const handleSubmit = async () => {
 .feedback-input {
   width: 100%;
   padding: 8px 12px;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   font-size: 13px;
   transition: border-color 0.2s;
@@ -520,7 +520,7 @@ const handleSubmit = async () => {
   height: 80px;
   border-radius: 8px;
   overflow: hidden;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border-color);
   flex-shrink: 0;
 }
 
@@ -554,7 +554,7 @@ const handleSubmit = async () => {
 .upload-trigger {
   width: 80px;
   height: 80px;
-  border: 2px dashed #ddd;
+  border: 2px dashed var(--border-color);
   border-radius: 8px;
   display: flex;
   flex-direction: column;
@@ -563,7 +563,7 @@ const handleSubmit = async () => {
   gap: 4px;
   cursor: pointer;
   transition: all 0.2s;
-  color: #999;
+  color: var(--text-tertiary);
   font-size: 12px;
 }
 
@@ -578,7 +578,7 @@ const handleSubmit = async () => {
 
 .upload-hint {
   font-size: 12px;
-  color: #bbb;
+  color: var(--text-tertiary);
   margin-top: 6px;
 }
 
@@ -588,8 +588,8 @@ const handleSubmit = async () => {
   justify-content: flex-end;
   gap: 12px;
   padding: 14px 24px 18px;
-  border-top: 1px solid #f0f0f0;
-  background: #fafafa;
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
   flex-shrink: 0;
 }
 
@@ -605,12 +605,12 @@ const handleSubmit = async () => {
 }
 
 .btn-cancel {
-  background: #f0f0f0;
-  color: #666;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
 }
 
 .btn-cancel:hover {
-  background: #e5e5e5;
+  background: var(--bg-secondary);
 }
 
 .btn-submit {
@@ -649,7 +649,7 @@ const handleSubmit = async () => {
 
 .success-container {
   width: 340px;
-  background: #ffffff;
+  background: var(--dt-panel-solid, var(--card-bg));
   border-radius: 16px;
   padding: 40px 32px 32px;
   text-align: center;
@@ -670,13 +670,13 @@ const handleSubmit = async () => {
 .success-title {
   font-size: 18px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--text-primary);
   margin-bottom: 8px;
 }
 
 .success-desc {
   font-size: 14px;
-  color: #666;
+  color: var(--text-secondary);
   margin-bottom: 24px;
 }
 
