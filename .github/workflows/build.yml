@@ -5,6 +5,10 @@ on:
     tags: ["v*"]
   workflow_dispatch:
 
+# 允许 GITHUB_TOKEN 创建/编辑 Release 并上传安装包
+permissions:
+  contents: write
+
 jobs:
   windows:
     runs-on: windows-latest
@@ -21,8 +25,10 @@ jobs:
         run: cd JiWu-chat-app && pnpm run generate:dist
         env:
           NUXT_PUBLIC_WALLPAPER_BASE: https://jiwuchat.com
-      - name: Package with electron-builder (no publish)
-        run: cd JiWu-chat-app && pnpm exec electron-builder --win --x64 --publish never
+      - name: Package & publish (electron-builder -> GitHub Release)
+        run: cd JiWu-chat-app && pnpm exec electron-builder --win --x64
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - run: cd JiWu-chat-app && node scripts/clean-release.js
       - uses: actions/upload-artifact@v4
         with:
@@ -47,8 +53,10 @@ jobs:
         run: cd JiWu-chat-app && pnpm run generate:dist
         env:
           NUXT_PUBLIC_WALLPAPER_BASE: https://jiwuchat.com
-      - name: Package with electron-builder (no publish)
-        run: cd JiWu-chat-app && pnpm exec electron-builder --mac --${{ matrix.arch }} --publish never
+      - name: Package & publish (electron-builder -> GitHub Release)
+        run: cd JiWu-chat-app && pnpm exec electron-builder --mac --${{ matrix.arch }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - run: cd JiWu-chat-app && node scripts/clean-release.js
       - uses: actions/upload-artifact@v4
         with:
@@ -73,8 +81,10 @@ jobs:
         run: cd JiWu-chat-app && pnpm run generate:dist
         env:
           NUXT_PUBLIC_WALLPAPER_BASE: https://jiwuchat.com
-      - name: Package with electron-builder (no publish)
-        run: cd JiWu-chat-app && pnpm exec electron-builder --linux --x64 --publish never
+      - name: Package & publish (electron-builder -> GitHub Release)
+        run: cd JiWu-chat-app && pnpm exec electron-builder --linux --x64
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - run: cd JiWu-chat-app && node scripts/clean-release.js
       - uses: actions/upload-artifact@v4
         with:
@@ -83,3 +93,27 @@ jobs:
             JiWu-chat-app/release/*.AppImage
             JiWu-chat-app/release/*.deb
             JiWu-chat-app/release/*.rpm
+
+  # 所有平台打包并上传到同一 Release 后，自动用 commit 历史生成更新说明
+  finalize-release:
+    needs: [windows, macos, linux]
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Auto-generate release notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ github.ref_name }}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            NOTES=$(gh api -X POST "repos/${{ github.repository }}/releases/generate-notes" -f tag_name="$TAG" --jq '.body' 2>/dev/null || true)
+            if [ -n "$NOTES" ]; then
+              gh release edit "$TAG" --notes "$NOTES"
+              echo "已写入自动更新说明"
+            else
+              echo "生成说明为空，保留原说明"
+            fi
+          else
+            echo "Release $TAG 不存在，跳过（可能打包步骤失败）"
+          fi
