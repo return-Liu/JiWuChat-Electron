@@ -26,6 +26,12 @@
     "clean:release": "node scripts/clean-release.js",
     "clean": "rimraf dist .nuxt node_modules/.cache release"
   },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "electron",
+      "@ffmpeg-installer/ffmpeg"
+    ]
+  },
   "dependencies": {
     "@ant-design/charts": "^2.6.7",
     "@ant-design/graphs": "2.0.0",
