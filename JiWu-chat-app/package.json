@@ -2,7 +2,8 @@
   "name": "jiwu-chat",
   "version": "1.0.6",
   "description": "极物聊天即时通讯聊天软件-JiWu-Chat",
-  "author": "JiWuChat",
+  "author": "JiWuChat <support@jiwuchat.com>",
+  "homepage": "https://jiwuchat.com",
   "main": "electron/main.js",
   "scripts": {
     "build": "nuxt build",
@@ -171,6 +172,7 @@
       "artifactName": "JiwuChat_${version}_${arch}.${ext}",
       "icon": "build/icon/logo.png",
       "category": "Network",
+      "maintainer": "JiWuChat <support@jiwuchat.com>",
       "desktop": {
         "StartupWMClass": "极物聊天",
         "MimeType": "x-scheme-handler/jiwuchat"
