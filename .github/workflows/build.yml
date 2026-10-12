@@ -17,7 +17,13 @@ jobs:
         with:
           node-version: 20
       - run: cd JiWu-chat-app && pnpm install --frozen-lockfile
-      - run: cd JiWu-chat-app && pnpm run electron:build:prod
+      - name: Generate static dist
+        run: cd JiWu-chat-app && pnpm run generate:dist
+        env:
+          NUXT_PUBLIC_WALLPAPER_BASE: https://jiwuchat.com
+      - name: Package with electron-builder (no publish)
+        run: cd JiWu-chat-app && pnpm exec electron-builder --win --x64 --publish never
+      - run: cd JiWu-chat-app && node scripts/clean-release.js
       - uses: actions/upload-artifact@v4
         with:
           name: windows
@@ -37,14 +43,13 @@ jobs:
         with:
           node-version: 20
       - run: cd JiWu-chat-app && pnpm install --frozen-lockfile
-      # 签名/公证为可选项：未配置 secrets 时产出未签名包（本地可用）
-      - run: cd JiWu-chat-app && pnpm run electron:build:prod -- --mac --${{ matrix.arch }}
+      - name: Generate static dist
+        run: cd JiWu-chat-app && pnpm run generate:dist
         env:
-          CSC_LINK: ${{ secrets.MAC_CERT_P12 }}
-          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          NUXT_PUBLIC_WALLPAPER_BASE: https://jiwuchat.com
+      - name: Package with electron-builder (no publish)
+        run: cd JiWu-chat-app && pnpm exec electron-builder --mac --${{ matrix.arch }} --publish never
+      - run: cd JiWu-chat-app && node scripts/clean-release.js
       - uses: actions/upload-artifact@v4
         with:
           name: mac-${{ matrix.arch }}
@@ -64,7 +69,13 @@ jobs:
           node-version: 20
       - run: sudo apt-get update && sudo apt-get install -y fakeroot rpm
       - run: cd JiWu-chat-app && pnpm install --frozen-lockfile
-      - run: cd JiWu-chat-app && pnpm run electron:build:prod -- --linux --x64
+      - name: Generate static dist
+        run: cd JiWu-chat-app && pnpm run generate:dist
+        env:
+          NUXT_PUBLIC_WALLPAPER_BASE: https://jiwuchat.com
+      - name: Package with electron-builder (no publish)
+        run: cd JiWu-chat-app && pnpm exec electron-builder --linux --x64 --publish never
+      - run: cd JiWu-chat-app && node scripts/clean-release.js
       - uses: actions/upload-artifact@v4
         with:
           name: linux
