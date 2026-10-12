@@ -109,6 +109,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${{ github.ref_name }}"
+          VER="${TAG#v}"
           if ! gh release view "$TAG" >/dev/null 2>&1; then
             echo "Release $TAG 不存在，跳过（可能打包步骤失败）"
             exit 0
@@ -116,7 +117,8 @@ jobs:
           # 取上一个 tag（排除自身，按创建时间倒序取最近一个）
           PREV=$(git tag --sort=-creatordate | grep -v "^${TAG}$" | head -1)
           echo "PREV=$PREV"
-          NOTES="## JiwuChat ${TAG} 更新说明"
+          TITLE="极物聊天 ${VER}"
+          NOTES="## ${TITLE} 版本说明"
           if [ -n "$PREV" ]; then
             NOTES+=$'\n'"相对于 ${PREV} 的提交："
             COMMITS=$(git log --no-merges --pretty=format:"- %s (%h)" "${PREV}..${TAG}")
@@ -126,5 +128,5 @@ jobs:
           fi
           NOTES+=$'\n'"${COMMITS:-（无提交记录）}"
           NOTES+=$'\n\n'"**Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREV}...${TAG}"
-          gh release edit "$TAG" --notes "$NOTES"
-          echo "已写入自动更新说明"
+          gh release edit "$TAG" --title "$TITLE" --notes "$NOTES"
+          echo "已写入标题与更新说明"
