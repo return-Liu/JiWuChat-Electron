@@ -94,26 +94,37 @@ jobs:
             JiWu-chat-app/release/*.deb
             JiWu-chat-app/release/*.rpm
 
-  # 所有平台打包并上传到同一 Release 后，自动用 commit 历史生成更新说明
+  # 所有平台打包并上传到同一 Release 后，自动用两次 tag 之间的 commit 历史生成更新说明
   finalize-release:
     needs: [windows, macos, linux]
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
       - name: Auto-generate release notes
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${{ github.ref_name }}"
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            NOTES=$(gh api -X POST "repos/${{ github.repository }}/releases/generate-notes" -f tag_name="$TAG" --jq '.body' 2>/dev/null || true)
-            if [ -n "$NOTES" ]; then
-              gh release edit "$TAG" --notes "$NOTES"
-              echo "已写入自动更新说明"
-            else
-              echo "生成说明为空，保留原说明"
-            fi
-          else
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
             echo "Release $TAG 不存在，跳过（可能打包步骤失败）"
+            exit 0
           fi
+          # 取上一个 tag（排除自身，按创建时间倒序取最近一个）
+          PREV=$(git tag --sort=-creatordate | grep -v "^${TAG}$" | head -1)
+          echo "PREV=$PREV"
+          NOTES="## JiwuChat ${TAG} 更新说明"
+          if [ -n "$PREV" ]; then
+            NOTES+=$'\n'"相对于 ${PREV} 的提交："
+            COMMITS=$(git log --no-merges --pretty=format:"- %s (%h)" "${PREV}..${TAG}")
+          else
+            NOTES+=$'\n'"本次提交："
+            COMMITS=$(git log --no-merges --pretty=format:"- %s (%h)" "${TAG}")
+          fi
+          NOTES+=$'\n'"${COMMITS:-（无提交记录）}"
+          NOTES+=$'\n\n'"**Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREV}...${TAG}"
+          gh release edit "$TAG" --notes "$NOTES"
+          echo "已写入自动更新说明"
