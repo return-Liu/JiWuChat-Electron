@@ -109,24 +109,66 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${{ github.ref_name }}"
-          VER="${TAG#v}"
+          REPO="${{ github.repository }}"
           if ! gh release view "$TAG" >/dev/null 2>&1; then
             echo "Release $TAG 不存在，跳过（可能打包步骤失败）"
             exit 0
           fi
-          # 取上一个 tag（排除自身，按创建时间倒序取最近一个）
+          # 上一个 tag（排除自身，按创建时间倒序取最近一个）
           PREV=$(git tag --sort=-creatordate | grep -v "^${TAG}$" | head -1)
           echo "PREV=$PREV"
-          TITLE="极物聊天 ${VER}"
-          NOTES="## ${TITLE} 版本说明"
-          if [ -n "$PREV" ]; then
-            NOTES+=$'\n'"相对于 ${PREV} 的提交："
-            COMMITS=$(git log --no-merges --pretty=format:"- %s (%h)" "${PREV}..${TAG}")
-          else
-            NOTES+=$'\n'"本次提交："
-            COMMITS=$(git log --no-merges --pretty=format:"- %s (%h)" "${TAG}")
-          fi
-          NOTES+=$'\n'"${COMMITS:-（无提交记录）}"
-          NOTES+=$'\n\n'"**Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREV}...${TAG}"
+          RANGE="${PREV:+$PREV..}${TAG}"
+
+          # ---- 按提交前缀分类 ----
+          feat=""; fix=""; refactor=""; build=""; revert=""; other=""
+          while IFS= read -r line; do
+            [ -z "$line" ] && continue
+            p="${line%%:*}"
+            case "$p" in
+              feat*)     feat+=$'\n'"- $line";;
+              fix*)      fix+=$'\n'"- $line";;
+              refactor*) refactor+=$'\n'"- $line";;
+              chore*|ci*|build*) build+=$'\n'"- $line";;
+              revert*)   revert+=$'\n'"- $line";;
+              *)         other+=$'\n'"- $line";;
+            esac
+          done < <(git log --no-merges --pretty=format:"%s" "$RANGE")
+
+          # ---- 拼接标题与说明 ----
+          TITLE="极物聊天 ${TAG}"
+          NOTES="# Release ${TAG}"
+          NOTES+=$'\n'
+          NOTES+=$'\n'"[Latest] (https://github.com/${REPO}/releases/latest)"
+          NOTES+=$'\n'
+          NOTES+=$'\n'"[${TAG}] (https://github.com/${REPO}/tree/${TAG})"
+          NOTES+=$'\n'
+          NOTES+=$'\n'"# ${TITLE} 版本说明"
+          NOTES+=$'\n'
+          NOTES+=$'\n'"本次发布包含构建与发布流程、安装包架构及图标规范的修复与优化，详见下方分类更新说明。"
+          if [ -n "$feat" ];     then NOTES+=$'\n'"## 新功能与体验增强${feat}"; fi
+          if [ -n "$fix" ];      then NOTES+=$'\n'"## 修复了以下问题${fix}"; fi
+          if [ -n "$refactor" ]; then NOTES+=$'\n'"## 重构${refactor}"; fi
+          if [ -n "$build" ];    then NOTES+=$'\n'"## 构建与发布${build}"; fi
+          if [ -n "$revert" ];   then NOTES+=$'\n'"## 回滚${revert}"; fi
+          if [ -n "$other" ];    then NOTES+=$'\n'"## 其他${other}"; fi
+
+          # ---- 下载表（动态读取已上传资源）----
+          NOTES+=$'\n'
+          NOTES+=$'\n'"## 下载"
+          NOTES+=$'\n'
+          NOTES+=$'\n'"| 安装包 | 下载地址 |"
+          NOTES+=$'\n'"| --- | --- |"
+          while IFS= read -r a; do
+            [ -z "$a" ] && continue
+            case "$a" in
+              *.blockmap|latest*.yml) continue;;
+            esac
+            url="https://github.com/${REPO}/releases/download/${TAG}/$a"
+            NOTES+=$'\n'"| $a | [$a]($url) |"
+          done < <(gh api "repos/${REPO}/releases/tags/${TAG}" --jq '.assets[].name')
+
+          NOTES+=$'\n'
+          NOTES+=$'\n'"**Full Changelog**: https://github.com/${REPO}/compare/${PREV}...${TAG}"
+
           gh release edit "$TAG" --title "$TITLE" --notes "$NOTES"
           echo "已写入标题与更新说明"
